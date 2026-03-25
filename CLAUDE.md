@@ -55,6 +55,7 @@ Frontend (React) <--REST--> Backend (Spring Boot) <--> Database (PostgreSQL)
 |-----|---------|------|-----------|
 | Backend | `./mvnw spring-boot:run` | 8080 | `apps/backend/` |
 | Frontend | `npm run dev` | 5173 | `apps/frontend/` |
+| LLM Service | `uvicorn main:app --reload --port 8001` | 8001 | `apps/llm/` |
 
 Frontend proxies API calls to `http://localhost:8080`. Backend has CORS configured for `http://localhost:5173`.
 
@@ -81,3 +82,62 @@ Frontend proxies API calls to `http://localhost:8080`. Backend has CORS configur
 
 - Primary: English
 - Arabic support: exploratory/future scope
+
+## Git Commit Conventions
+Always use Conventional Commits format when committing: `<type>(<scope>): <description>`
+
+### Types
+| Type | When to use |
+|---|---|
+| `feat` | New feature or user-facing functionality |
+| `fix` | Bug fix |
+| `chore` | Maintenance, dependencies, config changes |
+| `refactor` | Code restructuring without behavior change |
+| `docs` | Documentation only |
+| `test` | Adding or fixing tests |
+| `perf` | Performance improvements |
+| `ci` | CI/CD pipeline changes |
+
+### Scopes for Hawa
+Use one of the following scopes that matches what was changed:
+
+`auth` `analysis` `reports` `brands` `posts` `dashboard` `llm` `reddit` `dataset` `feedback` `queue` `db` `ui` `config` `ci` `docker`
+
+### Description Rules
+- Lowercase, no period at the end
+- Under 72 characters
+- Use imperative tense ("add" not "added", "fix" not "fixed")
+
+### Commit Rules
+- Never use `git add .` to stage everything at once
+- Group related file changes into separate logical commits
+- Never bundle unrelated changes into a single commit
+- If a change touches DB schema, commit the schema and its migration together
+
+### Examples
+```
+feat(analysis): add start analysis flow with config form
+feat(llm): implement multi-dimensional sentiment prompt
+feat(reddit): collect posts using PRAW with keyword filtering
+feat(reports): add CSV export for analyzed report data
+feat(dataset): support custom CSV and XLSX dataset upload
+feat(dashboard): add sentiment distribution pie chart
+feat(posts): add filtering by emotion, aspect, and date range
+feat(brands): add brand and keyword management page
+fix(llm): correct emotion detection for sarcastic posts
+fix(queue): handle timeout on long-running analysis jobs
+fix(reports): fix incorrect confidence aggregation formula
+chore(deps): upgrade drizzle-orm to latest version
+chore(config): add environment variables for Reddit API keys
+refactor(analysis): extract post preprocessing into separate service
+test(llm): add unit tests for sentiment score normalization
+docs(claude): add git commit conventions section
+```
+
+### How to Commit at End of Session
+When asked to commit, always:
+1. Read the changed files and understand what was built
+2. Group files into logical, related chunks
+3. Stage and commit each group separately with a conventional message
+4. Show the proposed commits before running them and wait for approval
+5. DO NOT INCLUDE YOUR WATERMARK IN THE COMMIT
