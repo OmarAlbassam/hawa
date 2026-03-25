@@ -67,6 +67,10 @@ Frontend proxies API calls to `http://localhost:8080`. Backend has CORS configur
 - JSON request/response format throughout
 - Consistent error response structure from backend
 
+### Attribution
+
+- Do not include attribution to Claude in commit messages or co-author attribution.
+
 ### Code Quality
 
 - No hardcoded secrets — use environment variables
