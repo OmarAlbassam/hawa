@@ -4,7 +4,6 @@ description: "Scaffold and build a frontend feature following Hawa's React/TypeS
 argument-hint: "[feature-description]"
 disable-model-invocation: true
 user-invocable: true
-effort: high
 ---
 
 # Frontend Feature Development
