@@ -11,15 +11,81 @@ You are building a feature for a Spring Boot 4 REST API (Java 25, Maven, Postgre
 
 First, read `apps/backend/docs/database_schema.md` to understand the existing schema, entity relationships, and enum types. Use this as context for how the new feature fits into the existing data model.
 
-Read the feature request. If any of the following are unclear, ask before writing code:
+Read the feature request. **Always ask at least 2 clarifying questions** before moving to the plan — even if the request seems clear, there are always details worth confirming (edge cases, scope boundaries, behavior on error, etc.). If you have more than 2 questions, ask them all. Questions are encouraged — it's better to ask too many than to assume wrong.
+
+Example areas to ask about:
 
 1. **What entities are involved?** (e.g., "Brand", "SentimentReport")
 2. **What endpoints are needed?** (e.g., CRUD? Or specific operations only?)
 3. **What are the relationships?** (e.g., Brand has many SentimentReports)
 4. **Are tests needed?** If yes, you will follow TDD — write tests first, then implement.
 5. **Any special requirements?** (pagination, filtering, file upload, external API calls, etc.)
+6. **Edge cases?** (what happens on duplicates, empty input, missing references, etc.)
 
-If the description is clear and complete, skip the questions and start building.
+Iterate with the user until you're confident you understand the feature fully. Then move to the plan.
+
+Once you fully understand the feature, **enter plan mode** and present:
+
+1. **The implementation plan** — steps you will take, files you will create/modify
+2. **Frontend Integration Spec** — if this feature adds or changes any API endpoints, include a spec so the frontend team knows what's coming. If the feature is purely internal (refactor, index, backend-only bug fix), write: "No frontend changes required."
+
+### Frontend Integration Spec format
+
+Keep it engineer-to-engineer. No fluff. Use this structure (include only sections that apply):
+
+```
+### Frontend Integration Spec
+
+#### New Endpoints
+
+POST /api/brands
+  Body: { name: string, description?: string }
+  Response (201): { id: number, name: string, description: string | null, createdAt: string }
+
+GET /api/brands?page=0&size=20&sort=createdAt,desc
+  Response (200): Page<BrandResponse>
+
+GET /api/brands/{id}
+  Response (200): BrandResponse
+  Errors: 404
+
+DELETE /api/brands/{id}
+  Response (204): no body
+  Errors: 404
+
+#### Changed Endpoints
+(show only what changed)
+
+GET /api/reports/{id}
+  Response: added field `brandName: string`
+
+#### Types
+
+type BrandResponse = {
+  id: number
+  name: string
+  description: string | null
+  createdAt: string
+}
+
+type CreateBrandRequest = {
+  name: string
+  description?: string
+}
+
+#### Notes
+(anything non-obvious: enum values, auth, specific error codes, etc.)
+```
+
+Rules for the spec:
+- TypeScript-style types (frontend is React + TypeScript)
+- Use actual field names from your DTOs
+- For enums, list all values: `status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"`
+- Nullable fields: `type | null`. Optional request fields: `field?: type`
+- Paginated endpoints return: `{ content: T[], totalElements: number, totalPages: number, number: number, size: number }`
+- Include error status codes the frontend should handle
+
+Wait for the user to approve the plan before writing any code.
 
 ## Step 1: Database Schema
 
@@ -212,6 +278,7 @@ If these already exist, use them — don't recreate.
 
 ## Checklist Before Finishing
 
+- [ ] Plan approved by user (with Frontend Integration Spec if applicable)
 - [ ] SQL migration/schema defined
 - [ ] Entity maps to schema correctly
 - [ ] All three DTOs created with validation
