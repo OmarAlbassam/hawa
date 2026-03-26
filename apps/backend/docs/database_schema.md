@@ -36,6 +36,8 @@ Review  1──* Feedback
 | `first_name` | `varchar` | NOT NULL | — |
 | `last_name` | `varchar` | NOT NULL | — |
 | `role` | `enum` | NOT NULL | — |
+| `email` | `varchar` | NOT NULL, UNIQUE | — |
+| `password` | `varchar` | NOT NULL | — |
 | `created_at` | `timestamp` | NOT NULL | `now()` |
 | `updated_at` | `timestamp` | NOT NULL | `now()` |
 
