@@ -40,6 +40,7 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        refreshTokenService.deleteByUser(user);
         log.info("User logged in: {}", user.getEmail());
         return buildAuthResponse(user);
     }

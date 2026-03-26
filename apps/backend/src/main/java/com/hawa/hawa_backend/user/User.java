@@ -43,6 +43,8 @@ public class User {
     @Column(name = "user_id")
     private Long userId;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;

@@ -96,8 +96,10 @@ Write the structural code needed for tests to compile (Schema → Entity → DTO
 
 Think database-first. Before writing any Java code, define the schema:
 
-- Write a Flyway migration file at `src/main/resources/db/migration/V{N}__{description}.sql`
-- Use the next version number in sequence (check existing migrations)
+- Write a Liquibase SQL changeset file at `src/main/resources/db/changelog/db.changelog-{N}-{description}.sql`
+- Include the `-- liquibase formatted sql` header and `-- changeset hawa:{N}-{description}` tag
+- Register the new file in `db.changelog-master.xml` via an `<include file="..."/>` element
+- Use the next changeset number in sequence (check existing changelog files)
 - Define table names (snake_case, plural: `sentiment_reports`)
 - Define columns, types, constraints, foreign keys
 - Consider indexes for columns that will be queried/filtered frequently

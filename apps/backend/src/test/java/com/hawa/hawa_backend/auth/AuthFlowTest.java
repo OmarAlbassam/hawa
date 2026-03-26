@@ -120,6 +120,30 @@ class AuthFlowTest {
     }
 
     @Test
+    void shouldCleanUpOldRefreshTokens_onLogin() throws Exception {
+        // Register creates a refresh token
+        JsonNode registerTokens = registerUser("cleanup@example.com", "Password1", "MARKETING_USER");
+        String registerRefreshToken = registerTokens.get("refreshToken").asText();
+
+        // Login should revoke the old refresh token and issue a new one
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "cleanup@example.com", "password": "Password1"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode loginTokens = objectMapper.readTree(loginResult.getResponse().getContentAsString());
+        String loginRefreshToken = loginTokens.get("refreshToken").asText();
+
+        // Old refresh token from register should be gone
+        assertThat(refreshTokenRepository.findByToken(registerRefreshToken).isPresent()).isFalse();
+        // New refresh token from login should exist
+        assertThat(refreshTokenRepository.findByToken(loginRefreshToken).isPresent()).isTrue();
+    }
+
+    @Test
     void shouldReject401_whenLoginWithWrongPassword() throws Exception {
         registerUser("wrongpw@example.com", "Password1", "MARKETING_USER");
 
