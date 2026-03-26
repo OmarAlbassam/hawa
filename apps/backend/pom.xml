@@ -107,7 +107,7 @@
 				<groupId>org.liquibase</groupId>
 				<artifactId>liquibase-maven-plugin</artifactId>
 				<configuration>
-					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.sql</changeLogFile>
+					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.xml</changeLogFile>
 					<url>${env.DB_URL}</url>
 					<username>${env.DB_USERNAME}</username>
 					<password>${env.DB_PASSWORD}</password>

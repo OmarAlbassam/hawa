@@ -124,5 +124,3 @@ CREATE INDEX idx_feedback_user_id   ON feedback(user_id);
 -- rollback DROP TYPE IF EXISTS language;
 -- rollback DROP TYPE IF EXISTS keyword_type;
 -- rollback DROP TYPE IF EXISTS user_role;
-
--- include: db.changelog-2-add-auth-columns.sql
