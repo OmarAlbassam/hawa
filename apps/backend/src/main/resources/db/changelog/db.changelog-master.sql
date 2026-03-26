@@ -1,6 +1,7 @@
--- ============================================================
--- V1: Initial schema — enum types and all tables
--- ============================================================
+-- liquibase formatted sql
+
+-- changeset hawa:1-create-schema
+-- comment: Initial schema — enum types and all tables
 
 -- Enum types
 CREATE TYPE user_role AS ENUM ('ADMIN', 'MARKETING_USER');
@@ -107,3 +108,21 @@ CREATE TABLE feedback (
 
 CREATE INDEX idx_feedback_review_id ON feedback(review_id);
 CREATE INDEX idx_feedback_user_id   ON feedback(user_id);
+
+-- rollback DROP TABLE IF EXISTS feedback CASCADE;
+-- rollback DROP TABLE IF EXISTS review CASCADE;
+-- rollback DROP TABLE IF EXISTS post CASCADE;
+-- rollback DROP TABLE IF EXISTS report CASCADE;
+-- rollback DROP TABLE IF EXISTS keyword CASCADE;
+-- rollback DROP TABLE IF EXISTS brand CASCADE;
+-- rollback DROP TABLE IF EXISTS "user" CASCADE;
+-- rollback DROP TABLE IF EXISTS company CASCADE;
+-- rollback DROP TYPE IF EXISTS aspect;
+-- rollback DROP TYPE IF EXISTS emotion;
+-- rollback DROP TYPE IF EXISTS report_status;
+-- rollback DROP TYPE IF EXISTS data_source;
+-- rollback DROP TYPE IF EXISTS language;
+-- rollback DROP TYPE IF EXISTS keyword_type;
+-- rollback DROP TYPE IF EXISTS user_role;
+
+-- include: db.changelog-2-add-auth-columns.sql

@@ -39,12 +39,8 @@
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.flywaydb</groupId>
-			<artifactId>flyway-core</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.flywaydb</groupId>
-			<artifactId>flyway-database-postgresql</artifactId>
+			<groupId>org.liquibase</groupId>
+			<artifactId>liquibase-core</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -108,13 +104,13 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<groupId>org.flywaydb</groupId>
-				<artifactId>flyway-maven-plugin</artifactId>
-				<version>12.0.3</version>
+				<groupId>org.liquibase</groupId>
+				<artifactId>liquibase-maven-plugin</artifactId>
 				<configuration>
-					<url>${DB_URL}</url>
-					<user>${DB_USERNAME}</user>
-					<password>${DB_PASSWORD}</password>
+					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.sql</changeLogFile>
+					<url>${env.DB_URL}</url>
+					<username>${env.DB_USERNAME}</username>
+					<password>${env.DB_PASSWORD}</password>
 				</configuration>
 			</plugin>
 			<plugin>

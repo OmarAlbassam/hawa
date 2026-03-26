@@ -55,6 +55,12 @@ public class User {
     @Column(name = "role", nullable = false)
     private UserRoleEnum role;
 
+    @Column(name = "email", nullable = false, unique = true)
+    private String email;
+
+    @Column(name = "password", nullable = false)
+    private String password;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
