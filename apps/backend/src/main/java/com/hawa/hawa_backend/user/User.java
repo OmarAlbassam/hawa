@@ -25,6 +25,7 @@ import com.hawa.hawa_backend.enums.UserRoleEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
@@ -60,6 +61,7 @@ public class User {
     private String email;
 
     @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @Column(name = "password", nullable = false)
     private String password;
 
