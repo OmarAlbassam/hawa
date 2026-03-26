@@ -233,6 +233,9 @@ class AuthFlowTest {
                         .content("{\"refreshToken\": \"" + refreshToken + "\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Invalid or expired refresh token"));
+
+        // Expired token should be cleaned up from DB (not rolled back)
+        assertThat(refreshTokenRepository.findByToken(refreshToken).isPresent()).isFalse();
     }
 
     // ---- 5. Invalid/missing JWT on protected endpoint ----
