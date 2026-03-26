@@ -83,6 +83,27 @@ Frontend proxies API calls to `http://localhost:8080`. Backend has CORS configur
 - Primary: English
 - Arabic support: exploratory/future scope
 
+## Branch Naming
+
+Use the format `<app>/<type>/<short-description>`:
+
+```
+backend/feat/setup-auth
+frontend/feat/dashboard-filters
+llm/fix/emotion-detection
+```
+
+For cross-app changes, use a shared prefix:
+
+```
+full-stack/feat/analysis-flow
+infra/chore/docker-setup
+```
+
+- Use `/` or `-` as separators — avoid colons (`:`) as some Git tools don't handle them well
+- `<app>` matches the monorepo app directory (`backend`, `frontend`, `llm`)
+- `<type>` matches the conventional commit types (`feat`, `fix`, `chore`, `refactor`, etc.)
+
 ## Git Commit Conventions
 Always use Conventional Commits format when committing: `<type>(<scope>): <description>`
 
