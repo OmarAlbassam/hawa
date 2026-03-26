@@ -7,5 +7,6 @@
 
     <include file="db/changelog/db.changelog-1-create-schema.sql"/>
     <include file="db/changelog/db.changelog-2-add-auth-columns.sql"/>
+    <include file="db/changelog/db.changelog-3-create-refresh-token.sql"/>
 
 </databaseChangeLog>
