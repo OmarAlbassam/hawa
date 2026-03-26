@@ -18,9 +18,8 @@ Example areas to ask about:
 1. **What entities are involved?** (e.g., "Brand", "SentimentReport")
 2. **What endpoints are needed?** (e.g., CRUD? Or specific operations only?)
 3. **What are the relationships?** (e.g., Brand has many SentimentReports)
-4. **Are tests needed?** If yes, you will follow TDD — write tests first, then implement.
-5. **Any special requirements?** (pagination, filtering, file upload, external API calls, etc.)
-6. **Edge cases?** (what happens on duplicates, empty input, missing references, etc.)
+4. **Any special requirements?** (pagination, filtering, file upload, external API calls, etc.)
+5. **Edge cases?** (what happens on duplicates, empty input, missing references, etc.)
 
 Iterate with the user until you're confident you understand the feature fully. Then move to the plan.
 
@@ -87,7 +86,13 @@ Rules for the spec:
 
 Wait for the user to approve the plan before writing any code.
 
-## Step 1: Database Schema
+## Step 1: Tests
+
+Before writing any implementation code, use the `write-tests` skill to write tests for this feature. Think about what the feature should do from the outside — what endpoints exist, what responses they return, what errors they produce — and encode that as tests first.
+
+Write the structural code needed for tests to compile (Schema → Entity → DTOs → Mapper → Repository), then write the tests. The tests will fail — that's expected. You will make them pass by implementing the Service and Controller in later steps.
+
+## Step 2: Database Schema
 
 Think database-first. Before writing any Java code, define the schema:
 
@@ -97,7 +102,7 @@ Think database-first. Before writing any Java code, define the schema:
 - Define columns, types, constraints, foreign keys
 - Consider indexes for columns that will be queried/filtered frequently
 
-## Step 2: Entity
+## Step 3: Entity
 
 Create the JPA entity that maps to the schema from Step 1.
 
@@ -115,7 +120,7 @@ Rules:
 - `@JoinColumn(name = "...")` on owning side
 - Timestamps: use `@CreatedDate` / `@LastModifiedDate` with `@EntityListeners(AuditingEntityListener.class)` if the entity needs created/updated tracking
 
-## Step 3: DTOs
+## Step 4: DTOs
 
 Every entity gets three DTOs:
 
@@ -144,7 +149,7 @@ com.hawa.hawa_backend.{feature}/dto/
 └── {Feature}Response.java
 ```
 
-## Step 4: Mapper
+## Step 5: Mapper
 
 Create `{Feature}Mapper.java` — a simple utility class that converts between Entity ↔ DTOs.
 
@@ -159,7 +164,7 @@ Rules:
 - For updates: `updateEntity({Feature} entity, Update{Feature}Request dto)` — only update non-null fields
 - Do NOT use MapStruct or any mapping library — write the mapping by hand. It's 10 lines of code and stays readable.
 
-## Step 5: Repository
+## Step 6: Repository
 
 Create `{Feature}Repository.java` extending `JpaRepository<{Feature}, Long>`.
 
@@ -174,7 +179,7 @@ Rules:
 - Use `@Query` for anything more complex
 - Return `Optional<{Feature}>` for single-entity lookups
 
-## Step 6: Service
+## Step 7: Service
 
 Create `{Feature}Service.java` with `@Service`.
 
@@ -193,7 +198,7 @@ Rules:
 - Accept request DTOs (`Create{Feature}Request`, `Update{Feature}Request`) as input, return `{Feature}Response` DTOs as output — never return entities from service methods
 - Logging with `@Slf4j`: log at `info` for operations, `warn` for business rule violations, `error` for unexpected failures
 
-## Step 7: Controller
+## Step 8: Controller
 
 Create `{Feature}Controller.java` with `@RestController`.
 
@@ -212,29 +217,6 @@ Rules:
   - `204 No Content` for DELETE
 - Use `@PathVariable` for resource IDs, `@RequestParam` for filters
 - **Pagination:** All list endpoints must accept `Pageable` and return `Page<{Feature}Response>`. Spring resolves `?page=0&size=20&sort=createdAt,desc` automatically — no manual parsing needed
-
-## Step 8: Tests (if requested)
-
-If TDD was requested, write tests BEFORE implementation (Steps 5-7). The order becomes:
-
-1. Schema → Entity → DTOs → Mapper (these are structural, write them first)
-2. Write Service tests → Implement Service
-3. Write Controller tests → Implement Controller
-
-### Service Tests
-- JUnit 5 + Mockito
-- Mock the repository
-- Test: create, getById (found + not found), update, delete
-- Name: `shouldReturnReport_whenIdExists`, `shouldThrowException_whenIdNotFound`
-
-### Controller Tests (optional, include if the feature has non-trivial endpoint logic)
-- `@WebMvcTest({Feature}Controller.class)`
-- Mock the service
-- Test request validation, HTTP status codes, response structure
-
-### Repository Tests (only if custom queries exist)
-- `@DataJpaTest`
-- Test custom `@Query` methods or complex derived queries
 
 ## File Structure Summary
 
@@ -288,5 +270,5 @@ If these already exist, use them — don't recreate.
 - [ ] Controller returns correct HTTP status codes
 - [ ] `@Valid` on all request body parameters
 - [ ] No entity exposed directly in API responses
-- [ ] Tests written (if requested)
+- [ ] Tests written first and passing
 - [ ] Existing exception handler reused (or created if missing)
