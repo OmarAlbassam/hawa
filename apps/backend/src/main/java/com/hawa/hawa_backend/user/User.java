@@ -25,7 +25,9 @@ import com.hawa.hawa_backend.enums.UserRoleEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Data
 @Builder
@@ -41,6 +43,8 @@ public class User {
     @Column(name = "user_id")
     private Long userId;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
@@ -54,6 +58,14 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
     private UserRoleEnum role;
+
+    @Column(name = "email", nullable = false, unique = true)
+    private String email;
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @Column(name = "password", nullable = false)
+    private String password;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

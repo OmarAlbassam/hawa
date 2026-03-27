@@ -1,0 +1,117 @@
+.Login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.Login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 32px;
+  border-radius: 12px;
+  background-color: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.Login-title {
+  margin: 0 0 4px;
+  font-size: 2em;
+  text-align: center;
+}
+
+.Login-subtitle {
+  margin: 0 0 28px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.95em;
+}
+
+.Login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.Login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.Login-label {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.Login-input {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 1em;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.Login-input:focus {
+  border-color: #646cff;
+}
+
+.Login-input--error {
+  border-color: #dc2626;
+}
+
+.Login-error {
+  font-size: 0.8em;
+  color: #dc2626;
+}
+
+.Login-submit {
+  margin-top: 4px;
+  padding: 12px;
+  font-size: 1em;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background-color: #646cff;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.Login-submit:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.Login-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: light) {
+  .Login-card {
+    background-color: #ffffff;
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .Login-subtitle {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .Login-label {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .Login-input {
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+}

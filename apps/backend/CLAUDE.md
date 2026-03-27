@@ -7,7 +7,7 @@ Your goal is to help write a high-quality Spring Boot application by following e
 - **Framework:** Spring Boot 4.0.3 REST API with Java 25.
 - **Build Tool:** Maven (`pom.xml`). Always use the Maven wrapper (`./mvnw`).
 - **Starters:** Uses `spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`.
-- **Migrations:** Flyway — migration files at `src/main/resources/db/migration/V{N}__{description}.sql`.
+- **Migrations:** Liquibase — master changelog at `src/main/resources/db/changelog/db.changelog-master.xml` (XML includes, SQL changesets tagged with `-- changeset author:id`).
 - **Lombok:** Enabled — use for boilerplate reduction (`@Data`, `@Builder`, `@AllArgsConstructor`, etc.).
 - **Package Structure:** Organize code by feature/entity (e.g., `com.hawa.hawa_backend.user`, `com.hawa.hawa_backend.order`) rather than by layer. Each entity gets its own package:
 
