@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/useAuth";
 import { login } from "../../services/authService";
 import type { LoginRequest } from "../../types/auth";
-import hawaLogo from "../../assets/hawa-logo.png";
+import hawaLogo from "../../assets/hawa-logo-cropped.png";
 import "./Login.css";
 
 const Login = (): React.JSX.Element => {
