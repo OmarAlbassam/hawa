@@ -42,7 +42,7 @@ class AnalyzeResult(BaseModel):
     score: float = Field(ge=0.0, le=5.0)
     llm_score: float
     emotion: Emotion
-    aspect: Aspect
+    aspect: str  # TODO: define fixed aspect categories once requirements are settled
 
 
 class FailedResult(BaseModel):
