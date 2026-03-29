@@ -21,9 +21,10 @@ async def lifespan(app: FastAPI):
 
     logger = logging.getLogger(__name__)
     logger.info(
-        "LLM service starting — model: %s, endpoint: %s",
-        settings.vllm_model,
-        settings.vllm_base_url,
+        "LLM service starting — provider: %s, model: %s, endpoint: %s",
+        settings.provider,
+        settings.model,
+        settings.base_url,
     )
 
     yield

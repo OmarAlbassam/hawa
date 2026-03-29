@@ -11,15 +11,15 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     def __init__(self, settings: Settings) -> None:
         self.client = AsyncOpenAI(
-            base_url=settings.vllm_base_url,
-            api_key=settings.vllm_api_key,
+            base_url=settings.base_url,
+            api_key=settings.api_key,
         )
-        self.model = settings.vllm_model
+        self.model = settings.model
         self.temperature = settings.temperature
         self.max_tokens = settings.max_tokens
 
     async def analyze(self, system_prompt: str, text: str) -> dict:
-        """Send text to vLLM with the given system prompt. Returns parsed JSON dict."""
+        """Send text to LLM with the given system prompt. Returns parsed JSON dict."""
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -35,7 +35,7 @@ class LLMClient:
         return json.loads(raw)
 
     async def is_reachable(self) -> bool:
-        """Check if the vLLM endpoint is reachable."""
+        """Check if the LLM endpoint is reachable."""
         try:
             await self.client.models.list()
             return True
