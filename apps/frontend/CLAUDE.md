@@ -100,5 +100,7 @@ src/
 
 > **Remember:** React is about composition. Build small, combine thoughtfully.
 
-## When to Use
-This skill is applicable to execute the workflow or actions described in the overview.
+## 7. UI/UX
+
+- **Always use the `ui-ux-pro-max` skill** when building, designing, reviewing, or improving any UI component or page.
+- **Always read `DESIGN_SYSTEM.md`** before writing any UI code to ensure colors, typography, spacing, and component patterns are consistent with the approved design.
