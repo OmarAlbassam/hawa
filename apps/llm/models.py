@@ -57,5 +57,6 @@ class BatchAnalyzeResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    vllm_reachable: bool
+    llm_reachable: bool
+    provider: str
     model: str

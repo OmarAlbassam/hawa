@@ -101,7 +101,7 @@ class AnalyzerService:
                     results.append(result)
                 except APIConnectionError:
                     failed.append(
-                        FailedResult(post_id=post.post_id, error="vLLM unreachable")
+                        FailedResult(post_id=post.post_id, error="LLM unreachable")
                     )
                 except Exception as e:
                     logger.error("Failed to analyze post %d: %s", post.post_id, e)

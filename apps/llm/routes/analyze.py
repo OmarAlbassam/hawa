@@ -17,8 +17,9 @@ async def health(request: Request) -> HealthResponse:
     reachable = await analyzer.llm_client.is_reachable()
     return HealthResponse(
         status="ok",
-        vllm_reachable=reachable,
-        model=analyzer.settings.vllm_model,
+        llm_reachable=reachable,
+        provider=analyzer.settings.provider,
+        model=analyzer.settings.model,
     )
 
 
