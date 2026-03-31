@@ -1,0 +1,15 @@
+.reviews-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.reviews-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+}
+
+.reviews-post-text {
+  max-width: 280px;
+  display: inline-block;
+}
