@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
+import com.hawa.hawa_backend.enums.UserRoleEnum;
+import com.hawa.hawa_backend.user.User;
 import com.hawa.hawa_backend.user.UserRepository;
 
 import java.time.LocalDateTime;
@@ -21,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -35,10 +38,13 @@ class AuthFlowTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private RefreshTokenRepository refreshTokenRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private JwtService jwtService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private Long companyId;
+    private String adminToken;
 
     @BeforeEach
     void setUp() {
@@ -49,13 +55,26 @@ class AuthFlowTest {
         Company company = new Company();
         company.setCompanyName("Test Corp");
         companyId = companyRepository.save(company).getCompanyId();
+
+        // Create an admin user for registration tests (register now requires ADMIN role)
+        User admin = User.builder()
+                .firstName("Admin")
+                .lastName("User")
+                .email("testadmin@example.com")
+                .password(passwordEncoder.encode("Password1"))
+                .company(company)
+                .role(UserRoleEnum.ADMIN)
+                .build();
+        admin = userRepository.save(admin);
+        adminToken = jwtService.generateAccessToken(admin);
     }
 
-    // ---- 1. Registration ----
+    // ---- 1. Registration (requires ADMIN role) ----
 
     @Test
     void shouldRegisterNewUser_andReturnTokensAndUserInfo() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("john@example.com", "Password1", "MARKETING_USER")))
                 .andExpect(status().isCreated())
@@ -79,6 +98,7 @@ class AuthFlowTest {
         registerUser("dup@example.com", "Password1", "MARKETING_USER");
 
         mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("dup@example.com", "Password1", "MARKETING_USER")))
                 .andExpect(status().isConflict())
@@ -88,6 +108,7 @@ class AuthFlowTest {
     @Test
     void shouldReject400_whenPasswordTooWeak() throws Exception {
         mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("weak@example.com", "weak", "MARKETING_USER")))
                 .andExpect(status().isBadRequest());
@@ -96,6 +117,7 @@ class AuthFlowTest {
     @Test
     void shouldReject400_whenPasswordMissingUppercase() throws Exception {
         mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("weak@example.com", "password1", "MARKETING_USER")))
                 .andExpect(status().isBadRequest());
@@ -269,8 +291,9 @@ class AuthFlowTest {
     @Test
     void shouldReturnCorrectRole_whenRegisteringAsAdmin() throws Exception {
         mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("admin@example.com", "Password1", "ADMIN")))
+                        .content(registerJson("newadmin@example.com", "Password1", "ADMIN")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.role").value("ADMIN"));
     }
@@ -278,6 +301,7 @@ class AuthFlowTest {
     @Test
     void shouldReturnCorrectRole_whenRegisteringAsMarketingUser() throws Exception {
         mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("marketing@example.com", "Password1", "MARKETING_USER")))
                 .andExpect(status().isCreated())
@@ -334,6 +358,7 @@ class AuthFlowTest {
 
     private JsonNode registerUser(String email, String password, String role) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson(email, password, role)))
                 .andExpect(status().isCreated())
