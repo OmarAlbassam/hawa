@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -30,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.debug("No Bearer token found for {} {}", request.getMethod(), request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
@@ -37,6 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         if (!jwtService.isTokenValid(token)) {
+            log.warn("Invalid JWT token for {} {}", request.getMethod(), request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
@@ -45,6 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+            log.info("Authenticated user: {} with authorities: {} for {} {}",
+                    email, userDetails.getAuthorities(), request.getMethod(), request.getRequestURI());
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
