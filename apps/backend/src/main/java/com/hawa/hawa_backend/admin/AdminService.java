@@ -4,7 +4,9 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -90,8 +92,35 @@ public class AdminService {
     @Transactional(readOnly = true)
     public Page<AdminUserResponse> listUsers(UserRoleEnum role, Long companyId,
                                               String search, Pageable pageable) {
-        return userRepository.findAllWithFilters(role, companyId, search, pageable)
+        String roleStr = role != null ? role.name() : null;
+        Pageable nativePageable = toNativeSortPageable(pageable);
+        log.info("listUsers called — role={}, companyId={}, search={}, pageable={}",
+                roleStr, companyId, search, nativePageable);
+        Page<AdminUserResponse> result = userRepository.findAllWithFilters(roleStr, companyId, search, nativePageable)
                 .map(this::toAdminUserResponse);
+        log.info("listUsers returned {} results (total={})", result.getNumberOfElements(), result.getTotalElements());
+        return result;
+    }
+
+    private Pageable toNativeSortPageable(Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) {
+            return pageable;
+        }
+        var mappedOrders = pageable.getSort().stream()
+                .map(order -> {
+                    String mapped = switch (order.getProperty()) {
+                        case "createdAt" -> "created_at";
+                        case "updatedAt" -> "updated_at";
+                        case "firstName" -> "first_name";
+                        case "lastName" -> "last_name";
+                        case "companyId" -> "company_id";
+                        case "userId" -> "user_id";
+                        default -> order.getProperty();
+                    };
+                    return new Sort.Order(order.getDirection(), mapped);
+                })
+                .toList();
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(mappedOrders));
     }
 
     @Transactional
