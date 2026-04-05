@@ -1,9 +1,7 @@
 import asyncio
-import json
 import logging
 
 from openai import APIConnectionError
-from pydantic import ValidationError
 
 from config import Settings
 from models import (
@@ -19,28 +17,6 @@ from utils.preprocessing import clean_text
 logger = logging.getLogger(__name__)
 
 MAX_CONCURRENCY = 5
-
-
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
-
-
-def _normalize_result(raw: dict, post_id: int) -> AnalyzeResult:
-    """Validate and normalize LLM output into an AnalyzeResult."""
-    raw["score"] = _clamp(float(raw.get("score", 2.5)), 0.0, 5.0)
-    if isinstance(raw.get("emotion"), str):
-        raw["emotion"] = raw["emotion"].upper()
-    if isinstance(raw.get("aspect"), str):
-        raw["aspect"] = raw["aspect"].upper()
-
-    return AnalyzeResult(
-        post_id=post_id,
-        score=raw["score"],
-        llm_score=raw["score"],
-        emotion=raw["emotion"],
-        aspect=raw["aspect"],
-
-    )
 
 
 class AnalyzerService:
@@ -59,22 +35,14 @@ class AnalyzerService:
         """Preprocess, analyze, and validate a single post."""
         cleaned = clean_text(post.text, self.settings.max_text_length)
         prompt = build_system_prompt(brand_name, brand_industry, keywords)
-
-        last_error: Exception | None = None
-        for attempt in range(2):
-            try:
-                raw = await self.llm_client.analyze(prompt, cleaned)
-                return _normalize_result(raw, post.post_id)
-            except (json.JSONDecodeError, ValidationError, KeyError, ValueError) as e:
-                last_error = e
-                if attempt == 0:
-                    logger.warning(
-                        "Retrying post %d after parse error: %s", post.post_id, e
-                    )
-                    continue
-                raise
-
-        raise last_error  # type: ignore[misc]
+        response = await self.llm_client.analyze(prompt, cleaned)
+        return AnalyzeResult(
+            post_id=post.post_id,
+            score=response.score,
+            llm_score=response.score,
+            emotion=response.emotion,
+            aspect=response.aspect,
+        )
 
     async def analyze_batch(
         self,
