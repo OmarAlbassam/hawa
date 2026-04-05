@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../../../context/useAuth";
 import {
@@ -52,42 +52,44 @@ const UserManagement = (): React.JSX.Element => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const prevFiltersRef = useRef({ search: debouncedSearch, role: roleFilter });
 
   useEffect(() => {
     if (!accessToken) return;
+
+    const filtersChanged =
+      prevFiltersRef.current.search !== debouncedSearch ||
+      prevFiltersRef.current.role !== roleFilter;
+    prevFiltersRef.current = { search: debouncedSearch, role: roleFilter };
+
+    if (filtersChanged && page !== 0) {
+      setPage(0);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    getUsers(accessToken, {
+      search: debouncedSearch || undefined,
+      role: roleFilter || undefined,
+      page,
+      size: 20,
+      sort: "createdAt,desc",
+    })
+      .then(setData)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Failed to load users")
+      )
+      .finally(() => setLoading(false));
+  }, [accessToken, debouncedSearch, roleFilter, page, refreshKey]);
+
+  const loadCompanies = () => {
+    if (!accessToken || companies.length > 0) return;
     getCompanies(accessToken, 0, 1000)
       .then((res) => setCompanies(res.content))
       .catch(() => {});
-  }, [accessToken]);
-
-  const fetchUsers = useCallback(async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setError("");
-    try {
-      const result = await getUsers(accessToken, {
-        search: debouncedSearch || undefined,
-        role: roleFilter || undefined,
-        page,
-        size: 20,
-        sort: "createdAt,desc",
-      });
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, debouncedSearch, roleFilter, page]);
-
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch, roleFilter]);
+  };
 
   // Form submit
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -123,7 +125,7 @@ const UserManagement = (): React.JSX.Element => {
       }
       setModalMode(null);
       setEditingUser(null);
-      fetchUsers();
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Operation failed");
     } finally {
@@ -138,7 +140,7 @@ const UserManagement = (): React.JSX.Element => {
     try {
       await deleteUser(accessToken, deletingUser.userId);
       setDeletingUser(null);
-      fetchUsers();
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete user");
       setDeletingUser(null);
@@ -148,12 +150,14 @@ const UserManagement = (): React.JSX.Element => {
   };
 
   const openEdit = (user: AdminUserResponse) => {
+    loadCompanies();
     setEditingUser(user);
     setModalMode("edit");
     setFormError("");
   };
 
   const openCreate = () => {
+    loadCompanies();
     setEditingUser(null);
     setModalMode("create");
     setFormError("");
@@ -221,7 +225,7 @@ const UserManagement = (): React.JSX.Element => {
         </button>
       </div>
 
-      {error && <ErrorBanner message={error} onRetry={fetchUsers} />}
+      {error && <ErrorBanner message={error} onRetry={() => setRefreshKey((k) => k + 1)} />}
 
       <div className="users-filters">
         <input

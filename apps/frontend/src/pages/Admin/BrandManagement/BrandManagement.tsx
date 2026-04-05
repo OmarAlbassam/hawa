@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../../../context/useAuth";
 import {
@@ -44,39 +44,49 @@ const BrandManagement = (): React.JSX.Element => {
   const [deletingBrand, setDeletingBrand] = useState<BrandResponse | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Fetch companies for dropdown (all pages — typically small list)
-  useEffect(() => {
-    if (!accessToken) return;
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadCompanies = () => {
+    if (!accessToken || companies.length > 0) return;
     getCompanies(accessToken, 0, 1000)
       .then((res) => setCompanies(res.content))
       .catch(() => {});
-  }, [accessToken]);
+  };
+  const prevFilterRef = useRef(companyFilter);
 
-  const fetchBrands = useCallback(async () => {
+  useEffect(() => {
     if (!accessToken) return;
+
+    const filterChanged = prevFilterRef.current !== companyFilter;
+    prevFilterRef.current = companyFilter;
+
+    if (filterChanged && page !== 0) {
+      setPage(0);
+      return;
+    }
+
+    let cancelled = false;
     setLoading(true);
     setError("");
-    try {
-      const result = await getBrands(accessToken, {
-        companyId: companyFilter || undefined,
-        page,
-        size: 20,
+    getBrands(accessToken, {
+      companyId: companyFilter || undefined,
+      page,
+      size: 20,
+    })
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Failed to load brands");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load brands");
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, companyFilter, page]);
-
-  useEffect(() => {
-    fetchBrands();
-  }, [fetchBrands]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [companyFilter]);
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, companyFilter, page, refreshKey]);
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -104,7 +114,7 @@ const BrandManagement = (): React.JSX.Element => {
       }
       setModalMode(null);
       setEditingBrand(null);
-      fetchBrands();
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Operation failed");
     } finally {
@@ -118,7 +128,7 @@ const BrandManagement = (): React.JSX.Element => {
     try {
       await deleteBrand(accessToken, deletingBrand.brandId);
       setDeletingBrand(null);
-      fetchBrands();
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete brand");
       setDeletingBrand(null);
@@ -163,6 +173,7 @@ const BrandManagement = (): React.JSX.Element => {
           <button
             className="brands-action-btn"
             onClick={() => {
+              loadCompanies();
               setEditingBrand(row);
               setModalMode("edit");
               setFormError("");
@@ -190,6 +201,7 @@ const BrandManagement = (): React.JSX.Element => {
         <button
           className="brands-create-btn"
           onClick={() => {
+            loadCompanies();
             setEditingBrand(null);
             setModalMode("create");
             setFormError("");
@@ -200,12 +212,13 @@ const BrandManagement = (): React.JSX.Element => {
         </button>
       </div>
 
-      {error && <ErrorBanner message={error} onRetry={fetchBrands} />}
+      {error && <ErrorBanner message={error} onRetry={() => setRefreshKey((k) => k + 1)} />}
 
       <div className="brands-filters">
         <select
           className="brands-company-filter"
           value={companyFilter}
+          onFocus={loadCompanies}
           onChange={(e) =>
             setCompanyFilter(e.target.value ? Number(e.target.value) : "")
           }
