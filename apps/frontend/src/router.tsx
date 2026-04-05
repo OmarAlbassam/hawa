@@ -1,9 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute/AdminRoute";
 import AdminLayout from "./components/AdminLayout/AdminLayout";
-import App from "./App";
 import Login from "./pages/Login/Login";
 import UserManagement from "./pages/Admin/UserManagement/UserManagement";
 import SystemAnalytics from "./pages/Admin/SystemAnalytics/SystemAnalytics";
@@ -31,14 +29,8 @@ const AppRouter = () => (
           <Route path="brands" element={<BrandManagement />} />
           <Route path="reviews" element={<ReportedReviews />} />
         </Route>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <App />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
   </BrowserRouter>

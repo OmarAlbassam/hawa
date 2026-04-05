@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { Users, BarChart3, MessageSquareWarning, Building2, Tag, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import { logout } from "../../services/authService";
+import hawaLogo from "../../assets/hawa-logo-cropped.png";
 import "./AdminLayout.css";
 
 const navItems = [
@@ -17,6 +18,19 @@ const AdminLayout = (): React.JSX.Element => {
   const { user, refreshToken, clearAuth } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const topbarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    const update = () => {
+      document.documentElement.style.setProperty("--topbar-height", `${el.offsetHeight}px`);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    update();
+    return () => observer.disconnect();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -29,7 +43,7 @@ const AdminLayout = (): React.JSX.Element => {
 
   return (
     <div className="admin-layout">
-      <header className="admin-topbar">
+      <header className="admin-topbar" ref={topbarRef}>
         <button
           className="admin-topbar-toggle"
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -37,7 +51,7 @@ const AdminLayout = (): React.JSX.Element => {
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <span className="admin-topbar-title">Hawa Admin</span>
+        <img src={hawaLogo} alt="Hawa" className="admin-topbar-logo" />
         <div className="admin-topbar-user">
           <span className="admin-topbar-name">
             {user?.firstName} {user?.lastName}
