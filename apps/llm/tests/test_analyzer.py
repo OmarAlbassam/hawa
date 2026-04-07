@@ -1,68 +1,41 @@
 import pytest
+from pydantic import ValidationError
 
-from models import Emotion, Aspect
-from services.analyzer import _normalize_result
-
-
-def test_normalize_valid_result():
-    raw = {
-        "score": 4.2,
-        "emotion": "JOY",
-        "aspect": "PRODUCT",
-    }
-    result = _normalize_result(raw, post_id=1)
-    assert result.post_id == 1
-    assert result.score == 4.2
-    assert result.llm_score == 4.2
-    assert result.emotion == Emotion.JOY
-    assert result.aspect == Aspect.PRODUCT
+from models import Emotion, SentimentResponse
 
 
-def test_normalize_clamps_score():
-    raw = {
-        "score": 7.0,
-        "emotion": "ANGER",
-        "aspect": "SERVICE",
-    }
-    result = _normalize_result(raw, post_id=2)
-    assert result.score == 5.0
+def test_valid_response():
+    r = SentimentResponse(score=4.2, emotion="JOY", aspect="PRODUCT")
+    assert r.score == 4.2
+    assert r.emotion == Emotion.JOY
+    assert r.aspect == "PRODUCT"
 
 
-def test_normalize_clamps_negative_score():
-    raw = {
-        "score": -1.0,
-        "emotion": "SADNESS",
-        "aspect": "PRICING",
-    }
-    result = _normalize_result(raw, post_id=3)
-    assert result.score == 0.0
+def test_clamps_high_score():
+    r = SentimentResponse(score=7.0, emotion="ANGER", aspect="SERVICE")
+    assert r.score == 5.0
 
 
-def test_normalize_fixes_lowercase_enums():
-    raw = {
-        "score": 3.0,
-        "emotion": "joy",
-        "aspect": "delivery",
-    }
-    result = _normalize_result(raw, post_id=4)
-    assert result.emotion == Emotion.JOY
-    assert result.aspect == Aspect.DELIVERY
+def test_clamps_negative_score():
+    r = SentimentResponse(score=-1.0, emotion="SADNESS", aspect="PRICING")
+    assert r.score == 0.0
 
 
-def test_normalize_missing_score_defaults():
-    raw = {
-        "emotion": "SURPRISE",
-        "aspect": "SERVICE",
-    }
-    result = _normalize_result(raw, post_id=6)
-    assert result.score == 2.5  # default neutral
+def test_default_score():
+    r = SentimentResponse(emotion="SURPRISE", aspect="SERVICE")
+    assert r.score == 2.5
 
 
-def test_normalize_invalid_enum_raises():
-    raw = {
-        "score": 3.0,
-        "emotion": "HAPPINESS",  # not a valid Emotion
-        "aspect": "PRODUCT",
-    }
-    with pytest.raises(ValueError):
-        _normalize_result(raw, post_id=7)
+def test_uppercase_emotion():
+    r = SentimentResponse(score=3.0, emotion="joy", aspect="delivery")
+    assert r.emotion == Emotion.JOY
+
+
+def test_invalid_emotion_raises():
+    with pytest.raises(ValidationError):
+        SentimentResponse(score=3.0, emotion="HAPPINESS", aspect="PRODUCT")
+
+
+def test_freeform_aspect():
+    r = SentimentResponse(score=3.0, emotion="JOY", aspect="customer support")
+    assert r.aspect == "customer support"

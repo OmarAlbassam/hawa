@@ -1,12 +1,12 @@
 # Hawa LLM Service
 
-FastAPI service that performs sentiment analysis on social media posts using vLLM (OpenAI-compatible API).
+FastAPI service that performs sentiment analysis on social media posts using an OpenAI-compatible LLM API (Ollama for dev, RunPod for prod).
 
 ## Setup & Run
 
 - **Python:** 3.12+
 - **Install:** `pip install -r requirements.txt`
-- **Configure:** Copy `.env.example` to `.env`, set `LLM_VLLM_BASE_URL` to your vLLM endpoint
+- **Configure:** Copy `.env.example` to `.env`, set `LLM_PROVIDER` (`ollama` or `runpod`)
 - **Run:** `uvicorn main:app --reload --port 8001`
 - **Test:** `pytest`
 
@@ -14,8 +14,8 @@ FastAPI service that performs sentiment analysis on social media posts using vLL
 
 - Stateless HTTP service — no database access
 - Receives post text from Spring Boot backend, returns structured sentiment analysis
-- Talks to vLLM (local or RunPod) via the OpenAI Python SDK
-- Same code works for local vLLM and RunPod — just change `LLM_VLLM_BASE_URL`
+- Talks to LLM via the OpenAI Python SDK (both Ollama and RunPod expose OpenAI-compatible APIs)
+- Switch providers with `LLM_PROVIDER` env var — defaults to `ollama` for local dev
 
 ## Project Structure
 
@@ -51,7 +51,7 @@ FastAPI service that performs sentiment analysis on social media posts using vLL
 
 | Method | Path             | Description            |
 |--------|------------------|------------------------|
-| GET    | /health          | Health check + vLLM connectivity |
+| GET    | /health          | Health check + LLM connectivity |
 | POST   | /analyze         | Analyze single post    |
 | POST   | /analyze/batch   | Analyze multiple posts (accepts brand context) |
 
@@ -61,9 +61,10 @@ All env vars are prefixed with `LLM_`. See `.env.example` for the full list.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_VLLM_BASE_URL` | `http://localhost:8000/v1` | vLLM endpoint |
-| `LLM_VLLM_API_KEY` | `EMPTY` | API key for vLLM |
-| `LLM_VLLM_MODEL` | `meta-llama/Llama-3.1-8B-Instruct` | Model name |
+| `LLM_PROVIDER` | `ollama` | LLM provider: `ollama` (dev) or `runpod` (prod) |
+| `LLM_BASE_URL` | per provider | LLM endpoint (ollama: `http://localhost:11434/v1`) |
+| `LLM_API_KEY` | per provider | API key (ollama: `ollama`, runpod: required) |
+| `LLM_MODEL` | per provider | Model name (ollama: `llama3.1:8b`, runpod: `meta-llama/Llama-3.1-8B-Instruct`) |
 | `LLM_PORT` | `8001` | Service port |
 | `LLM_TEMPERATURE` | `0.1` | LLM temperature |
 | `LLM_MAX_TOKENS` | `512` | Max response tokens |
