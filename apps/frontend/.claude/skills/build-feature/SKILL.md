@@ -27,6 +27,8 @@ Present a summary of your understanding and get confirmation before proceeding.
 
 ## Step 2: Build the Feature
 
+Before writing any UI code, invoke the `ui-ux-pro-max` skill and read `DESIGN_SYSTEM.md` to ensure consistency with the approved design system.
+
 Once confirmed, generate the feature files under `apps/frontend/src/` following these conventions:
 
 ### File Organization

@@ -34,7 +34,7 @@ const Login = (): React.JSX.Element => {
     try {
       const authResponse = await login(form);
       setAuth(authResponse);
-      navigate("/");
+      navigate(authResponse.user.role === "ADMIN" ? "/admin" : "/");
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Login failed");
     } finally {
