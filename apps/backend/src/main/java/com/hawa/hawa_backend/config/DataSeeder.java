@@ -1,58 +1,59 @@
-// package com.hawa.hawa_backend.config;
+package com.hawa.hawa_backend.config;
 
-// import org.springframework.boot.CommandLineRunner;
-// import org.springframework.security.crypto.password.PasswordEncoder;
-// import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
 
-// import com.hawa.hawa_backend.company.Company;
-// import com.hawa.hawa_backend.company.CompanyRepository;
-// import com.hawa.hawa_backend.enums.UserRoleEnum;
-// import com.hawa.hawa_backend.user.User;
-// import com.hawa.hawa_backend.user.UserRepository;
+import com.hawa.hawa_backend.company.Company;
+import com.hawa.hawa_backend.company.CompanyRepository;
+import com.hawa.hawa_backend.enums.UserRoleEnum;
+import com.hawa.hawa_backend.user.User;
+import com.hawa.hawa_backend.user.UserRepository;
 
-// import lombok.RequiredArgsConstructor;
-// import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-// @Slf4j
-// @Component
-// @RequiredArgsConstructor
-// public class DataSeeder implements CommandLineRunner {
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class DataSeeder implements CommandLineRunner {
 
-//     private final CompanyRepository companyRepository;
-//     private final UserRepository userRepository;
-//     private final PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final CompanyRepository companyRepository;
+    private final PasswordEncoder passwordEncoder;
 
-//     @Override
-//     public void run(String... args) {
-//         try {
-//             if (userRepository.count() > 0) {
-//                 log.info("Database already has users — skipping seed");
-//                 return;
-//             }
-//         } catch (Exception e) {
-//             log.warn("Could not check user count (tables may not exist yet) — skipping seed");
-//             return;
-//         }
+    @Value("${admin.seed.email:admin@hawa.com}")
+    private String adminEmail;
 
-//         Company hawa = new Company();
-//         hawa.setCompanyName("Hawa");
-//         hawa = companyRepository.save(hawa);
-//         log.info("Created company: Hawa (id={})", hawa.getCompanyId());
+    @Value("${admin.seed.password:Admin123}")
+    private String adminPassword;
 
-//         Company almarai = new Company();
-//         almarai.setCompanyName("Almarai");
-//         almarai = companyRepository.save(almarai);
-//         log.info("Created company: Almarai (id={})", almarai.getCompanyId());
+    @Override
+    public void run(String... args) {
+        if (userRepository.existsByRole(UserRoleEnum.ADMIN)) {
+            log.info("Admin user already exists — skipping seed");
+            return;
+        }
 
-//         User admin = User.builder()
-//                 .firstName("Admin")
-//                 .lastName("User")
-//                 .email("admin@hawa.com")
-//                 .password(passwordEncoder.encode("Admin123"))
-//                 .company(hawa)
-//                 .role(UserRoleEnum.ADMIN)
-//                 .build();
-//         userRepository.save(admin);
-//         log.info("Created admin user: admin@hawa.com (password: Admin123)");
-//     }
-// }
+        Company company = companyRepository.findAll().stream().findFirst()
+                .orElseGet(() -> {
+                    Company c = new Company();
+                    c.setCompanyName("Hawa");
+                    c = companyRepository.save(c);
+                    log.info("Seeded default company: Hawa (id={})", c.getCompanyId());
+                    return c;
+                });
+
+        User admin = User.builder()
+                .firstName("Admin")
+                .lastName("User")
+                .email(adminEmail)
+                .password(passwordEncoder.encode(adminPassword))
+                .company(company)
+                .role(UserRoleEnum.ADMIN)
+                .build();
+        userRepository.save(admin);
+        log.info("Seeded admin user: {}", adminEmail);
+    }
+}
