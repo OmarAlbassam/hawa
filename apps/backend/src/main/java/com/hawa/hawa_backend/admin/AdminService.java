@@ -269,7 +269,7 @@ public class AdminService {
             return brandRepository.findByCompanyCompanyId(companyId, pageable)
                     .map(this::toBrandResponse);
         }
-        return brandRepository.findAll(pageable)
+        return brandRepository.findAllWithCompany(pageable)
                 .map(this::toBrandResponse);
     }
 
