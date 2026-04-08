@@ -29,7 +29,7 @@ const AppRouter = () => (
           <Route path="brands" element={<BrandManagement />} />
           <Route path="reviews" element={<ReportedReviews />} />
         </Route>
-        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
