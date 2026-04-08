@@ -46,7 +46,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse.UserInfo register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new DuplicateEmailException("Email already registered");
         }
@@ -65,8 +65,8 @@ public class AuthService {
                 .build();
 
         user = userRepository.save(user);
-        log.info("New user registered: {}", user.getEmail());
-        return buildAuthResponse(user);
+        log.info("Admin registered new user: {}", user.getEmail());
+        return toUserInfo(user);
     }
 
     @Transactional
