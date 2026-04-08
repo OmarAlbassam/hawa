@@ -156,6 +156,6 @@
 
 .companies-form-submit:disabled,
 .companies-form-cancel:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
