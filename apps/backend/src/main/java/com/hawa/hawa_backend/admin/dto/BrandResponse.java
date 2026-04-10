@@ -9,6 +9,7 @@ public record BrandResponse(
         AdminUserResponse.CompanyInfo company,
         String industry,
         BigDecimal statusIndicator,
+        long keywordsCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

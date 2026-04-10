@@ -19,11 +19,14 @@ import com.hawa.hawa_backend.admin.dto.BrandResponse;
 import com.hawa.hawa_backend.admin.dto.CompanyResponse;
 import com.hawa.hawa_backend.admin.dto.CreateBrandRequest;
 import com.hawa.hawa_backend.admin.dto.CreateCompanyRequest;
+import com.hawa.hawa_backend.admin.dto.CreateKeywordRequest;
 import com.hawa.hawa_backend.admin.dto.CreateUserRequest;
+import com.hawa.hawa_backend.admin.dto.KeywordResponse;
 import com.hawa.hawa_backend.admin.dto.ReportedReviewResponse;
 import com.hawa.hawa_backend.admin.dto.SystemAnalyticsResponse;
 import com.hawa.hawa_backend.admin.dto.UpdateBrandRequest;
 import com.hawa.hawa_backend.admin.dto.UpdateCompanyRequest;
+import com.hawa.hawa_backend.admin.dto.UpdateKeywordRequest;
 import com.hawa.hawa_backend.admin.dto.UpdateUserRequest;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
 
@@ -136,6 +139,46 @@ public class AdminController {
     @DeleteMapping("/brands/{brandId}")
     public ResponseEntity<Void> deleteBrand(@PathVariable Long brandId) {
         adminService.deleteBrand(brandId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --- Keyword Management ---
+
+    @PostMapping("/brands/{brandId}/keywords")
+    public ResponseEntity<KeywordResponse> createKeyword(
+            @PathVariable Long brandId,
+            @Valid @RequestBody CreateKeywordRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(adminService.createKeyword(brandId, request));
+    }
+
+    @GetMapping("/brands/{brandId}/keywords")
+    public ResponseEntity<Page<KeywordResponse>> listKeywords(
+            @PathVariable Long brandId,
+            Pageable pageable) {
+        return ResponseEntity.ok(adminService.listKeywords(brandId, pageable));
+    }
+
+    @GetMapping("/brands/{brandId}/keywords/{keywordId}")
+    public ResponseEntity<KeywordResponse> getKeyword(
+            @PathVariable Long brandId,
+            @PathVariable Long keywordId) {
+        return ResponseEntity.ok(adminService.getKeyword(brandId, keywordId));
+    }
+
+    @PutMapping("/brands/{brandId}/keywords/{keywordId}")
+    public ResponseEntity<KeywordResponse> updateKeyword(
+            @PathVariable Long brandId,
+            @PathVariable Long keywordId,
+            @Valid @RequestBody UpdateKeywordRequest request) {
+        return ResponseEntity.ok(adminService.updateKeyword(brandId, keywordId, request));
+    }
+
+    @DeleteMapping("/brands/{brandId}/keywords/{keywordId}")
+    public ResponseEntity<Void> deleteKeyword(
+            @PathVariable Long brandId,
+            @PathVariable Long keywordId) {
+        adminService.deleteKeyword(brandId, keywordId);
         return ResponseEntity.noContent().build();
     }
 

@@ -1,7 +1,10 @@
 package com.hawa.hawa_backend.admin;
 
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +27,9 @@ import com.hawa.hawa_backend.admin.dto.UpdateBrandRequest;
 import com.hawa.hawa_backend.admin.dto.UpdateCompanyRequest;
 import com.hawa.hawa_backend.admin.dto.UpdateUserRequest;
 import com.hawa.hawa_backend.auth.CustomUserDetails;
+import com.hawa.hawa_backend.admin.dto.CreateKeywordRequest;
+import com.hawa.hawa_backend.admin.dto.KeywordResponse;
+import com.hawa.hawa_backend.admin.dto.UpdateKeywordRequest;
 import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.company.Company;
@@ -35,6 +41,8 @@ import com.hawa.hawa_backend.exception.DuplicateEmailException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.feedback.Feedback;
 import com.hawa.hawa_backend.feedback.FeedbackRepository;
+import com.hawa.hawa_backend.keyword.Keyword;
+import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.post.PostRepository;
 import com.hawa.hawa_backend.report.ReportRepository;
 import com.hawa.hawa_backend.review.Review;
@@ -55,6 +63,7 @@ public class AdminService {
     private final PostRepository postRepository;
     private final FeedbackRepository feedbackRepository;
     private final BrandRepository brandRepository;
+    private final KeywordRepository keywordRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -252,7 +261,7 @@ public class AdminService {
                 .build();
         brand = brandRepository.save(brand);
         log.info("Admin created brand: {}", brand.getBrandName());
-        return toBrandResponse(brand);
+        return toBrandResponse(brand, 0L);
     }
 
     @Transactional(readOnly = true)
@@ -260,17 +269,26 @@ public class AdminService {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Brand not found with id: " + brandId));
-        return toBrandResponse(brand);
+        long keywordsCount = keywordRepository.countByBrandBrandId(brandId);
+        return toBrandResponse(brand, keywordsCount);
     }
 
     @Transactional(readOnly = true)
     public Page<BrandResponse> listBrands(Long companyId, Pageable pageable) {
+        Page<Brand> brands;
         if (companyId != null) {
-            return brandRepository.findByCompanyCompanyId(companyId, pageable)
-                    .map(this::toBrandResponse);
+            brands = brandRepository.findByCompanyCompanyId(companyId, pageable);
+        } else {
+            brands = brandRepository.findAllWithCompany(pageable);
         }
-        return brandRepository.findAllWithCompany(pageable)
-                .map(this::toBrandResponse);
+
+        List<Long> brandIds = brands.getContent().stream()
+                .map(Brand::getBrandId)
+                .toList();
+        Map<Long, Long> keywordCounts = getKeywordCountsByBrandIds(brandIds);
+
+        return brands.map(brand -> toBrandResponse(brand,
+                keywordCounts.getOrDefault(brand.getBrandId(), 0L)));
     }
 
     @Transactional
@@ -294,7 +312,8 @@ public class AdminService {
 
         brand = brandRepository.save(brand);
         log.info("Admin updated brand: {}", brand.getBrandName());
-        return toBrandResponse(brand);
+        long keywordsCount = keywordRepository.countByBrandBrandId(brandId);
+        return toBrandResponse(brand, keywordsCount);
     }
 
     @Transactional
@@ -304,6 +323,74 @@ public class AdminService {
                         "Brand not found with id: " + brandId));
         brandRepository.delete(brand);
         log.info("Admin deleted brand: {}", brand.getBrandName());
+    }
+
+    // ---- Keyword Management ----
+
+    @Transactional
+    public KeywordResponse createKeyword(Long brandId, CreateKeywordRequest request) {
+        Brand brand = brandRepository.findById(brandId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Brand not found with id: " + brandId));
+
+        Keyword keyword = Keyword.builder()
+                .brand(brand)
+                .keyword(request.keyword())
+                .keywordType(request.keywordType())
+                .build();
+        keyword = keywordRepository.save(keyword);
+        log.info("Admin created keyword '{}' for brand: {}", keyword.getKeyword(), brand.getBrandName());
+        return toKeywordResponse(keyword);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<KeywordResponse> listKeywords(Long brandId, Pageable pageable) {
+        if (!brandRepository.existsById(brandId)) {
+            throw new ResourceNotFoundException("Brand not found with id: " + brandId);
+        }
+        return keywordRepository.findByBrandBrandId(brandId, pageable)
+                .map(this::toKeywordResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public KeywordResponse getKeyword(Long brandId, Long keywordId) {
+        Keyword keyword = keywordRepository.findById(keywordId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Keyword not found with id: " + keywordId));
+        if (!keyword.getBrand().getBrandId().equals(brandId)) {
+            throw new ResourceNotFoundException(
+                    "Keyword " + keywordId + " does not belong to brand " + brandId);
+        }
+        return toKeywordResponse(keyword);
+    }
+
+    @Transactional
+    public KeywordResponse updateKeyword(Long brandId, Long keywordId, UpdateKeywordRequest request) {
+        Keyword keyword = keywordRepository.findById(keywordId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Keyword not found with id: " + keywordId));
+        if (!keyword.getBrand().getBrandId().equals(brandId)) {
+            throw new ResourceNotFoundException(
+                    "Keyword " + keywordId + " does not belong to brand " + brandId);
+        }
+        keyword.setKeyword(request.keyword());
+        keyword.setKeywordType(request.keywordType());
+        keyword = keywordRepository.save(keyword);
+        log.info("Admin updated keyword: {}", keyword.getKeywordId());
+        return toKeywordResponse(keyword);
+    }
+
+    @Transactional
+    public void deleteKeyword(Long brandId, Long keywordId) {
+        Keyword keyword = keywordRepository.findById(keywordId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Keyword not found with id: " + keywordId));
+        if (!keyword.getBrand().getBrandId().equals(brandId)) {
+            throw new ResourceNotFoundException(
+                    "Keyword " + keywordId + " does not belong to brand " + brandId);
+        }
+        keywordRepository.delete(keyword);
+        log.info("Admin deleted keyword: {}", keywordId);
     }
 
     // ---- Mappers ----
@@ -316,7 +403,7 @@ public class AdminService {
                 company.getUpdatedAt());
     }
 
-    private BrandResponse toBrandResponse(Brand brand) {
+    private BrandResponse toBrandResponse(Brand brand, long keywordsCount) {
         return new BrandResponse(
                 brand.getBrandId(),
                 brand.getBrandName(),
@@ -325,8 +412,29 @@ public class AdminService {
                         brand.getCompany().getCompanyName()),
                 brand.getIndustry(),
                 brand.getStatusIndicator(),
+                keywordsCount,
                 brand.getCreatedAt(),
                 brand.getUpdatedAt());
+    }
+
+    private KeywordResponse toKeywordResponse(Keyword keyword) {
+        return new KeywordResponse(
+                keyword.getKeywordId(),
+                keyword.getBrand().getBrandId(),
+                keyword.getKeyword(),
+                keyword.getKeywordType(),
+                keyword.getCreatedAt(),
+                keyword.getUpdatedAt());
+    }
+
+    private Map<Long, Long> getKeywordCountsByBrandIds(List<Long> brandIds) {
+        if (brandIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return keywordRepository.countByBrandIds(brandIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]));
     }
 
     private AdminUserResponse toAdminUserResponse(User user) {
