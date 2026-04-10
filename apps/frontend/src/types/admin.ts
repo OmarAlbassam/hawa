@@ -103,6 +103,7 @@ export interface BrandResponse {
   company: { companyId: number; companyName: string };
   industry: string | null;
   statusIndicator: number | null;
+  keywordsCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -123,4 +124,27 @@ export interface BrandListParams {
   companyId?: number;
   page?: number;
   size?: number;
+}
+
+// ── Keywords ──
+
+export type KeywordType = "BRAND_NAME" | "PRODUCT" | "HASHTAG";
+
+export interface KeywordResponse {
+  keywordId: number;
+  brandId: number;
+  keyword: string;
+  keywordType: KeywordType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateKeywordRequest {
+  keyword: string;
+  keywordType: KeywordType;
+}
+
+export interface UpdateKeywordRequest {
+  keyword: string;
+  keywordType: KeywordType;
 }
