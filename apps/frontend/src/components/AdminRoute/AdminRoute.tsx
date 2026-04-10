@@ -13,7 +13,7 @@ const AdminRoute = ({ children }: AdminRouteProps): React.JSX.Element => {
   }
 
   if (user?.role !== "ADMIN") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

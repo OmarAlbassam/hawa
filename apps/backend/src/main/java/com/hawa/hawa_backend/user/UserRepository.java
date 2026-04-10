@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.hawa.hawa_backend.enums.UserRoleEnum;
+
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
@@ -15,6 +17,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByRole(UserRoleEnum role);
+
+    // Explicit CAST on nullable params avoids PostgreSQL failing to infer types for
+    // untyped null binds — without it, LOWER(:search) errors with "function lower(bytea)
+    // does not exist" because the driver sends null as bytea.
     @Query(value = """
             SELECT u.* FROM "user" u
             JOIN company c ON c.company_id = u.company_id

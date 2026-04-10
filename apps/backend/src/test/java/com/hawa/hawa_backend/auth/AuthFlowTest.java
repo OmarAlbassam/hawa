@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -28,9 +29,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.hawa.hawa_backend.TestcontainersConfiguration;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestcontainersConfiguration.class)
 class AuthFlowTest {
 
     @Autowired private MockMvc mockMvc;
@@ -72,25 +76,17 @@ class AuthFlowTest {
     // ---- 1. Registration (requires ADMIN role) ----
 
     @Test
-    void shouldRegisterNewUser_andReturnTokensAndUserInfo() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/register")
+    void shouldRegisterNewUser_andReturnUserInfo() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("john@example.com", "Password1", "MARKETING_USER")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                .andExpect(jsonPath("$.user.email").value("john@example.com"))
-                .andExpect(jsonPath("$.user.firstName").value("John"))
-                .andExpect(jsonPath("$.user.lastName").value("Doe"))
-                .andExpect(jsonPath("$.user.role").value("MARKETING_USER"))
-                .andExpect(jsonPath("$.user.userId").isNumber())
-                .andReturn();
-
-        // Verify refresh token is stored in DB
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        String refreshToken = body.get("refreshToken").asText();
-        assertThat(refreshTokenRepository.findByToken(refreshToken)).isPresent();
+                .andExpect(jsonPath("$.email").value("john@example.com"))
+                .andExpect(jsonPath("$.firstName").value("John"))
+                .andExpect(jsonPath("$.lastName").value("Doe"))
+                .andExpect(jsonPath("$.role").value("MARKETING_USER"))
+                .andExpect(jsonPath("$.userId").isNumber());
     }
 
     @Test
@@ -143,12 +139,10 @@ class AuthFlowTest {
 
     @Test
     void shouldCleanUpOldRefreshTokens_onLogin() throws Exception {
-        // Register creates a refresh token
-        JsonNode registerTokens = registerUser("cleanup@example.com", "Password1", "MARKETING_USER");
-        String registerRefreshToken = registerTokens.get("refreshToken").asText();
+        // Register creates a user (no tokens returned), then login to get first refresh token
+        registerUser("cleanup@example.com", "Password1", "MARKETING_USER");
 
-        // Login should revoke the old refresh token and issue a new one
-        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+        MvcResult firstLoginResult = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "cleanup@example.com", "password": "Password1"}
@@ -156,13 +150,25 @@ class AuthFlowTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode loginTokens = objectMapper.readTree(loginResult.getResponse().getContentAsString());
-        String loginRefreshToken = loginTokens.get("refreshToken").asText();
+        JsonNode firstLoginTokens = objectMapper.readTree(firstLoginResult.getResponse().getContentAsString());
+        String firstRefreshToken = firstLoginTokens.get("refreshToken").asText();
 
-        // Old refresh token from register should be gone
-        assertThat(refreshTokenRepository.findByToken(registerRefreshToken).isPresent()).isFalse();
-        // New refresh token from login should exist
-        assertThat(refreshTokenRepository.findByToken(loginRefreshToken).isPresent()).isTrue();
+        // Second login should revoke the old refresh token and issue a new one
+        MvcResult secondLoginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "cleanup@example.com", "password": "Password1"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode secondLoginTokens = objectMapper.readTree(secondLoginResult.getResponse().getContentAsString());
+        String secondRefreshToken = secondLoginTokens.get("refreshToken").asText();
+
+        // Old refresh token from first login should be gone
+        assertThat(refreshTokenRepository.findByToken(firstRefreshToken).isPresent()).isFalse();
+        // New refresh token from second login should exist
+        assertThat(refreshTokenRepository.findByToken(secondRefreshToken).isPresent()).isTrue();
     }
 
     @Test
@@ -182,7 +188,8 @@ class AuthFlowTest {
 
     @Test
     void shouldIssueNewTokens_whenRefreshingWithValidRefreshToken() throws Exception {
-        JsonNode tokens = registerUser("refresh@example.com", "Password1", "MARKETING_USER");
+        registerUser("refresh@example.com", "Password1", "MARKETING_USER");
+        JsonNode tokens = loginUser("refresh@example.com", "Password1");
         String refreshToken = tokens.get("refreshToken").asText();
 
         MvcResult result = mockMvc.perform(post("/api/auth/refresh")
@@ -224,7 +231,8 @@ class AuthFlowTest {
 
     @Test
     void shouldReject401_whenRefreshTokenAlreadyRotated() throws Exception {
-        JsonNode tokens = registerUser("rotated@example.com", "Password1", "MARKETING_USER");
+        registerUser("rotated@example.com", "Password1", "MARKETING_USER");
+        JsonNode tokens = loginUser("rotated@example.com", "Password1");
         String refreshToken = tokens.get("refreshToken").asText();
 
         // Use the refresh token once (it gets rotated)
@@ -242,7 +250,8 @@ class AuthFlowTest {
 
     @Test
     void shouldReject401_whenRefreshTokenIsExpired() throws Exception {
-        JsonNode tokens = registerUser("expired@example.com", "Password1", "MARKETING_USER");
+        registerUser("expired@example.com", "Password1", "MARKETING_USER");
+        JsonNode tokens = loginUser("expired@example.com", "Password1");
         String refreshToken = tokens.get("refreshToken").asText();
 
         // Manually expire the refresh token in the DB
@@ -277,7 +286,8 @@ class AuthFlowTest {
 
     @Test
     void shouldAccessProtectedEndpoint_withValidToken() throws Exception {
-        JsonNode tokens = registerUser("valid@example.com", "Password1", "MARKETING_USER");
+        registerUser("valid@example.com", "Password1", "MARKETING_USER");
+        JsonNode tokens = loginUser("valid@example.com", "Password1");
         String accessToken = tokens.get("accessToken").asText();
 
         // Should not get 401 — the endpoint may 404 but it passes auth
@@ -295,7 +305,7 @@ class AuthFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("newadmin@example.com", "Password1", "ADMIN")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.role").value("ADMIN"));
+                .andExpect(jsonPath("$.role").value("ADMIN"));
     }
 
     @Test
@@ -305,7 +315,7 @@ class AuthFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("marketing@example.com", "Password1", "MARKETING_USER")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.role").value("MARKETING_USER"));
+                .andExpect(jsonPath("$.role").value("MARKETING_USER"));
     }
 
     @Test
@@ -325,7 +335,8 @@ class AuthFlowTest {
 
     @Test
     void shouldInvalidateRefreshToken_onLogout() throws Exception {
-        JsonNode tokens = registerUser("logout@example.com", "Password1", "MARKETING_USER");
+        registerUser("logout@example.com", "Password1", "MARKETING_USER");
+        JsonNode tokens = loginUser("logout@example.com", "Password1");
         String refreshToken = tokens.get("refreshToken").asText();
 
         mockMvc.perform(post("/api/auth/logout")
@@ -342,6 +353,17 @@ class AuthFlowTest {
     }
 
     // ---- Helpers ----
+
+    private JsonNode loginUser(String email, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "%s", "password": "%s"}
+                                """.formatted(email, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
 
     private String registerJson(String email, String password, String role) {
         return """
