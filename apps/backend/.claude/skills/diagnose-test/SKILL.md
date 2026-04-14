@@ -44,6 +44,7 @@ Include in your report:
 
 - The exact implementation line(s) where divergence occurs (file path + line number + the line itself).
 - Any relevant state at that point (variable values, returned objects, side effects) if you can determine them from the trace or logs.
+- Check application logs for relevant ERROR/WARN entries that may reveal the failure path. Logs use ECS JSON format (see `logback-spring.xml`).
 
 Report what you observe, not what you expect to observe. If something surprises you, say so explicitly.
 

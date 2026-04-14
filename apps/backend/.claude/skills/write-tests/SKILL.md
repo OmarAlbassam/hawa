@@ -151,6 +151,7 @@ All tests must pass before you're done.
 - [ ] Test names describe behavior: `shouldX_whenY`
 - [ ] Happy path, validation errors, and not-found scenarios covered
 - [ ] All tests pass
+- [ ] Logging doesn't leak sensitive data (no passwords, tokens, or secrets in log statements — see `CLAUDE.md § Sensitive Data Rules`)
 
 ## What NOT to Do
 
