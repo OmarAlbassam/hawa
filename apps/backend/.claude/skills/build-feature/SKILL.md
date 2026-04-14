@@ -198,7 +198,12 @@ Rules:
 - Throw meaningful exceptions (e.g., `ResourceNotFoundException`) — never return null from a "get" method
 - Use the Mapper for all Entity ↔ DTO conversions
 - Accept request DTOs (`Create{Feature}Request`, `Update{Feature}Request`) as input, return `{Feature}Response` DTOs as output — never return entities from service methods
-- Logging with `@Slf4j`: log at `info` for operations, `warn` for business rule violations, `error` for unexpected failures
+- **Logging with `@Slf4j`** — follow the logging policy in `CLAUDE.md § Logging`:
+  - `log.info()` for write operations and state transitions: create, update, delete, status changes. Include the entity identifier (e.g., `log.info("Brand created: {}", brand.getBrandName());`)
+  - `log.warn()` for business rule violations: typically handled by GlobalExceptionHandler, so service-level warn logging is rarely needed unless the service handles the violation without throwing
+  - `log.error()` for unexpected failures: always pass the exception as the last argument (`log.error("Failed to process: {}", id, ex);`) to capture the stack trace
+  - `log.debug()` for read operations, query details, pagination params — only if useful for troubleshooting
+  - **Never log** passwords, tokens, secrets, or full request/response bodies — see `CLAUDE.md § Sensitive Data Rules`
 
 ## Step 8: Controller
 

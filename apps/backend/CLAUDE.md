@@ -173,6 +173,41 @@ com.hawa.hawa_backend/
 - **SLF4J:** Use the SLF4J API for logging (Lombok `@Slf4j` annotation preferred).
 - **Parameterized Logging:** Use parameterized messages (`log.info("Processing user {}...", userId);`) instead of string concatenation.
 
+### Logging Policy
+
+| Level | When to use | Examples |
+|-------|-------------|---------|
+| `ERROR` | Unexpected failures, unhandled exceptions, external service failures | LLM service timeout, uncaught exception in GlobalExceptionHandler |
+| `WARN` | Business rule violations, invalid input, expected-but-notable failures | Duplicate email, resource not found, invalid JWT |
+| `INFO` | State transitions and write operations | User logged in, report created, analysis started/completed, brand deleted |
+| `DEBUG` | Request flow details, query details, read operations | JWT filter decisions, pagination params, entity fetched |
+
+### Sensitive Data Rules
+
+- **Never log:** passwords, tokens (JWT values, refresh tokens), secrets, API keys
+- **Never log:** full request/response bodies (may contain PII)
+- **OK at INFO:** email addresses for auth events (established pattern)
+- **Post/text content:** `DEBUG` level only, or not logged at all
+
+### Patterns
+
+```java
+// INFO — state transitions, writes
+log.info("User logged in: {}", user.getEmail());
+log.info("Report created: id={} for brand={}", report.getReportId(), brand.getBrandName());
+
+// WARN — business rule violations (handled by GlobalExceptionHandler)
+log.warn("Resource not found: {}", ex.getMessage());
+
+// ERROR — unexpected failures (catch-all handler, external service failures)
+// Always pass the exception as the last argument for full stack trace in ECS logs
+log.error("Unhandled exception: {}", ex.getMessage(), ex);
+log.error("LLM service call failed for reportId={}: {}", reportId, ex.getMessage(), ex);
+
+// DEBUG — read operations, flow details
+log.debug("No Bearer token found for {} {}", request.getMethod(), request.getRequestURI());
+```
+
 ## Testing
 
 - **Unit Tests:** Write unit tests for services and components using JUnit 5 and Mockito.
