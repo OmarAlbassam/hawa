@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Tags } from "lucide-react";
 import { useAuth } from "../../../context/useAuth";
 import {
   getBrands,
@@ -20,6 +20,7 @@ import Badge from "../../../components/Badge/Badge";
 import Modal from "../../../components/Modal/Modal";
 import ConfirmDialog from "../../../components/ConfirmDialog/ConfirmDialog";
 import ErrorBanner from "../../../components/ErrorBanner/ErrorBanner";
+import KeywordPanel from "./KeywordPanel";
 import "./BrandManagement.css";
 
 type ModalMode = "create" | "edit" | null;
@@ -43,6 +44,8 @@ const BrandManagement = (): React.JSX.Element => {
 
   const [deletingBrand, setDeletingBrand] = useState<BrandResponse | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [keywordsBrand, setKeywordsBrand] = useState<BrandResponse | null>(null);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -161,6 +164,13 @@ const BrandManagement = (): React.JSX.Element => {
         row.statusIndicator != null ? row.statusIndicator.toFixed(1) : "—",
     },
     {
+      key: "keywordsCount",
+      header: "Keywords",
+      render: (row) => (
+        <Badge variant="default">{row.keywordsCount}</Badge>
+      ),
+    },
+    {
       key: "createdAt",
       header: "Created",
       render: (row) => formatDate(row.createdAt),
@@ -170,6 +180,13 @@ const BrandManagement = (): React.JSX.Element => {
       header: "",
       render: (row) => (
         <div className="brands-actions">
+          <button
+            className="brands-action-btn"
+            onClick={() => setKeywordsBrand(row)}
+            aria-label="Manage keywords"
+          >
+            <Tags size={16} />
+          </button>
           <button
             className="brands-action-btn"
             onClick={() => {
@@ -331,6 +348,23 @@ const BrandManagement = (): React.JSX.Element => {
         variant="destructive"
         loading={deleteLoading}
       />
+
+      <Modal
+        open={keywordsBrand !== null}
+        onClose={() => {
+          setKeywordsBrand(null);
+          setRefreshKey((k) => k + 1);
+        }}
+        title={`Keywords — ${keywordsBrand?.brandName}`}
+        width="lg"
+      >
+        {keywordsBrand && accessToken && (
+          <KeywordPanel
+            brandId={keywordsBrand.brandId}
+            accessToken={accessToken}
+          />
+        )}
+      </Modal>
     </div>
   );
 };

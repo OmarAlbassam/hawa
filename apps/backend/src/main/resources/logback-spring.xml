@@ -2,10 +2,11 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- Console: ECS JSON, all logs -->
+    <!-- Console: human-readable plain text -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
-            <format>ecs</format>
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>utf8</charset>
         </encoder>
     </appender>
 

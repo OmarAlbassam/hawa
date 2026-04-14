@@ -14,6 +14,9 @@ import type {
   CreateBrandRequest,
   UpdateBrandRequest,
   BrandListParams,
+  KeywordResponse,
+  CreateKeywordRequest,
+  UpdateKeywordRequest,
 } from "../types/admin";
 
 function authHeaders(token: string): Record<string, string> {
@@ -277,4 +280,67 @@ export async function deleteBrand(
     { method: "DELETE", headers: authHeaders(token) }
   );
   if (!response.ok) return handleError(response, "Failed to delete brand");
+}
+
+// ── Keywords ──
+
+export async function getKeywords(
+  token: string,
+  brandId: number,
+  page: number = 0,
+  size: number = 20
+): Promise<Page<KeywordResponse>> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/admin/brands/${brandId}/keywords?page=${page}&size=${size}&sort=createdAt,desc`,
+    { headers: authHeaders(token) }
+  );
+  if (!response.ok) return handleError(response, "Failed to fetch keywords");
+  return response.json();
+}
+
+export async function createKeyword(
+  token: string,
+  brandId: number,
+  data: CreateKeywordRequest
+): Promise<KeywordResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/admin/brands/${brandId}/keywords`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(data),
+    }
+  );
+  if (!response.ok) return handleError(response, "Failed to create keyword");
+  return response.json();
+}
+
+export async function updateKeyword(
+  token: string,
+  brandId: number,
+  keywordId: number,
+  data: UpdateKeywordRequest
+): Promise<KeywordResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/admin/brands/${brandId}/keywords/${keywordId}`,
+    {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify(data),
+    }
+  );
+  if (!response.ok) return handleError(response, "Failed to update keyword");
+  return response.json();
+}
+
+export async function deleteKeyword(
+  token: string,
+  brandId: number,
+  keywordId: number
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/admin/brands/${brandId}/keywords/${keywordId}`,
+    { method: "DELETE", headers: authHeaders(token) }
+  );
+  if (!response.ok) return handleError(response, "Failed to delete keyword");
 }
