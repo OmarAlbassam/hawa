@@ -352,6 +352,24 @@ class AuthFlowTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // ---- 8. Spring MVC exception handling (regression: malformed requests should not return 500) ----
+
+    @Test
+    void shouldReturn400_whenRequestBodyIsMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ not valid json }"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturn415_whenContentTypeIsNotJson() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("not json"))
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
     // ---- Helpers ----
 
     private JsonNode loginUser(String email, String password) throws Exception {
