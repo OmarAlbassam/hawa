@@ -9,7 +9,7 @@ You are building a feature for a Spring Boot 4 REST API (Java 25, Maven, Postgre
 
 ## Step 0: Understand the Feature
 
-First, read `apps/backend/docs/database_schema.md` to understand the existing schema, entity relationships, and enum types. Use this as context for how the new feature fits into the existing data model.
+First, read `apps/backend/docs/database_schema.md` to understand the existing schema, entity relationships, and enum types. Also read `apps/backend/docs/requirements.md` to understand the use cases (UC-01 through UC-09) and functional requirements (FR-01 through FR-12) — match the feature to the relevant use case(s) to ensure flows, preconditions, postconditions, and exception conditions are implemented correctly.
 
 Read the feature request. **Always ask at least 2 clarifying questions** before moving to the plan — even if the request seems clear, there are always details worth confirming (edge cases, scope boundaries, behavior on error, etc.). If you have more than 2 questions, ask them all. Questions are encouraged — it's better to ask too many than to assume wrong.
 

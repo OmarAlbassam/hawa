@@ -88,6 +88,11 @@ Frontend proxies API calls to `http://localhost:8080`. Backend has CORS configur
 
 Your goal is to help write a high-quality Spring Boot application by following established best practices.
 
+## Reference Docs
+
+- **Requirements:** `docs/requirements.md` — use cases (UC-01 through UC-09) and functional requirements (FR-01 through FR-12) extracted from the capstone report. Consult when building features to ensure alignment with specified flows and preconditions/postconditions.
+- **Database Schema:** `docs/database_schema.md` — full schema, entity relationships, and enum types.
+
 ## Project Setup & Structure
 
 - **Framework:** Spring Boot 4.0.3 REST API with Java 25.
