@@ -136,6 +136,22 @@ class DashboardControllerTest {
         }
 
         @Test
+        void shouldReject400_whenRecentReportsLimitIsZero() throws Exception {
+            mockMvc.perform(get("/api/dashboard")
+                            .param("recentReportsLimit", "0")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReject400_whenRecentReportsLimitIsNegative() throws Exception {
+            mockMvc.perform(get("/api/dashboard")
+                            .param("recentReportsLimit", "-1")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void shouldReject401_whenUnauthenticated() throws Exception {
             mockMvc.perform(get("/api/dashboard"))
                     .andExpect(status().isUnauthorized());

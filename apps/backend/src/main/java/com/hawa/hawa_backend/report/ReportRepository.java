@@ -27,7 +27,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             AND (CAST(:brandId AS BIGINT) IS NULL OR r.brand_id = CAST(:brandId AS BIGINT))
             AND (CAST(:status AS report_status) IS NULL OR r.status = CAST(:status AS report_status))
             AND (CAST(:dateFrom AS DATE) IS NULL OR r.created_at >= CAST(:dateFrom AS DATE))
-            AND (CAST(:dateTo AS DATE) IS NULL OR r.created_at <= CAST(:dateTo AS DATE))
+            AND (CAST(:dateTo AS DATE) IS NULL OR r.created_at < CAST(:dateTo AS DATE) + INTERVAL '1 day')
             """,
             countQuery = """
             SELECT COUNT(*) FROM report r
@@ -36,7 +36,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             AND (CAST(:brandId AS BIGINT) IS NULL OR r.brand_id = CAST(:brandId AS BIGINT))
             AND (CAST(:status AS report_status) IS NULL OR r.status = CAST(:status AS report_status))
             AND (CAST(:dateFrom AS DATE) IS NULL OR r.created_at >= CAST(:dateFrom AS DATE))
-            AND (CAST(:dateTo AS DATE) IS NULL OR r.created_at <= CAST(:dateTo AS DATE))
+            AND (CAST(:dateTo AS DATE) IS NULL OR r.created_at < CAST(:dateTo AS DATE) + INTERVAL '1 day')
             """,
             nativeQuery = true)
     Page<Report> findByCompanyIdWithFilters(

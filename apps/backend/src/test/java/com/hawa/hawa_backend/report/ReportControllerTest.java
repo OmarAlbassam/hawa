@@ -165,6 +165,28 @@ class ReportControllerTest {
         }
 
         @Test
+        void shouldIncludeReportsCreatedDuringDateToDay() throws Exception {
+            // Regression: dateTo filter should include reports created any time on that day
+            createReport(brand, ReportStatusEnum.COMPLETED);
+
+            String today = java.time.LocalDate.now().toString();
+
+            mockMvc.perform(get("/api/reports")
+                            .param("dateTo", today)
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1));
+        }
+
+        @Test
+        void shouldReject400_whenSortPropertyIsUnknown() throws Exception {
+            mockMvc.perform(get("/api/reports")
+                            .param("sort", "malicious_col,desc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void shouldReturnEmptyPage_whenNoReports() throws Exception {
             mockMvc.perform(get("/api/reports")
                             .header("Authorization", "Bearer " + userToken))

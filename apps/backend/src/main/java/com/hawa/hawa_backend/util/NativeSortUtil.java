@@ -32,7 +32,10 @@ public final class NativeSortUtil {
                         case "dataSource" -> "data_source";
                         case "dateFrom" -> "date_from";
                         case "dateTo" -> "date_to";
-                        default -> order.getProperty();
+                        case "score", "status", "summary", "email", "role",
+                             "industry", "keyword" -> order.getProperty();
+                        default -> throw new IllegalArgumentException(
+                                "Unsupported sort property: " + order.getProperty());
                     };
                     return new Sort.Order(order.getDirection(), mapped);
                 })
