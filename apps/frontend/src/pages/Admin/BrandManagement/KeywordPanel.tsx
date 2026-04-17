@@ -85,6 +85,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
       });
       setNewKeyword("");
       setNewType("BRAND_NAME");
+      setPage(0);
       setRefreshKey((k) => k + 1);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to add keyword");
@@ -128,7 +129,11 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     try {
       await deleteKeyword(accessToken, brandId, deletingKeyword.keywordId);
       setDeletingKeyword(null);
-      setRefreshKey((k) => k + 1);
+      if (keywords.length === 1 && page > 0) {
+        setPage((p) => p - 1);
+      } else {
+        setRefreshKey((k) => k + 1);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete keyword");
       setDeletingKeyword(null);

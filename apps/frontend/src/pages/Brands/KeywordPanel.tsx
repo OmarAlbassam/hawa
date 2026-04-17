@@ -84,6 +84,7 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
       await createKeyword(brandId, { keyword: trimmed, keywordType: newType });
       setNewKeyword("");
       setNewType("BRAND_NAME");
+      setPage(0);
       setRefreshKey((k) => k + 1);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to add keyword");
@@ -127,7 +128,11 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
     try {
       await deleteKeyword(brandId, deletingKeyword.keywordId);
       setDeletingKeyword(null);
-      setRefreshKey((k) => k + 1);
+      if (keywords.length === 1 && page > 0) {
+        setPage((p) => p - 1);
+      } else {
+        setRefreshKey((k) => k + 1);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete keyword");
       setDeletingKeyword(null);
