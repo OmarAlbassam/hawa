@@ -36,7 +36,7 @@ frontend-dev:
 # ── Backend ──────────────────────────────────────────────────
 
 backend-dev:
-	cd apps/backend && ./mvnw spring-boot:run
+	cd apps/backend && if [ -f .env ]; then set -a; . ./.env; set +a; fi; ./mvnw spring-boot:run
 
 # ── Combined ─────────────────────────────────────────────────
 
@@ -45,4 +45,3 @@ dev:
 
 dev-all:
 	$(MAKE) frontend-dev & $(MAKE) backend-dev & $(MAKE) llm-dev & wait
-
