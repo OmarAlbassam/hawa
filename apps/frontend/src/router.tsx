@@ -14,6 +14,8 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 import BrandList from "./pages/Brands/BrandList";
 import BrandDetail from "./pages/Brands/BrandDetail";
 import ReportList from "./pages/Reports/ReportList";
+import StartAnalysis from "./pages/Analysis/StartAnalysis";
+import ReportStatus from "./pages/Analysis/ReportStatus";
 import NotFound from "./pages/NotFound/NotFound";
 
 const AppRouter = () => (
@@ -46,7 +48,9 @@ const AppRouter = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/brands" element={<BrandList />} />
           <Route path="/brands/:brandId" element={<BrandDetail />} />
+          <Route path="/brands/:brandId/analyze" element={<StartAnalysis />} />
           <Route path="/reports" element={<ReportList />} />
+          <Route path="/reports/:reportId" element={<ReportStatus />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<NotFound />} />

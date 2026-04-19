@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { getReports } from "../../services/reportService";
 import type { Page } from "../../types/page";
 import type { ReportResponse } from "../../types/report";
@@ -7,17 +7,12 @@ import type { ReportStatus } from "../../types/dashboard";
 import Badge from "../../components/Badge/Badge";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
 import { formatDate } from "../../utils/formatDate";
+import { statusBadgeVariant } from "../../utils/reportStatus";
 import "./ReportList.css";
-
-const statusBadgeVariant: Record<string, "default" | "primary" | "success" | "warning" | "error" | "info"> = {
-  PENDING: "default",
-  PROCESSING: "info",
-  COMPLETED: "success",
-  FAILED: "error",
-};
 
 const ReportList = (): React.JSX.Element => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page<ReportResponse> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +102,15 @@ const ReportList = (): React.JSX.Element => {
               </thead>
               <tbody>
                 {data.content.map((report) => (
-                  <tr key={report.reportId}>
+                  <tr
+                    key={report.reportId}
+                    className="report-list-row"
+                    onClick={() =>
+                      navigate(`/reports/${report.reportId}`, {
+                        state: { report },
+                      })
+                    }
+                  >
                     <td className="report-list-brand">{report.brandName}</td>
                     <td>{report.dataSource === "CSV_UPLOAD" ? "CSV" : "Reddit"}</td>
                     <td>
