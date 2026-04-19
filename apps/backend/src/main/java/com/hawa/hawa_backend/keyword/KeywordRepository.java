@@ -12,6 +12,8 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
 
     Page<Keyword> findByBrandBrandId(Long brandId, Pageable pageable);
 
+    List<Keyword> findAllByBrandBrandId(Long brandId);
+
     @Query("SELECT k.brand.brandId, COUNT(k) FROM Keyword k WHERE k.brand.brandId IN :brandIds GROUP BY k.brand.brandId")
     List<Object[]> countByBrandIds(@Param("brandIds") List<Long> brandIds);
 

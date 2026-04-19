@@ -1,0 +1,90 @@
+package com.hawa.hawa_backend.analysis;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.hawa.hawa_backend.analysis.dto.ReportStatusResponse;
+import com.hawa.hawa_backend.analysis.dto.StartAnalysisRequest;
+import com.hawa.hawa_backend.auth.AuthenticatedUserService;
+import com.hawa.hawa_backend.brand.Brand;
+import com.hawa.hawa_backend.brand.BrandRepository;
+import com.hawa.hawa_backend.enums.ReportStatusEnum;
+import com.hawa.hawa_backend.exception.BadRequestException;
+import com.hawa.hawa_backend.exception.ResourceNotFoundException;
+import com.hawa.hawa_backend.report.Report;
+import com.hawa.hawa_backend.report.ReportRepository;
+import com.hawa.hawa_backend.report.dto.ReportResponse;
+import com.hawa.hawa_backend.user.User;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AnalysisService {
+
+    private final AuthenticatedUserService authenticatedUserService;
+    private final BrandRepository brandRepository;
+    private final ReportRepository reportRepository;
+
+    @Transactional
+    public ReportResponse startAnalysis(Long brandId, StartAnalysisRequest request) {
+        User user = authenticatedUserService.getAuthenticatedUser();
+        Long companyId = user.getCompany().getCompanyId();
+
+        Brand brand = brandRepository.findById(brandId)
+                .orElseThrow(() -> new ResourceNotFoundException("Brand not found with id: " + brandId));
+
+        if (!brand.getCompany().getCompanyId().equals(companyId)) {
+            throw new BadRequestException("Brand does not belong to your company");
+        }
+
+        Report report = Report.builder()
+                .user(user)
+                .brand(brand)
+                .dataSource(request.dataSource())
+                .status(ReportStatusEnum.PENDING)
+                .dateFrom(request.dateFrom())
+                .dateTo(request.dateTo())
+                .build();
+
+        report = reportRepository.save(report);
+        log.info("Analysis started: reportId={} for brand={} by user={}",
+                report.getReportId(), brand.getBrandName(), user.getEmail());
+
+        return toReportResponse(report);
+    }
+
+    @Transactional(readOnly = true)
+    public ReportStatusResponse getReportStatus(Long reportId) {
+        Long companyId = authenticatedUserService.getCompanyId();
+
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Report not found with id: " + reportId));
+
+        if (!report.getBrand().getCompany().getCompanyId().equals(companyId)) {
+            throw new BadRequestException("Report does not belong to your company");
+        }
+
+        return new ReportStatusResponse(
+                report.getReportId(),
+                report.getStatus(),
+                report.getCreatedAt(),
+                report.getFinishedAt());
+    }
+
+    private ReportResponse toReportResponse(Report report) {
+        return new ReportResponse(
+                report.getReportId(),
+                report.getBrand().getBrandName(),
+                report.getStatus(),
+                report.getDataSource(),
+                report.getScore(),
+                report.getSummary(),
+                report.getDateFrom(),
+                report.getDateTo(),
+                report.getCreatedAt(),
+                report.getFinishedAt());
+    }
+}

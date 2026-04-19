@@ -5,11 +5,14 @@ import {
   createKeyword,
   updateKeyword,
   deleteKeyword,
-} from "../../../services/adminService";
-import type { Page, KeywordResponse, KeywordType } from "../../../types/admin";
-import Badge from "../../../components/Badge/Badge";
-import ConfirmDialog from "../../../components/ConfirmDialog/ConfirmDialog";
+} from "../../services/brandService";
+import type { Page } from "../../types/page";
+import type { KeywordInfo } from "../../types/brand";
+import Badge from "../../components/Badge/Badge";
+import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import "./KeywordPanel.css";
+
+type KeywordType = "BRAND_NAME" | "PRODUCT" | "HASHTAG";
 
 const TYPE_LABELS: Record<KeywordType, string> = {
   BRAND_NAME: "Brand Name",
@@ -27,11 +30,10 @@ const KEYWORD_TYPES: KeywordType[] = ["BRAND_NAME", "PRODUCT", "HASHTAG"];
 
 interface KeywordPanelProps {
   brandId: number;
-  accessToken: string;
 }
 
-const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.Element => {
-  const [data, setData] = useState<Page<KeywordResponse> | null>(null);
+const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
+  const [data, setData] = useState<Page<KeywordInfo> | null>(null);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,14 +52,14 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete
-  const [deletingKeyword, setDeletingKeyword] = useState<KeywordResponse | null>(null);
+  const [deletingKeyword, setDeletingKeyword] = useState<KeywordInfo | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
-    getKeywords(accessToken, brandId, page)
+    getKeywords(brandId, page)
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -71,7 +73,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     return () => {
       cancelled = true;
     };
-  }, [accessToken, brandId, page, refreshKey]);
+  }, [brandId, page, refreshKey]);
 
   const handleAdd = async () => {
     const trimmed = newKeyword.trim();
@@ -79,10 +81,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     setAddLoading(true);
     setAddError("");
     try {
-      await createKeyword(accessToken, brandId, {
-        keyword: trimmed,
-        keywordType: newType,
-      });
+      await createKeyword(brandId, { keyword: trimmed, keywordType: newType });
       setNewKeyword("");
       setNewType("BRAND_NAME");
       setPage(0);
@@ -94,7 +93,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     }
   };
 
-  const handleEditStart = (kw: KeywordResponse) => {
+  const handleEditStart = (kw: KeywordInfo) => {
     setEditingId(kw.keywordId);
     setEditKeyword(kw.keyword);
     setEditType(kw.keywordType);
@@ -106,7 +105,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     if (!trimmed) return;
     setEditLoading(true);
     try {
-      await updateKeyword(accessToken, brandId, editingId, {
+      await updateKeyword(brandId, editingId, {
         keyword: trimmed,
         keywordType: editType,
       });
@@ -127,7 +126,7 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
     if (!deletingKeyword) return;
     setDeleteLoading(true);
     try {
-      await deleteKeyword(accessToken, brandId, deletingKeyword.keywordId);
+      await deleteKeyword(brandId, deletingKeyword.keywordId);
       setDeletingKeyword(null);
       if (keywords.length === 1 && page > 0) {
         setPage((p) => p - 1);
@@ -148,7 +147,6 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
 
   return (
     <div className="keywords-panel">
-      {/* Add form */}
       <div className="keywords-add-row">
         <input
           className="keywords-add-input"
@@ -189,7 +187,6 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
       {addError && <div className="keywords-error">{addError}</div>}
       {error && <div className="keywords-error">{error}</div>}
 
-      {/* Keywords list */}
       {loading ? (
         <div className="keywords-loading">Loading...</div>
       ) : keywords.length === 0 ? (
@@ -292,7 +289,6 @@ const KeywordPanel = ({ brandId, accessToken }: KeywordPanelProps): React.JSX.El
             </tbody>
           </table>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="keywords-pagination">
               <span className="keywords-pagination-info">
