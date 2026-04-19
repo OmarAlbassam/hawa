@@ -2,6 +2,8 @@ package com.hawa.hawa_backend.analysis;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.hawa.hawa_backend.analysis.dto.ReportStatusResponse;
 import com.hawa.hawa_backend.analysis.dto.StartAnalysisRequest;
@@ -27,6 +29,7 @@ public class AnalysisService {
     private final AuthenticatedUserService authenticatedUserService;
     private final BrandRepository brandRepository;
     private final ReportRepository reportRepository;
+    private final AnalysisJobRunner analysisJobRunner;
 
     @Transactional
     public ReportResponse startAnalysis(Long brandId, StartAnalysisRequest request) {
@@ -53,6 +56,14 @@ public class AnalysisService {
         log.info("Analysis started: reportId={} for brand={} by user={}",
                 report.getReportId(), brand.getBrandName(), user.getEmail());
 
+        final Long reportId = report.getReportId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                analysisJobRunner.run(reportId);
+            }
+        });
+
         return toReportResponse(report);
     }
 
@@ -71,7 +82,8 @@ public class AnalysisService {
                 report.getReportId(),
                 report.getStatus(),
                 report.getCreatedAt(),
-                report.getFinishedAt());
+                report.getFinishedAt(),
+                report.getFailureReason());
     }
 
     private ReportResponse toReportResponse(Report report) {
