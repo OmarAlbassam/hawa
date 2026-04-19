@@ -24,6 +24,7 @@ export interface ReportStatusResponse {
   status: ReportStatus;
   createdAt: string;
   finishedAt: string | null;
+  failureReason: string | null;
 }
 
 export interface ReportListParams {
