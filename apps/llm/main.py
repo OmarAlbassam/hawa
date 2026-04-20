@@ -61,8 +61,14 @@ def _apply_discovered(
         return current
 
     margin = settings.rate_safety_margin
-    rpm = int(discovered.rpm * margin) if discovered.rpm else settings.rate_rpm
-    tpm = int(discovered.tpm * margin) if discovered.tpm else settings.rate_tpm
+    # `is not None`, not truthy: a provider reporting 0 (unlimited) must be
+    # honored, not silently replaced by the hardcoded default.
+    rpm = (
+        int(discovered.rpm * margin) if discovered.rpm is not None else settings.rate_rpm
+    )
+    tpm = (
+        int(discovered.tpm * margin) if discovered.tpm is not None else settings.rate_tpm
+    )
 
     logger.info(
         "provider reports rpm=%s, tpm=%s → applying rpm=%s, tpm=%s (safety margin %.2f)",

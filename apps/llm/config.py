@@ -84,6 +84,10 @@ class Settings(BaseSettings):
         provider = values.get("provider", values.get("LLM_PROVIDER", "ollama")).lower()
         defaults = PROVIDER_DEFAULTS.get(provider, {})
         for field, default in defaults.items():
-            if not values.get(field):
+            current = values.get(field)
+            # Treat missing keys and empty strings as "unset" so provider
+            # defaults apply — but keep explicit 0 (meaningful for the
+            # numeric rate_rpm / rate_tpm fields) out of this branch.
+            if current is None or current == "":
                 values[field] = default
         return values
