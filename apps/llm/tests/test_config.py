@@ -1,0 +1,46 @@
+"""Regression tests for Settings' provider-default validator.
+
+Devin review on PR #13 flagged that `if not values.get(field)` treated an
+explicit 0 for `rate_rpm` / `rate_tpm` the same as "unset" and silently
+overwrote it with the provider default. These tests pin the corrected
+behavior: numeric 0 is preserved, empty strings and missing keys still get
+the provider defaults applied.
+"""
+
+from config import Settings
+
+
+def test_explicit_rate_rpm_zero_is_honored_for_groq():
+    """A user setting LLM_RATE_RPM=0 must disable the RPM bucket, even when
+    the Groq provider default would otherwise apply 28."""
+    settings = Settings(
+        provider="groq",
+        api_key="test",
+        rate_rpm=0,
+    )
+    assert settings.rate_rpm == 0
+    # tpm was left unset → provider default must still apply
+    assert settings.rate_tpm == 5800
+
+
+def test_explicit_rate_tpm_zero_is_honored_for_groq():
+    settings = Settings(
+        provider="groq",
+        api_key="test",
+        rate_tpm=0,
+    )
+    assert settings.rate_tpm == 0
+    assert settings.rate_rpm == 28
+
+
+def test_groq_defaults_apply_when_rate_fields_unset():
+    """Baseline: without explicit values, provider defaults fill in."""
+    settings = Settings(provider="groq", api_key="test")
+    assert settings.rate_rpm == 28
+    assert settings.rate_tpm == 5800
+
+
+def test_empty_string_base_url_still_gets_provider_default():
+    """Preserve the existing `"" means unset` convention for string fields."""
+    settings = Settings(provider="groq", api_key="test", base_url="")
+    assert settings.base_url == "https://api.groq.com/openai/v1"

@@ -2,7 +2,7 @@ _BASE_PROMPT = """You are a sentiment analysis engine for brand health monitorin
 Analyze the given social media post and determine:
 
 - score: how positive or negative the sentiment is (0.0 = extremely negative, 2.5 = neutral, 5.0 = extremely positive). Use one decimal place.
-- emotion: the single dominant emotion expressed in the post.
+- emotion: the single dominant emotion expressed in the post. One of JOY, ANGER, SADNESS, FEAR, SURPRISE, DISGUST, or NEUTRAL when no emotion is clearly expressed.
 - aspect: which business aspect the post relates to (e.g. product, service, delivery, pricing). Choose the single most relevant one."""
 
 
