@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { getReportStatus, getReports } from "../../services/reportService";
+import {
+  getReportStatus,
+  getReports,
+  getReportOverview,
+} from "../../services/reportService";
 import type {
+  AspectEnum,
+  EmotionEnum,
+  ReportOverviewResponse,
   ReportResponse,
   ReportStatusResponse,
 } from "../../types/report";
@@ -12,7 +19,6 @@ import { formatDate } from "../../utils/formatDate";
 import {
   statusBadgeVariant,
   isTerminalStatus,
-  parseReportSummary,
 } from "../../utils/reportStatus";
 import "./ReportStatus.css";
 
@@ -20,6 +26,78 @@ const POLL_INTERVAL_MS = 2000;
 
 const sourceLabel = (source: ReportResponse["dataSource"]): string =>
   source === "CSV_UPLOAD" ? "CSV upload" : "Reddit";
+
+const EMOTION_ORDER: EmotionEnum[] = [
+  "JOY",
+  "ANGER",
+  "SADNESS",
+  "FEAR",
+  "SURPRISE",
+  "DISGUST",
+];
+
+const EMOTION_COLORS: Record<EmotionEnum, string> = {
+  JOY: "#FBBF24",
+  ANGER: "#EF4444",
+  SADNESS: "#3B82F6",
+  FEAR: "#8B5CF6",
+  SURPRISE: "#F97316",
+  DISGUST: "#84CC16",
+};
+
+const ASPECT_ORDER: AspectEnum[] = [
+  "PRODUCT",
+  "SERVICE",
+  "DELIVERY",
+  "PRICING",
+];
+
+const ASPECT_COLORS: Record<AspectEnum, string> = {
+  PRODUCT: "#0284C7",
+  SERVICE: "#16A34A",
+  DELIVERY: "#D97706",
+  PRICING: "#E91E63",
+};
+
+const toTitle = (key: string): string =>
+  key.charAt(0) + key.slice(1).toLowerCase();
+
+const fmtScore = (value: number | null | undefined): string =>
+  value == null ? "—" : Number(value).toFixed(1);
+
+const fmtPct = (value: number | null | undefined): string =>
+  value == null ? "—" : `${Math.round(Number(value) * 100)}%`;
+
+interface DistributionProps<K extends string> {
+  entries: Array<[K, number]>;
+  colorMap: Record<K, string>;
+}
+
+function Distribution<K extends string>({
+  entries,
+  colorMap,
+}: DistributionProps<K>): React.JSX.Element {
+  const max = Math.max(1, ...entries.map(([, v]) => v));
+  return (
+    <div className="report-status-dist">
+      {entries.map(([key, count]) => {
+        const pct = (count / max) * 100;
+        return (
+          <div className="report-status-dist-row" key={key}>
+            <span className="report-status-dist-label">{toTitle(key)}</span>
+            <div className="report-status-dist-bar">
+              <div
+                className="report-status-dist-bar-fill"
+                style={{ width: `${pct}%`, backgroundColor: colorMap[key] }}
+              />
+            </div>
+            <span className="report-status-dist-count">{count}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const ReportStatus = (): React.JSX.Element => {
   const { reportId: reportIdParam } = useParams<{ reportId: string }>();
@@ -41,6 +119,8 @@ const ReportStatus = (): React.JSX.Element => {
         }
       : null
   );
+  const [overview, setOverview] = useState<ReportOverviewResponse | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(!seed);
   const mountedRef = useRef(true);
@@ -114,6 +194,33 @@ const ReportStatus = (): React.JSX.Element => {
     return () => window.clearInterval(id);
   }, [status, fetchStatus, hydrateReportFromList]);
 
+  const currentStatus = status?.status ?? report?.status ?? "PENDING";
+
+  useEffect(() => {
+    if (Number.isNaN(reportId)) return;
+    if (currentStatus !== "COMPLETED") return;
+    if (overview != null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getReportOverview(reportId);
+        if (!cancelled && mountedRef.current) {
+          setOverview(data);
+          setOverviewError(null);
+        }
+      } catch (err) {
+        if (!cancelled && mountedRef.current) {
+          setOverviewError(
+            err instanceof Error ? err.message : "Failed to load overview"
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStatus, overview, reportId]);
+
   if (Number.isNaN(reportId)) {
     return <ErrorBanner message="Invalid report id" />;
   }
@@ -122,8 +229,6 @@ const ReportStatus = (): React.JSX.Element => {
     return <div className="report-status-loading">Loading report...</div>;
   }
 
-  const currentStatus = status?.status ?? report?.status ?? "PENDING";
-  const summary = parseReportSummary(report?.summary ?? null);
   const brandName = report?.brandName;
   const source = report?.dataSource;
 
@@ -180,47 +285,73 @@ const ReportStatus = (): React.JSX.Element => {
       )}
 
       {currentStatus === "COMPLETED" && (
-        <div className="report-status-card">
-          <h2 className="report-status-section">Results</h2>
-          <div className="report-status-stats">
-            <div className="report-status-stat">
-              <span className="report-status-stat-label">Sentiment score</span>
-              <span className="report-status-stat-value">
-                {report?.score != null ? report.score.toFixed(1) : "—"}
-                <span className="report-status-stat-suffix">/ 5</span>
-              </span>
-            </div>
-            <div className="report-status-stat">
-              <span className="report-status-stat-label">Posts analyzed</span>
-              <span className="report-status-stat-value">
-                {summary.analyzed ?? "—"}
-              </span>
-            </div>
-            <div className="report-status-stat">
-              <span className="report-status-stat-label">Failed</span>
-              <span className="report-status-stat-value">
-                {summary.failed ?? "—"}
-              </span>
-            </div>
-            <div className="report-status-stat">
-              <span className="report-status-stat-label">Top aspect</span>
-              <span className="report-status-stat-value">
-                {summary.topAspect ?? "—"}
-              </span>
-            </div>
-            <div className="report-status-stat">
-              <span className="report-status-stat-label">Top emotion</span>
-              <span className="report-status-stat-value">
-                {summary.topEmotion ?? "—"}
-              </span>
-            </div>
-          </div>
-          {status?.finishedAt && (
-            <p className="report-status-finished">
-              Completed {formatDate(status.finishedAt)}
-            </p>
+        <>
+          {overviewError && <ErrorBanner message={overviewError} />}
+          {!overview && !overviewError && (
+            <div className="report-status-loading">Loading overview...</div>
           )}
-        </div>
+          {overview && (
+            <>
+              <div className="report-status-card">
+                <h2 className="report-status-section">Overview</h2>
+                <div className="report-status-stats">
+                  <div className="report-status-stat">
+                    <span className="report-status-stat-label">
+                      Sentiment score
+                    </span>
+                    <span className="report-status-stat-value">
+                      {fmtScore(overview.averageSentiment)}
+                      <span className="report-status-stat-suffix">/ 5</span>
+                    </span>
+                  </div>
+                  <div className="report-status-stat">
+                    <span className="report-status-stat-label">
+                      Average confidence
+                    </span>
+                    <span className="report-status-stat-value">
+                      {fmtPct(overview.averageConfidence)}
+                    </span>
+                  </div>
+                  <div className="report-status-stat">
+                    <span className="report-status-stat-label">
+                      Posts analyzed
+                    </span>
+                    <span className="report-status-stat-value">
+                      {overview.totalPosts}
+                    </span>
+                  </div>
+                </div>
+                {status?.finishedAt && (
+                  <p className="report-status-finished">
+                    Completed {formatDate(status.finishedAt)}
+                  </p>
+                )}
+              </div>
+
+              <div className="report-status-card">
+                <h2 className="report-status-section">Emotion distribution</h2>
+                <Distribution
+                  entries={EMOTION_ORDER.map((k) => [
+                    k,
+                    overview.emotionDistribution[k] ?? 0,
+                  ])}
+                  colorMap={EMOTION_COLORS}
+                />
+              </div>
+
+              <div className="report-status-card">
+                <h2 className="report-status-section">Aspect breakdown</h2>
+                <Distribution
+                  entries={ASPECT_ORDER.map((k) => [
+                    k,
+                    overview.aspectDistribution[k] ?? 0,
+                  ])}
+                  colorMap={ASPECT_COLORS}
+                />
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {currentStatus === "FAILED" && (
