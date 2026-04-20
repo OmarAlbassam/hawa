@@ -7,10 +7,14 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "ollama": {
         "base_url": "http://localhost:11434/v1",
         "api_key": "ollama",
-        "model": "llama3.1:8b", # 
+        "model": "llama3.1:8b", #
     },
     "runpod": {
         "model": "meta-llama/Llama-3.1-8B-Instruct",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "model": "llama-3.1-8b-instant",
     },
 }
 
@@ -18,6 +22,7 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
 class Provider(StrEnum):
     OLLAMA = "ollama"
     RUNPOD = "runpod"
+    GROQ = "groq"
 
 
 class Settings(BaseSettings):
