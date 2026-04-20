@@ -8,5 +8,6 @@ public record ReportStatusResponse(
         Long reportId,
         ReportStatusEnum status,
         LocalDateTime createdAt,
-        LocalDateTime finishedAt
+        LocalDateTime finishedAt,
+        String failureReason
 ) {}

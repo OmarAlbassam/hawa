@@ -95,6 +95,10 @@
   background-color: var(--color-primary-light);
 }
 
+.report-list-row {
+  cursor: pointer;
+}
+
 .report-list-brand {
   font-weight: 500;
 }

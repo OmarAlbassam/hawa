@@ -79,7 +79,11 @@ const BrandDetail = (): React.JSX.Element => {
       <div className="brand-detail-actions">
         <button
           className="brand-detail-analyze-btn"
-          onClick={() => navigate(`/brands/${brand.brandId}/analyze`)}
+          onClick={() =>
+            navigate("/analyze", {
+              state: { preselectedBrandId: brand.brandId },
+            })
+          }
         >
           Start Analysis
         </button>

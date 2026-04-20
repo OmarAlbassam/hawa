@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileBarChart, MessageSquare, Tag } from "lucide-react";
+import { FileBarChart, MessageSquare, Tag, Play } from "lucide-react";
 import { getDashboard } from "../../services/dashboardService";
 import type { DashboardResponse } from "../../types/dashboard";
 import StatCard from "../../components/StatCard/StatCard";
@@ -50,7 +50,16 @@ const Dashboard = (): React.JSX.Element => {
 
   return (
     <div className="dashboard">
-      <h1 className="dashboard-title">Dashboard</h1>
+      <div className="dashboard-header">
+        <h1 className="dashboard-title">Dashboard</h1>
+        <button
+          className="dashboard-start-analysis-btn"
+          onClick={() => navigate("/analyze")}
+        >
+          <Play size={16} />
+          Start Analysis
+        </button>
+      </div>
 
       <div className="dashboard-stats">
         <StatCard label="Total Brands" value={data.stats.totalBrands} icon={Tag} variant="info" />
