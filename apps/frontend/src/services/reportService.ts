@@ -4,6 +4,7 @@ import type {
   ReportResponse,
   ReportStatusResponse,
   ReportListParams,
+  ReportOverviewResponse,
   StartAnalysisRequest,
 } from "../types/report";
 
@@ -67,6 +68,20 @@ export async function getReportStatus(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || "Failed to fetch report status");
+  }
+  return response.json();
+}
+
+export async function getReportOverview(
+  reportId: number
+): Promise<ReportOverviewResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/reports/${reportId}`,
+    { headers: getAuthHeaders() }
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "Failed to fetch report overview");
   }
   return response.json();
 }
