@@ -197,6 +197,11 @@ const ReportStatus = (): React.JSX.Element => {
   const currentStatus = status?.status ?? report?.status ?? "PENDING";
 
   useEffect(() => {
+    setOverview(null);
+    setOverviewError(null);
+  }, [reportId]);
+
+  useEffect(() => {
     if (Number.isNaN(reportId)) return;
     if (currentStatus !== "COMPLETED") return;
     if (overview != null) return;
