@@ -6,5 +6,6 @@ public enum EmotionEnum {
     SADNESS,
     FEAR,
     SURPRISE,
-    DISGUST
+    DISGUST,
+    NEUTRAL
 }

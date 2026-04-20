@@ -9,5 +9,6 @@
     <include file="db/changelog/db.changelog-2-add-auth-columns.sql"/>
     <include file="db/changelog/db.changelog-3-create-refresh-token.sql"/>
     <include file="db/changelog/db.changelog-4-add-report-failure-reason.sql"/>
+    <include file="db/changelog/db.changelog-5-add-neutral-emotion.sql"/>
 
 </databaseChangeLog>
