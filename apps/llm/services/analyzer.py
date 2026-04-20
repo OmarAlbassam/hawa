@@ -11,12 +11,10 @@ from models import (
     FailedResult,
 )
 from prompts.sentiment import build_system_prompt
-from services.llm_client import LLMClient
+from services.llm_client import LLMClient, RateLimitExhaustedError
 from utils.preprocessing import clean_text
 
 logger = logging.getLogger(__name__)
-
-MAX_CONCURRENCY = 5
 
 
 class AnalyzerService:
@@ -52,10 +50,14 @@ class AnalyzerService:
         brand_industry: str | None = None,
         keywords: list[str] | None = None,
     ) -> BatchAnalyzeResponse:
-        """Analyze multiple posts concurrently with bounded parallelism."""
+        """Analyze multiple posts concurrently with bounded parallelism.
+
+        The rate limiter owned by the LLM client is the primary governor of
+        outbound pace; this semaphore is a safety net on top of it.
+        """
         results: list[AnalyzeResult] = []
         failed: list[FailedResult] = []
-        semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+        semaphore = asyncio.Semaphore(self.settings.max_concurrency)
 
         async def _run(post: AnalyzeRequest) -> None:
             async with semaphore:
@@ -70,6 +72,18 @@ class AnalyzerService:
                 except APIConnectionError:
                     failed.append(
                         FailedResult(post_id=post.post_id, error="LLM unreachable")
+                    )
+                except RateLimitExhaustedError as e:
+                    logger.warning(
+                        "rate limit exhausted for post %d after %d attempts",
+                        post.post_id,
+                        e.attempts,
+                    )
+                    failed.append(
+                        FailedResult(
+                            post_id=post.post_id,
+                            error=f"rate_limited: {e}",
+                        )
                     )
                 except Exception as e:
                     logger.error("Failed to analyze post %d: %s", post.post_id, e)
