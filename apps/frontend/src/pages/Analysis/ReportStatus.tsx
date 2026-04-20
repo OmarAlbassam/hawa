@@ -121,6 +121,13 @@ const ReportStatus = (): React.JSX.Element => {
   );
   const [overview, setOverview] = useState<ReportOverviewResponse | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewReportId, setOverviewReportId] = useState<number>(reportId);
+  if (overviewReportId !== reportId) {
+    // reset when navigating between reports without remount
+    setOverviewReportId(reportId);
+    setOverview(null);
+    setOverviewError(null);
+  }
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(!seed);
   const mountedRef = useRef(true);
@@ -196,15 +203,27 @@ const ReportStatus = (): React.JSX.Element => {
 
   const currentStatus = status?.status ?? report?.status ?? "PENDING";
 
-  useEffect(() => {
-    setOverview(null);
-    setOverviewError(null);
+  const fetchOverview = useCallback(async () => {
+    if (Number.isNaN(reportId)) return;
+    try {
+      const data = await getReportOverview(reportId);
+      if (mountedRef.current) {
+        setOverview(data);
+        setOverviewError(null);
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setOverviewError(
+          err instanceof Error ? err.message : "Failed to load overview"
+        );
+      }
+    }
   }, [reportId]);
 
   useEffect(() => {
     if (Number.isNaN(reportId)) return;
     if (currentStatus !== "COMPLETED") return;
-    if (overview != null) return;
+    if (overview != null || overviewError != null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -224,7 +243,7 @@ const ReportStatus = (): React.JSX.Element => {
     return () => {
       cancelled = true;
     };
-  }, [currentStatus, overview, reportId]);
+  }, [currentStatus, overview, overviewError, reportId]);
 
   if (Number.isNaN(reportId)) {
     return <ErrorBanner message="Invalid report id" />;
@@ -291,7 +310,9 @@ const ReportStatus = (): React.JSX.Element => {
 
       {currentStatus === "COMPLETED" && (
         <>
-          {overviewError && <ErrorBanner message={overviewError} />}
+          {overviewError && (
+            <ErrorBanner message={overviewError} onRetry={fetchOverview} />
+          )}
           {!overview && !overviewError && (
             <div className="report-status-loading">Loading overview...</div>
           )}
