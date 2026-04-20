@@ -48,7 +48,7 @@ export interface ReportOverviewResponse {
   finishedAt: string | null;
   summary: string | null;
   score: number | null;
-  totalPosts: number;
+  analyzedPosts: number;
   averageSentiment: number | null;
   averageConfidence: number | null;
   emotionDistribution: Record<EmotionEnum, number>;

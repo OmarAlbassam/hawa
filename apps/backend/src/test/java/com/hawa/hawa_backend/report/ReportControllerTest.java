@@ -223,7 +223,7 @@ class ReportControllerTest {
                     .andExpect(jsonPath("$.reportId").value(report.getReportId()))
                     .andExpect(jsonPath("$.brandName").value("Nike"))
                     .andExpect(jsonPath("$.status").value("COMPLETED"))
-                    .andExpect(jsonPath("$.totalPosts").value(3))
+                    .andExpect(jsonPath("$.analyzedPosts").value(3))
                     .andExpect(jsonPath("$.averageSentiment").value(3.0))
                     .andExpect(jsonPath("$.averageConfidence").value(0.80))
                     .andExpect(jsonPath("$.emotionDistribution.JOY").value(2))
@@ -242,7 +242,7 @@ class ReportControllerTest {
             mockMvc.perform(get("/api/reports/" + report.getReportId())
                             .header("Authorization", "Bearer " + userToken))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.totalPosts").value(0))
+                    .andExpect(jsonPath("$.analyzedPosts").value(0))
                     .andExpect(jsonPath("$.averageSentiment").doesNotExist())
                     .andExpect(jsonPath("$.emotionDistribution.JOY").value(0))
                     .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(0));

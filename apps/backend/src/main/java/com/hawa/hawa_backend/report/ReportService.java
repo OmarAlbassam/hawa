@@ -70,7 +70,7 @@ public class ReportService {
         }
 
         ReviewRepository.ReviewAggregate aggregate = reviewRepository.aggregateByReportId(reportId);
-        long totalPosts = aggregate != null && aggregate.getTotalCount() != null ? aggregate.getTotalCount() : 0L;
+        long analyzedPosts = aggregate != null && aggregate.getTotalCount() != null ? aggregate.getTotalCount() : 0L;
         BigDecimal averageSentiment = aggregate != null ? aggregate.getAverageScore() : null;
         BigDecimal averageConfidence = aggregate != null ? aggregate.getAverageConfidence() : null;
 
@@ -97,7 +97,7 @@ public class ReportService {
                 report.getFinishedAt(),
                 report.getSummary(),
                 report.getScore(),
-                totalPosts,
+                analyzedPosts,
                 averageSentiment,
                 averageConfidence,
                 emotionDistribution,

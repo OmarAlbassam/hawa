@@ -21,7 +21,7 @@ public record ReportOverviewResponse(
         LocalDateTime finishedAt,
         String summary,
         Integer score,
-        long totalPosts,
+        long analyzedPosts,
         BigDecimal averageSentiment,
         BigDecimal averageConfidence,
         Map<EmotionEnum, Long> emotionDistribution,

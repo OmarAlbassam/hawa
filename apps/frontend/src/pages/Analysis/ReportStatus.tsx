@@ -322,7 +322,7 @@ const ReportStatus = (): React.JSX.Element => {
                       Posts analyzed
                     </span>
                     <span className="report-status-stat-value">
-                      {overview.totalPosts}
+                      {overview.analyzedPosts}
                     </span>
                   </div>
                 </div>
