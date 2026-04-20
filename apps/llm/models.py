@@ -10,6 +10,7 @@ class Emotion(str, Enum):
     FEAR = "FEAR"
     SURPRISE = "SURPRISE"
     DISGUST = "DISGUST"
+    NEUTRAL = "NEUTRAL"
 
 
 class Aspect(str, Enum):
