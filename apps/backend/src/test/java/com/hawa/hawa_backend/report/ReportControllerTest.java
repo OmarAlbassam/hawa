@@ -10,11 +10,20 @@ import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
+import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
+import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
+import com.hawa.hawa_backend.post.Post;
+import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.review.Review;
+import com.hawa.hawa_backend.review.ReviewRepository;
 import com.hawa.hawa_backend.user.User;
 import com.hawa.hawa_backend.user.UserRepository;
+
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -39,6 +48,8 @@ class ReportControllerTest {
     @Autowired private UserRepository userRepository;
     @Autowired private BrandRepository brandRepository;
     @Autowired private ReportRepository reportRepository;
+    @Autowired private PostRepository postRepository;
+    @Autowired private ReviewRepository reviewRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -196,6 +207,108 @@ class ReportControllerTest {
         }
     }
 
+    @Nested
+    class GetReportOverview {
+
+        @Test
+        void shouldReturnOverview_whenReportCompleted() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            createReview(report, new BigDecimal("3.0"), new BigDecimal("0.80"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.reportId").value(report.getReportId()))
+                    .andExpect(jsonPath("$.brandName").value("Nike"))
+                    .andExpect(jsonPath("$.status").value("COMPLETED"))
+                    .andExpect(jsonPath("$.totalPosts").value(3))
+                    .andExpect(jsonPath("$.averageSentiment").value(3.0))
+                    .andExpect(jsonPath("$.averageConfidence").value(0.80))
+                    .andExpect(jsonPath("$.emotionDistribution.JOY").value(2))
+                    .andExpect(jsonPath("$.emotionDistribution.ANGER").value(1))
+                    .andExpect(jsonPath("$.emotionDistribution.SADNESS").value(0))
+                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(2))
+                    .andExpect(jsonPath("$.aspectDistribution.SERVICE").value(1))
+                    .andExpect(jsonPath("$.aspectDistribution.DELIVERY").value(0))
+                    .andExpect(jsonPath("$.aspectDistribution.PRICING").value(0));
+        }
+
+        @Test
+        void shouldReturnEmptyDistributions_whenCompletedReportHasNoReviews() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalPosts").value(0))
+                    .andExpect(jsonPath("$.averageSentiment").doesNotExist())
+                    .andExpect(jsonPath("$.emotionDistribution.JOY").value(0))
+                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(0));
+        }
+
+        @Test
+        void shouldReturn400_whenReportStatusIsProcessing() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.PROCESSING);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("PROCESSING")));
+        }
+
+        @Test
+        void shouldReturn400_whenReportStatusIsFailed() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.FAILED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReturn404_whenReportDoesNotExist() throws Exception {
+            mockMvc.perform(get("/api/reports/999999")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
+            Company otherCompany = new Company();
+            otherCompany.setCompanyName("Other Corp");
+            otherCompany = companyRepository.save(otherCompany);
+
+            Brand otherBrand = Brand.builder()
+                    .brandName("Adidas")
+                    .company(otherCompany)
+                    .build();
+            otherBrand = brandRepository.save(otherBrand);
+
+            User otherUser = createUser("other@example.com", UserRoleEnum.MARKETING_USER, otherCompany);
+            Report report = Report.builder()
+                    .brand(otherBrand)
+                    .user(otherUser)
+                    .dataSource(DataSourceEnum.REDDIT)
+                    .status(ReportStatusEnum.COMPLETED)
+                    .build();
+            report = reportRepository.save(report);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn401_whenUnauthenticated() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId()))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
     // ==================== Helpers ====================
 
     private User createUser(String email, UserRoleEnum role, Company targetCompany) {
@@ -218,5 +331,24 @@ class ReportControllerTest {
                 .status(status)
                 .build();
         return reportRepository.save(report);
+    }
+
+    private Review createReview(Report report, BigDecimal score, BigDecimal confidence,
+                                EmotionEnum emotion, AspectEnum aspect) {
+        Post post = Post.builder()
+                .report(report)
+                .postText("sample text")
+                .language(LanguageEnum.EN)
+                .build();
+        post = postRepository.save(post);
+
+        Review review = Review.builder()
+                .post(post)
+                .score(score)
+                .confidence(confidence)
+                .emotion(emotion)
+                .aspect(aspect)
+                .build();
+        return reviewRepository.save(review);
     }
 }
