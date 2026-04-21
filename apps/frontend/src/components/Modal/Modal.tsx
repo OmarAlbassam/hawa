@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import "./Modal.css";
@@ -11,17 +11,67 @@ interface ModalProps {
   width?: "sm" | "md" | "lg";
 }
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): React.JSX.Element | null => {
+  const titleId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    const getFocusables = (): HTMLElement[] => {
+      if (!contentRef.current) return [];
+      return Array.from(contentRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
     };
-    document.addEventListener("keydown", handleEscape);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !contentRef.current) return;
+
+      const focusables = getFocusables();
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const insideModal = active ? contentRef.current.contains(active) : false;
+
+      if (e.shiftKey) {
+        if (!insideModal || active === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (!insideModal || active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
+
+    const rafId = requestAnimationFrame(() => {
+      const focusables = getFocusables();
+      const firstNonClose = focusables.find((el) => !el.classList.contains("modal-close"));
+      (firstNonClose ?? focusables[0])?.focus();
+    });
+
     return () => {
-      document.removeEventListener("keydown", handleEscape);
+      cancelAnimationFrame(rafId);
+      document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
+      previouslyFocused?.focus?.();
     };
   }, [open, onClose]);
 
@@ -30,11 +80,15 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`modal-content modal-content--${width}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
+          <h2 id={titleId} className="modal-title">{title}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             <X size={20} />
           </button>
