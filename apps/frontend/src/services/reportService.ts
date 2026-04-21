@@ -1,6 +1,8 @@
 import { API_BASE_URL } from "../config/api";
 import type { Page } from "../types/page";
 import type {
+  PostListItemResponse,
+  ReportPostsParams,
   ReportResponse,
   ReportStatusResponse,
   ReportListParams,
@@ -68,6 +70,32 @@ export async function getReportStatus(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || "Failed to fetch report status");
+  }
+  return response.json();
+}
+
+export async function getReportPosts(
+  reportId: number,
+  params: ReportPostsParams = {}
+): Promise<Page<PostListItemResponse>> {
+  const searchParams = new URLSearchParams();
+  if (params.relevance) searchParams.set("relevance", params.relevance);
+  if (params.sentimentMin != null) searchParams.set("sentimentMin", String(params.sentimentMin));
+  if (params.sentimentMax != null) searchParams.set("sentimentMax", String(params.sentimentMax));
+  if (params.emotion) searchParams.set("emotion", params.emotion);
+  if (params.aspect) searchParams.set("aspect", params.aspect);
+  if (params.confidenceMin != null) searchParams.set("confidenceMin", String(params.confidenceMin));
+  searchParams.set("page", String(params.page ?? 0));
+  searchParams.set("size", String(params.size ?? 20));
+  if (params.sort) searchParams.set("sort", params.sort);
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/reports/${reportId}/posts?${searchParams.toString()}`,
+    { headers: getAuthHeaders() }
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "Failed to fetch report posts");
   }
   return response.json();
 }

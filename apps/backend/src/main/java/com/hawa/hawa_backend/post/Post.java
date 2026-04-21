@@ -15,7 +15,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import com.hawa.hawa_backend.enums.IrrelevanceReasonEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.report.Report;
 
 import lombok.AllArgsConstructor;
@@ -50,4 +52,15 @@ public class Post {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "language", nullable = false)
     private LanguageEnum language;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "relevance_status", nullable = false)
+    @Builder.Default
+    private RelevanceStatusEnum relevanceStatus = RelevanceStatusEnum.RELEVANT;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "irrelevance_reason")
+    private IrrelevanceReasonEnum irrelevanceReason;
 }

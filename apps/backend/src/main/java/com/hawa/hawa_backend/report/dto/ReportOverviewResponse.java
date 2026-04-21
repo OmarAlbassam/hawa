@@ -22,6 +22,7 @@ public record ReportOverviewResponse(
         String summary,
         Integer score,
         long analyzedPosts,
+        long filteredOutCount,
         BigDecimal averageSentiment,
         BigDecimal averageConfidence,
         Map<EmotionEnum, Long> emotionDistribution,

@@ -16,9 +16,14 @@ import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.LanguageEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
+import com.hawa.hawa_backend.post.Post;
+import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
 import com.hawa.hawa_backend.review.ReviewRepository;
@@ -36,6 +41,7 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final BrandRepository brandRepository;
     private final ReviewRepository reviewRepository;
+    private final PostRepository postRepository;
 
     @Transactional(readOnly = true)
     public Page<ReportResponse> listReports(Long brandId, ReportStatusEnum status,
@@ -86,6 +92,9 @@ public class ReportService {
             aspectDistribution.put(ac.getKey(), ac.getCount());
         }
 
+        long filteredOutCount = postRepository.countByReportReportIdAndRelevanceStatus(
+                reportId, RelevanceStatusEnum.IRRELEVANT);
+
         return new ReportOverviewResponse(
                 report.getReportId(),
                 report.getBrand().getBrandName(),
@@ -98,10 +107,67 @@ public class ReportService {
                 report.getSummary(),
                 report.getScore(),
                 analyzedPosts,
+                filteredOutCount,
                 averageSentiment,
                 averageConfidence,
                 emotionDistribution,
                 aspectDistribution);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PostListItemResponse> listPosts(Long reportId,
+                                                RelevanceStatusEnum relevance,
+                                                BigDecimal sentimentMin,
+                                                BigDecimal sentimentMax,
+                                                EmotionEnum emotion,
+                                                AspectEnum aspect,
+                                                BigDecimal confidenceMin,
+                                                Pageable pageable) {
+        Long companyId = authenticatedUserService.getCompanyId();
+        Report report = reportRepository.findById(reportId)
+                .filter(r -> r.getBrand().getCompany().getCompanyId().equals(companyId))
+                .orElseThrow(() -> new ResourceNotFoundException("Report not found: " + reportId));
+        log.debug("Listing posts reportId={} relevance={}", report.getReportId(), relevance);
+
+        if (relevance == RelevanceStatusEnum.IRRELEVANT) {
+            return postRepository
+                    .findByReportReportIdAndRelevanceStatus(reportId, RelevanceStatusEnum.IRRELEVANT, pageable)
+                    .map(ReportService::toIrrelevantItem);
+        }
+        return reviewRepository.findRelevantPostsForReport(
+                        reportId,
+                        sentimentMin,
+                        sentimentMax,
+                        emotion == null ? null : emotion.name(),
+                        aspect == null ? null : aspect.name(),
+                        confidenceMin,
+                        pageable)
+                .map(ReportService::toRelevantItem);
+    }
+
+    private static PostListItemResponse toRelevantItem(ReviewRepository.RelevantPostProjection p) {
+        return new PostListItemResponse(
+                p.getPostId(),
+                p.getPostText(),
+                p.getPostUrl(),
+                p.getLanguage() == null ? null : LanguageEnum.valueOf(p.getLanguage()),
+                RelevanceStatusEnum.RELEVANT,
+                null,
+                p.getScore(),
+                p.getConfidence(),
+                p.getEmotion() == null ? null : EmotionEnum.valueOf(p.getEmotion()),
+                p.getAspect() == null ? null : AspectEnum.valueOf(p.getAspect()));
+    }
+
+    private static PostListItemResponse toIrrelevantItem(Post post) {
+        return new PostListItemResponse(
+                post.getPostId(),
+                post.getPostText(),
+                post.getPostUrl(),
+                post.getLanguage(),
+                post.getRelevanceStatus(),
+                post.getIrrelevanceReason(),
+                null, null, null, null);
     }
 
     private ReportResponse toReportResponse(Report report, Map<Long, String> brandNames) {
