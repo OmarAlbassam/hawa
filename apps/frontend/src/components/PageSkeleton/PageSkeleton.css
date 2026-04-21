@@ -1,0 +1,60 @@
+.page-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  width: 100%;
+}
+
+.page-skeleton-block {
+  background: linear-gradient(
+    90deg,
+    var(--color-muted-bg) 0%,
+    var(--color-border) 50%,
+    var(--color-muted-bg) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-md);
+  animation: page-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.page-skeleton-block--title {
+  height: 32px;
+  width: 40%;
+  max-width: 320px;
+}
+
+.page-skeleton-block--subtitle {
+  height: 16px;
+  width: 60%;
+  max-width: 480px;
+}
+
+.page-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.page-skeleton-block--card {
+  height: 112px;
+}
+
+.page-skeleton-block--panel {
+  height: 320px;
+}
+
+@keyframes page-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-skeleton-block {
+    animation: none;
+  }
+}

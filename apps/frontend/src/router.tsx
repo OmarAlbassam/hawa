@@ -1,60 +1,65 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import AdminRoute from "./components/AdminRoute/AdminRoute";
 import MarketingRoute from "./components/MarketingRoute/MarketingRoute";
 import AdminLayout from "./components/AdminLayout/AdminLayout";
 import MarketingLayout from "./components/MarketingLayout/MarketingLayout";
-import Login from "./pages/Login/Login";
-import UserManagement from "./pages/Admin/UserManagement/UserManagement";
-import SystemAnalytics from "./pages/Admin/SystemAnalytics/SystemAnalytics";
-import ReportedReviews from "./pages/Admin/ReportedReviews/ReportedReviews";
-import CompanyManagement from "./pages/Admin/CompanyManagement/CompanyManagement";
-import BrandManagement from "./pages/Admin/BrandManagement/BrandManagement";
-import Dashboard from "./pages/Dashboard/Dashboard";
-import BrandList from "./pages/Brands/BrandList";
-import BrandDetail from "./pages/Brands/BrandDetail";
-import ReportList from "./pages/Reports/ReportList";
-import StartAnalysis from "./pages/Analysis/StartAnalysis";
-import ReportStatus from "./pages/Analysis/ReportStatus";
-import NotFound from "./pages/NotFound/NotFound";
+import PageSkeleton from "./components/PageSkeleton/PageSkeleton";
+
+const Login = lazy(() => import("./pages/Login/Login"));
+const UserManagement = lazy(() => import("./pages/Admin/UserManagement/UserManagement"));
+const SystemAnalytics = lazy(() => import("./pages/Admin/SystemAnalytics/SystemAnalytics"));
+const ReportedReviews = lazy(() => import("./pages/Admin/ReportedReviews/ReportedReviews"));
+const CompanyManagement = lazy(() => import("./pages/Admin/CompanyManagement/CompanyManagement"));
+const BrandManagement = lazy(() => import("./pages/Admin/BrandManagement/BrandManagement"));
+const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
+const BrandList = lazy(() => import("./pages/Brands/BrandList"));
+const BrandDetail = lazy(() => import("./pages/Brands/BrandDetail"));
+const ReportList = lazy(() => import("./pages/Reports/ReportList"));
+const StartAnalysis = lazy(() => import("./pages/Analysis/StartAnalysis"));
+const ReportStatus = lazy(() => import("./pages/Analysis/ReportStatus"));
+const NotFound = lazy(() => import("./pages/NotFound/NotFound"));
 
 const AppRouter = () => (
   <BrowserRouter>
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminLayout />
-            </AdminRoute>
-          }
-        >
-          <Route index element={<Navigate to="users" replace />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="analytics" element={<SystemAnalytics />} />
-          <Route path="companies" element={<CompanyManagement />} />
-          <Route path="brands" element={<BrandManagement />} />
-          <Route path="reviews" element={<ReportedReviews />} />
-        </Route>
-        <Route
-          element={
-            <MarketingRoute>
-              <MarketingLayout />
-            </MarketingRoute>
-          }
-        >
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/brands" element={<BrandList />} />
-          <Route path="/brands/:brandId" element={<BrandDetail />} />
-          <Route path="/analyze" element={<StartAnalysis />} />
-          <Route path="/reports" element={<ReportList />} />
-          <Route path="/reports/:reportId" element={<ReportStatus />} />
-        </Route>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={<PageSkeleton />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route index element={<Navigate to="users" replace />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="analytics" element={<SystemAnalytics />} />
+            <Route path="companies" element={<CompanyManagement />} />
+            <Route path="brands" element={<BrandManagement />} />
+            <Route path="reviews" element={<ReportedReviews />} />
+          </Route>
+          <Route
+            element={
+              <MarketingRoute>
+                <MarketingLayout />
+              </MarketingRoute>
+            }
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/brands" element={<BrandList />} />
+            <Route path="/brands/:brandId" element={<BrandDetail />} />
+            <Route path="/analyze" element={<StartAnalysis />} />
+            <Route path="/reports" element={<ReportList />} />
+            <Route path="/reports/:reportId" element={<ReportStatus />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </AuthProvider>
   </BrowserRouter>
 );
