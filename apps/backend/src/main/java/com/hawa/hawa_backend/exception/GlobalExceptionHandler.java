@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.hawa.hawa_backend.dataset.DatasetValidationException;
+import com.hawa.hawa_backend.dataset.dto.DatasetValidationErrorResponse;
+
 import jakarta.validation.ConstraintViolationException;
 
 import lombok.extern.slf4j.Slf4j;
@@ -83,6 +86,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 message,
                 LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(DatasetValidationException.class)
+    public ResponseEntity<DatasetValidationErrorResponse> handleDatasetValidation(
+            DatasetValidationException ex) {
+        log.warn("Dataset validation failed: {} errors", ex.getErrors().size());
+        DatasetValidationErrorResponse body = new DatasetValidationErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now(),
+                ex.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
