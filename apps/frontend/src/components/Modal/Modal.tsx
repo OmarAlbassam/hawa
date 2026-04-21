@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import "./Modal.css";
@@ -17,6 +17,11 @@ const FOCUSABLE_SELECTOR =
 const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): React.JSX.Element | null => {
   const titleId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +35,7 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !contentRef.current) return;
@@ -73,7 +78,7 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
       document.body.style.overflow = "";
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
