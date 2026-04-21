@@ -244,7 +244,7 @@ class ReportControllerTest {
             createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
             createReview(report, new BigDecimal("2.0"), new BigDecimal("0.80"), EmotionEnum.ANGER, AspectEnum.SERVICE);
             // Three irrelevant posts — no Review, just Post rows
-            createIrrelevantPost(report, "off-topic 1", IrrelevanceReasonEnum.OFF_TOPIC);
+            createIrrelevantPost(report, "off-topic 1", IrrelevanceReasonEnum.HOMONYM);
             createIrrelevantPost(report, "spam link", IrrelevanceReasonEnum.SPAM);
             createIrrelevantPost(report, "", IrrelevanceReasonEnum.EMPTY);
 
@@ -342,7 +342,7 @@ class ReportControllerTest {
             Report report = createReport(brand, ReportStatusEnum.COMPLETED);
             createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
             createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-            createIrrelevantPost(report, "off-topic", IrrelevanceReasonEnum.OFF_TOPIC);
+            createIrrelevantPost(report, "off-topic", IrrelevanceReasonEnum.HOMONYM);
 
             mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
                             .header("Authorization", "Bearer " + userToken))
@@ -358,7 +358,7 @@ class ReportControllerTest {
         void shouldReturnIrrelevantPosts_whenRelevanceIrrelevant() throws Exception {
             Report report = createReport(brand, ReportStatusEnum.COMPLETED);
             createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createIrrelevantPost(report, "off-topic chatter", IrrelevanceReasonEnum.OFF_TOPIC);
+            createIrrelevantPost(report, "off-topic chatter", IrrelevanceReasonEnum.HOMONYM);
             createIrrelevantPost(report, "spam!", IrrelevanceReasonEnum.SPAM);
 
             mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")

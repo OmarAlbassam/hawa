@@ -243,7 +243,7 @@ class StartAnalysisFlowTest {
             BatchAnalyzeRequest req = inv.getArgument(0);
             List<AnalyzeResult> results = List.of(
                     new AnalyzeResult(req.posts().get(0).postId(), true, null, 4.5, 4.5, "JOY", "PRODUCT"),
-                    new AnalyzeResult(req.posts().get(1).postId(), false, "OFF_TOPIC", null, null, null, null),
+                    new AnalyzeResult(req.posts().get(1).postId(), false, "HOMONYM", null, null, null, null),
                     new AnalyzeResult(req.posts().get(2).postId(), false, "SPAM", null, null, null, null));
             return new BatchAnalyzeResponse(results, List.of());
         });
@@ -271,7 +271,7 @@ class StartAnalysisFlowTest {
         assertThat(irrelevant).hasSize(2);
         assertThat(irrelevant).extracting(Post::getIrrelevanceReason)
                 .containsExactlyInAnyOrder(
-                        com.hawa.hawa_backend.enums.IrrelevanceReasonEnum.OFF_TOPIC,
+                        com.hawa.hawa_backend.enums.IrrelevanceReasonEnum.HOMONYM,
                         com.hawa.hawa_backend.enums.IrrelevanceReasonEnum.SPAM);
 
         Report finalReport = reportRepository.findAll().getFirst();

@@ -21,7 +21,7 @@ class Aspect(str, Enum):
 
 
 class IrrelevanceReason(str, Enum):
-    OFF_TOPIC = "OFF_TOPIC"
+    HOMONYM = "HOMONYM"
     SPAM = "SPAM"
     EMPTY = "EMPTY"
     WRONG_LANGUAGE = "WRONG_LANGUAGE"

@@ -12,5 +12,6 @@
     <include file="db/changelog/db.changelog-5-add-neutral-emotion.sql"/>
     <include file="db/changelog/db.changelog-6-add-post-relevance.sql"/>
     <include file="db/changelog/db.changelog-7-add-report-selected-keywords.sql"/>
+    <include file="db/changelog/db.changelog-8-rename-off-topic-to-homonym.sql"/>
 
 </databaseChangeLog>

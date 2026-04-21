@@ -9,7 +9,7 @@ import Modal from "../../components/Modal/Modal";
 import "./FilteredPostsList.css";
 
 const REASON_LABEL: Record<IrrelevanceReason, string> = {
-  OFF_TOPIC: "Off-topic",
+  HOMONYM: "Homonym",
   SPAM: "Spam",
   EMPTY: "Empty",
   WRONG_LANGUAGE: "Wrong language",

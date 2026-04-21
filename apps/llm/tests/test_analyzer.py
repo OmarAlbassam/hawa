@@ -57,13 +57,13 @@ def test_freeform_aspect():
 
 
 def test_irrelevant_response_omits_analysis_fields():
-    r = SentimentResponse(is_relevant=False, irrelevance_reason="OFF_TOPIC")
+    r = SentimentResponse(is_relevant=False, irrelevance_reason="HOMONYM")
     assert r.is_relevant is False
-    assert r.irrelevance_reason == IrrelevanceReason.OFF_TOPIC
+    assert r.irrelevance_reason == IrrelevanceReason.HOMONYM
 
 
 def test_irrelevant_response_accepts_all_reasons():
-    for reason in ["OFF_TOPIC", "SPAM", "EMPTY", "WRONG_LANGUAGE", "OTHER"]:
+    for reason in ["HOMONYM", "SPAM", "EMPTY", "WRONG_LANGUAGE", "OTHER"]:
         r = SentimentResponse(is_relevant=False, irrelevance_reason=reason)
         assert r.irrelevance_reason == IrrelevanceReason(reason)
 
@@ -88,7 +88,7 @@ def test_analyze_result_irrelevant_nulls_analysis_fields():
     r = AnalyzeResult(
         post_id=1,
         is_relevant=False,
-        irrelevance_reason=IrrelevanceReason.OFF_TOPIC,
+        irrelevance_reason=IrrelevanceReason.HOMONYM,
     )
     assert r.is_relevant is False
     assert r.score is None
@@ -132,7 +132,7 @@ async def test_llm_irrelevant_verdict_nulls_analysis_fields():
     analyzer, analyze = _make_analyzer()
     analyze.return_value = SentimentResponse(
         is_relevant=False,
-        irrelevance_reason="OFF_TOPIC",
+        irrelevance_reason="HOMONYM",
         score=4.0,  # buggy model output — must not leak through
         emotion="JOY",
         aspect="PRODUCT",
@@ -143,7 +143,7 @@ async def test_llm_irrelevant_verdict_nulls_analysis_fields():
     )
 
     assert result.is_relevant is False
-    assert result.irrelevance_reason == IrrelevanceReason.OFF_TOPIC
+    assert result.irrelevance_reason == IrrelevanceReason.HOMONYM
     assert result.score is None
     assert result.llm_score is None
     assert result.emotion is None

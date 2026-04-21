@@ -61,7 +61,7 @@ export interface ReportOverviewResponse {
 export type RelevanceStatus = "RELEVANT" | "IRRELEVANT";
 
 export type IrrelevanceReason =
-  | "OFF_TOPIC"
+  | "HOMONYM"
   | "SPAM"
   | "EMPTY"
   | "WRONG_LANGUAGE"
