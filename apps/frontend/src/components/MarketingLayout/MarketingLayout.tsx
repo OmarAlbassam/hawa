@@ -49,7 +49,7 @@ const MarketingLayout = (): React.JSX.Element => {
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <img src={hawaLogo} alt="Hawa" className="marketing-topbar-logo" />
+        <img src={hawaLogo} alt="Hawa" width="768" height="450" className="marketing-topbar-logo" />
         <div className="marketing-topbar-user">
           <span className="marketing-topbar-name">
             {user?.firstName} {user?.lastName}

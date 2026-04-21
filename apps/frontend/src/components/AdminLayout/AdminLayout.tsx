@@ -51,7 +51,7 @@ const AdminLayout = (): React.JSX.Element => {
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <img src={hawaLogo} alt="Hawa" className="admin-topbar-logo" />
+        <img src={hawaLogo} alt="Hawa" width="768" height="450" className="admin-topbar-logo" />
         <div className="admin-topbar-user">
           <span className="admin-topbar-name">
             {user?.firstName} {user?.lastName}

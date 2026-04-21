@@ -56,7 +56,7 @@ const Login = (): React.JSX.Element => {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <img src={hawaLogo} alt="Hawa" className="login-logo-img" />
+          <img src={hawaLogo} alt="Hawa" width="768" height="450" className="login-logo-img" />
         </div>
         <p className="login-subtitle">Sign in to your account</p>
 
