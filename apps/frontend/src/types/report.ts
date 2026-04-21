@@ -4,6 +4,7 @@ export interface StartAnalysisRequest {
   dataSource: DataSource;
   dateFrom?: string;
   dateTo?: string;
+  selectedKeywordIds: number[];
 }
 
 export interface ReportResponse {

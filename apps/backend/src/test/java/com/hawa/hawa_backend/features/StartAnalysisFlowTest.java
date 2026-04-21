@@ -39,6 +39,7 @@ import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.KeywordTypeEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
 import com.hawa.hawa_backend.keyword.Keyword;
@@ -49,6 +50,7 @@ import com.hawa.hawa_backend.llm.dto.AnalyzeResult;
 import com.hawa.hawa_backend.llm.dto.BatchAnalyzeRequest;
 import com.hawa.hawa_backend.llm.dto.BatchAnalyzeResponse;
 import com.hawa.hawa_backend.post.Post;
+import com.hawa.hawa_backend.post.PostRepository;
 import com.hawa.hawa_backend.post.collector.RedditPostCollector;
 import com.hawa.hawa_backend.report.Report;
 import com.hawa.hawa_backend.report.ReportRepository;
@@ -72,6 +74,7 @@ class StartAnalysisFlowTest {
     @Autowired private KeywordRepository keywordRepository;
     @Autowired private ReportRepository reportRepository;
     @Autowired private ReviewRepository reviewRepository;
+    @Autowired private PostRepository postRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -121,8 +124,9 @@ class StartAnalysisFlowTest {
 
     @Test
     void shouldCompleteReport_andPersistReviews_whenLlmSucceeds() throws Exception {
-        seedKeyword("jordan", KeywordTypeEnum.PRODUCT);
-        seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
+        Long jordanId = seedKeyword("jordan", KeywordTypeEnum.PRODUCT);
+        Long nikeId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
+        Long ignoredId = seedKeyword("airmax", KeywordTypeEnum.PRODUCT);
 
         doAnswer(inv -> List.of(
                         buildPost(inv.getArgument(0), "Great shoes!"),
@@ -133,17 +137,17 @@ class StartAnalysisFlowTest {
         when(llmClient.analyzeBatch(captor.capture())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);
             List<AnalyzeResult> results = List.of(
-                    new AnalyzeResult(req.posts().get(0).postId(), 4.0, 4.0, "JOY", "PRODUCT"),
-                    new AnalyzeResult(req.posts().get(1).postId(), 2.0, 2.0, "ANGER", "DELIVERY"));
+                    new AnalyzeResult(req.posts().get(0).postId(), true, null, 4.0, 4.0, "JOY", "PRODUCT"),
+                    new AnalyzeResult(req.posts().get(1).postId(), true, null, 2.0, 2.0, "ANGER", "DELIVERY"));
             return new BatchAnalyzeResponse(results, List.of());
         });
 
         String reportId = mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"dataSource": "REDDIT"}
-                                """))
+                        .content(String.format(
+                                "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d, %d]}",
+                                jordanId, nikeId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andReturn()
@@ -171,10 +175,15 @@ class StartAnalysisFlowTest {
         assertThat(sent.brandIndustry()).isEqualTo("Sportswear");
         assertThat(sent.keywords()).containsExactlyInAnyOrder("jordan", "nike");
         assertThat(reportId).contains("PENDING");
+        // unselected keyword not sent to LLM
+        assertThat(sent.keywords()).doesNotContain("airmax");
+        assertThat(ignoredId).isNotNull();
     }
 
     @Test
     void shouldMarkReportFailed_whenLlmServiceThrows() throws Exception {
+        Long kwId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
+
         doAnswer(inv -> List.of(buildPost(inv.getArgument(0), "anything")))
                 .when(redditPostCollector).collect(any(), any(), any(), any());
 
@@ -184,9 +193,8 @@ class StartAnalysisFlowTest {
         mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"dataSource": "REDDIT"}
-                                """))
+                        .content(String.format(
+                                "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", kwId)))
                 .andExpect(status().isCreated());
 
         await().atMost(JOB_TIMEOUT).until(() ->
@@ -201,15 +209,16 @@ class StartAnalysisFlowTest {
 
     @Test
     void shouldCompleteWithNoPosts_whenCollectorReturnsEmpty() throws Exception {
+        Long kwId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
+
         doReturn(List.of())
                 .when(redditPostCollector).collect(any(), any(), any(), any());
 
         mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"dataSource": "REDDIT"}
-                                """))
+                        .content(String.format(
+                                "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", kwId)))
                 .andExpect(status().isCreated());
 
         await().atMost(JOB_TIMEOUT).until(() ->
@@ -221,39 +230,121 @@ class StartAnalysisFlowTest {
     }
 
     @Test
-    void shouldSendNullKeywords_whenBrandHasNone() throws Exception {
-        doAnswer(inv -> List.of(buildPost(inv.getArgument(0), "hello")))
+    void shouldPartitionIrrelevantPosts_fromRelevantReviews_whenLlmVerdictIsMixed() throws Exception {
+        Long kwId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
+
+        doAnswer(inv -> List.of(
+                        buildPost(inv.getArgument(0), "Love the new Air Jordans"),
+                        buildPost(inv.getArgument(0), "unrelated homonym"),
+                        buildPost(inv.getArgument(0), "buy crypto now!!!")))
                 .when(redditPostCollector).collect(any(), any(), any(), any());
 
-        ArgumentCaptor<BatchAnalyzeRequest> captor = ArgumentCaptor.forClass(BatchAnalyzeRequest.class);
-        when(llmClient.analyzeBatch(captor.capture())).thenAnswer(inv -> {
+        when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);
-            return new BatchAnalyzeResponse(
-                    List.of(new AnalyzeResult(req.posts().get(0).postId(), 3.0, 3.0, "JOY", "PRODUCT")),
-                    List.of());
+            List<AnalyzeResult> results = List.of(
+                    new AnalyzeResult(req.posts().get(0).postId(), true, null, 4.5, 4.5, "JOY", "PRODUCT"),
+                    new AnalyzeResult(req.posts().get(1).postId(), false, "OFF_TOPIC", null, null, null, null),
+                    new AnalyzeResult(req.posts().get(2).postId(), false, "SPAM", null, null, null, null));
+            return new BatchAnalyzeResponse(results, List.of());
         });
 
+        mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(
+                                "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", kwId)))
+                .andExpect(status().isCreated());
+
+        await().atMost(JOB_TIMEOUT).until(() ->
+                reportRepository.findAll().getFirst().getStatus() == ReportStatusEnum.COMPLETED);
+
+        // Only the one relevant post produced a Review
+        List<Review> reviews = reviewRepository.findAll();
+        assertThat(reviews).hasSize(1);
+        assertThat(reviews.getFirst().getEmotion()).isEqualTo(EmotionEnum.JOY);
+        assertThat(reviews.getFirst().getAspect()).isEqualTo(AspectEnum.PRODUCT);
+
+        // The irrelevant posts still exist with status + reason
+        List<Post> irrelevant = postRepository.findAll().stream()
+                .filter(p -> p.getRelevanceStatus() == RelevanceStatusEnum.IRRELEVANT)
+                .toList();
+        assertThat(irrelevant).hasSize(2);
+        assertThat(irrelevant).extracting(Post::getIrrelevanceReason)
+                .containsExactlyInAnyOrder(
+                        com.hawa.hawa_backend.enums.IrrelevanceReasonEnum.OFF_TOPIC,
+                        com.hawa.hawa_backend.enums.IrrelevanceReasonEnum.SPAM);
+
+        Report finalReport = reportRepository.findAll().getFirst();
+        assertThat(finalReport.getScore()).isEqualTo(5);  // avg of [4.5] rounded = 5
+        assertThat(finalReport.getSummary())
+                .contains("analyzed=1", "filtered_out=2", "failed=0");
+    }
+
+    @Test
+    void shouldReturn400_whenSelectedKeywordsEmpty() throws Exception {
+        mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"dataSource": "REDDIT", "selectedKeywordIds": []}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(llmClient);
+        assertThat(reportRepository.count()).isZero();
+    }
+
+    @Test
+    void shouldReturn400_whenSelectedKeywordIdsOmitted() throws Exception {
         mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"dataSource": "REDDIT"}
                                 """))
-                .andExpect(status().isCreated());
+                .andExpect(status().isBadRequest());
 
-        await().atMost(JOB_TIMEOUT).until(() ->
-                reportRepository.findAll().getFirst().getStatus() == ReportStatusEnum.COMPLETED);
-
-        assertThat(captor.getValue().keywords()).isNull();
+        verifyNoInteractions(llmClient);
+        assertThat(reportRepository.count()).isZero();
     }
 
-    private void seedKeyword(String text, KeywordTypeEnum type) {
+    @Test
+    void shouldReturn400_whenSelectedKeywordBelongsToAnotherBrand() throws Exception {
+        Brand otherBrand = brandRepository.save(Brand.builder()
+                .brandName("Other")
+                .company(company)
+                .industry("Other")
+                .build());
+        Long foreignKeywordId = seedKeyword(otherBrand, "foreign", KeywordTypeEnum.PRODUCT);
+
+        mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(
+                                "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}",
+                                foreignKeywordId)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(llmClient);
+        assertThat(reportRepository.count()).isZero();
+    }
+
+    private Long seedKeyword(String text, KeywordTypeEnum type) {
         Keyword k = Keyword.builder()
                 .brand(brand)
                 .keyword(text)
                 .keywordType(type)
                 .build();
-        keywordRepository.save(k);
+        return keywordRepository.save(k).getKeywordId();
+    }
+
+    private Long seedKeyword(Brand ownerBrand, String text, KeywordTypeEnum type) {
+        Keyword k = Keyword.builder()
+                .brand(ownerBrand)
+                .keyword(text)
+                .keywordType(type)
+                .build();
+        return keywordRepository.save(k).getKeywordId();
     }
 
     private static Post buildPost(Report report, String text) {

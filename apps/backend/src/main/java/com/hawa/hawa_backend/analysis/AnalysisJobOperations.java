@@ -20,8 +20,6 @@ import com.hawa.hawa_backend.enums.IrrelevanceReasonEnum;
 import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
-import com.hawa.hawa_backend.keyword.Keyword;
-import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.llm.dto.AnalyzeResult;
 import com.hawa.hawa_backend.llm.dto.FailedResult;
 import com.hawa.hawa_backend.post.Post;
@@ -45,7 +43,6 @@ public class AnalysisJobOperations {
     private final ReportRepository reportRepository;
     private final PostRepository postRepository;
     private final ReviewRepository reviewRepository;
-    private final KeywordRepository keywordRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Report markProcessing(Long reportId) {
@@ -54,14 +51,8 @@ public class AnalysisJobOperations {
         report.setStatus(ReportStatusEnum.PROCESSING);
         // Touch lazy associations so they're usable after this tx closes.
         report.getBrand().getBrandName();
+        report.getSelectedKeywords().size();
         return reportRepository.save(report);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public List<String> loadKeywords(Long brandId) {
-        return keywordRepository.findAllByBrandBrandId(brandId).stream()
-                .map(Keyword::getKeyword)
-                .toList();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

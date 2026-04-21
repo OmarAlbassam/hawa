@@ -48,7 +48,7 @@ public class AnalysisJobRunner {
                 return;
             }
 
-            List<String> keywords = operations.loadKeywords(brand.getBrandId());
+            List<String> keywords = report.getSelectedKeywords();
             List<AnalyzeResult> allResults = new ArrayList<>();
             List<FailedResult> allFailed = new ArrayList<>();
             int batchSize = llmProperties.batchSize();
