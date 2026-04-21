@@ -134,6 +134,7 @@ public class ReportService {
                     .findByReportReportIdAndRelevanceStatus(reportId, RelevanceStatusEnum.IRRELEVANT, pageable)
                     .map(ReportService::toIrrelevantItem);
         }
+        Pageable nativePageable = NativeSortUtil.toNativeSortPageable(pageable);
         return reviewRepository.findRelevantPostsForReport(
                         reportId,
                         sentimentMin,
@@ -141,7 +142,7 @@ public class ReportService {
                         emotion == null ? null : emotion.name(),
                         aspect == null ? null : aspect.name(),
                         confidenceMin,
-                        pageable)
+                        nativePageable)
                 .map(ReportService::toRelevantItem);
     }
 

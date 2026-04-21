@@ -70,7 +70,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             SELECT p.post_id        AS postId,
                    p.post_text      AS postText,
                    p.post_url       AS postUrl,
-                   p.language       AS language,
+                   p.language::text AS language,
                    r.score          AS score,
                    r.confidence     AS confidence,
                    r.emotion::text  AS emotion,
