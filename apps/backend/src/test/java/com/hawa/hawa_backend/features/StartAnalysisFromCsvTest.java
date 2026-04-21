@@ -135,7 +135,7 @@ class StartAnalysisFromCsvTest {
         when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);
             List<AnalyzeResult> results = req.posts().stream()
-                    .map(p -> new AnalyzeResult(p.postId(), 4.0, 4.0, "JOY", "PRODUCT"))
+                    .map(p -> new AnalyzeResult(p.postId(), true, null, 4.0, 4.0, "JOY", "PRODUCT"))
                     .toList();
             return new BatchAnalyzeResponse(results, List.of());
         });
@@ -180,7 +180,7 @@ class StartAnalysisFromCsvTest {
         when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);
             return new BatchAnalyzeResponse(List.of(new AnalyzeResult(
-                    req.posts().getFirst().postId(), 4.0, 4.0, "JOY", "PRODUCT")), List.of());
+                    req.posts().getFirst().postId(), true, null, 4.0, 4.0, "JOY", "PRODUCT")), List.of());
         });
 
         mockMvc.perform(multipart("/api/brands/" + brand.getBrandId() + "/reports/csv")
@@ -203,7 +203,7 @@ class StartAnalysisFromCsvTest {
         when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);
             return new BatchAnalyzeResponse(List.of(new AnalyzeResult(
-                    req.posts().getFirst().postId(), 3.0, 3.0, "JOY", "PRODUCT")), List.of());
+                    req.posts().getFirst().postId(), true, null, 3.0, 3.0, "JOY", "PRODUCT")), List.of());
         });
 
         mockMvc.perform(multipart("/api/brands/" + brand.getBrandId() + "/reports/csv")
