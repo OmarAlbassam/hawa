@@ -8,13 +8,16 @@ import org.springframework.stereotype.Component;
 import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.post.Post;
+import com.hawa.hawa_backend.post.PostRepository;
 import com.hawa.hawa_backend.report.Report;
 
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 
-@Slf4j
 @Component
+@RequiredArgsConstructor
 public class CsvPostCollector implements PostCollector {
+
+    private final PostRepository postRepository;
 
     @Override
     public DataSourceEnum dataSource() {
@@ -23,9 +26,6 @@ public class CsvPostCollector implements PostCollector {
 
     @Override
     public List<Post> collect(Report report, Brand brand, LocalDate from, LocalDate to) {
-        // TODO: load posts already uploaded via CSV/XLSX for this report.
-        log.warn("CsvPostCollector is a stub — no posts will be collected for reportId={}",
-                report.getReportId());
-        return List.of();
+        return postRepository.findByReport_ReportId(report.getReportId());
     }
 }
