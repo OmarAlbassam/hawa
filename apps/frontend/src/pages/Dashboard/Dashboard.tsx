@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { FileBarChart, MessageSquare, Tag, Play } from "lucide-react";
 import { getDashboard } from "../../services/dashboardService";
 import type { DashboardResponse } from "../../types/dashboard";
@@ -17,7 +17,6 @@ const statusBadgeVariant: Record<string, "default" | "primary" | "success" | "wa
 };
 
 const Dashboard = (): React.JSX.Element => {
-  const navigate = useNavigate();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,13 +51,10 @@ const Dashboard = (): React.JSX.Element => {
     <div className="dashboard">
       <div className="dashboard-header">
         <h1 className="dashboard-title">Dashboard</h1>
-        <button
-          className="dashboard-start-analysis-btn"
-          onClick={() => navigate("/analyze")}
-        >
+        <Link to="/analyze" className="dashboard-start-analysis-btn">
           <Play size={16} />
           Start Analysis
-        </button>
+        </Link>
       </div>
 
       <div className="dashboard-stats">
@@ -71,19 +67,19 @@ const Dashboard = (): React.JSX.Element => {
         <section className="dashboard-card">
           <div className="dashboard-card-header">
             <h2 className="dashboard-card-title">Your Brands</h2>
-            <button className="dashboard-link-btn" onClick={() => navigate("/brands")}>
+            <Link to="/brands" className="dashboard-link-btn">
               View all
-            </button>
+            </Link>
           </div>
           {data.brands.length === 0 ? (
             <p className="dashboard-empty">No brands yet.</p>
           ) : (
             <div className="dashboard-brands">
               {data.brands.map((brand) => (
-                <div
+                <Link
                   key={brand.brandId}
+                  to={`/brands/${brand.brandId}`}
                   className="dashboard-brand-item"
-                  onClick={() => navigate(`/brands/${brand.brandId}`)}
                 >
                   <span className="dashboard-brand-name">{brand.brandName}</span>
                   {brand.industry && (
@@ -94,7 +90,7 @@ const Dashboard = (): React.JSX.Element => {
                       {brand.statusIndicator.toFixed(1)}
                     </span>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -103,9 +99,9 @@ const Dashboard = (): React.JSX.Element => {
         <section className="dashboard-card">
           <div className="dashboard-card-header">
             <h2 className="dashboard-card-title">Recent Reports</h2>
-            <button className="dashboard-link-btn" onClick={() => navigate("/reports")}>
+            <Link to="/reports" className="dashboard-link-btn">
               View all
-            </button>
+            </Link>
           </div>
           {data.recentReports.length === 0 ? (
             <p className="dashboard-empty">No reports yet.</p>

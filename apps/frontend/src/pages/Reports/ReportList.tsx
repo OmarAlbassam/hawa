@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { getReports } from "../../services/reportService";
 import type { Page } from "../../types/page";
 import type { ReportResponse } from "../../types/report";
@@ -12,7 +12,6 @@ import "./ReportList.css";
 
 const ReportList = (): React.JSX.Element => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page<ReportResponse> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,16 +101,16 @@ const ReportList = (): React.JSX.Element => {
               </thead>
               <tbody>
                 {data.content.map((report) => (
-                  <tr
-                    key={report.reportId}
-                    className="report-list-row"
-                    onClick={() =>
-                      navigate(`/reports/${report.reportId}`, {
-                        state: { report },
-                      })
-                    }
-                  >
-                    <td className="report-list-brand">{report.brandName}</td>
+                  <tr key={report.reportId} className="report-list-row">
+                    <td className="report-list-brand">
+                      <Link
+                        to={`/reports/${report.reportId}`}
+                        state={{ report }}
+                        className="report-list-row-link"
+                      >
+                        {report.brandName}
+                      </Link>
+                    </td>
                     <td>{report.dataSource === "CSV_UPLOAD" ? "CSV" : "Reddit"}</td>
                     <td>
                       <Badge variant={statusBadgeVariant[report.status]}>

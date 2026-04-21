@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Settings2 } from "lucide-react";
 import { getBrands } from "../../services/brandService";
 import { startAnalysis } from "../../services/reportService";
@@ -89,14 +89,10 @@ const StartAnalysis = (): React.JSX.Element => {
 
   return (
     <div className="start-analysis">
-      <button
-        className="start-analysis-back"
-        onClick={() => navigate(backTarget)}
-        type="button"
-      >
+      <Link to={backTarget} className="start-analysis-back">
         <ArrowLeft size={16} />
         {backLabel}
-      </button>
+      </Link>
 
       <div className="start-analysis-header">
         <h1 className="start-analysis-title">Start Analysis</h1>
@@ -116,13 +112,9 @@ const StartAnalysis = (): React.JSX.Element => {
       {brands.length === 0 ? (
         <div className="start-analysis-empty">
           <p>You don't have any brands yet.</p>
-          <button
-            type="button"
-            className="start-analysis-submit"
-            onClick={() => navigate("/brands")}
-          >
+          <Link to="/brands" className="start-analysis-submit">
             Go to Brands
-          </button>
+          </Link>
         </div>
       ) : (
         <form className="start-analysis-form" onSubmit={handleSubmit}>
@@ -152,14 +144,13 @@ const StartAnalysis = (): React.JSX.Element => {
               </select>
             </label>
             {selectedBrand && (
-              <button
-                type="button"
+              <Link
+                to={`/brands/${selectedBrand.brandId}`}
                 className="start-analysis-keywords-btn"
-                onClick={() => navigate(`/brands/${selectedBrand.brandId}`)}
               >
                 <Settings2 size={14} />
                 Configure keywords for {selectedBrand.brandName}
-              </button>
+              </Link>
             )}
           </fieldset>
 
@@ -233,13 +224,9 @@ const StartAnalysis = (): React.JSX.Element => {
           {submitError && <ErrorBanner message={submitError} />}
 
           <div className="start-analysis-actions">
-            <button
-              type="button"
-              className="start-analysis-cancel"
-              onClick={() => navigate(backTarget)}
-            >
+            <Link to={backTarget} className="start-analysis-cancel">
               Cancel
-            </button>
+            </Link>
             <button
               type="submit"
               className="start-analysis-submit"

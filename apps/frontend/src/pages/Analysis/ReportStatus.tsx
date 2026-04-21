@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import {
   getReportStatus,
@@ -101,7 +101,6 @@ function Distribution<K extends string>({
 
 const ReportStatus = (): React.JSX.Element => {
   const { reportId: reportIdParam } = useParams<{ reportId: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
   const reportId = reportIdParam ? Number(reportIdParam) : NaN;
 
@@ -258,14 +257,10 @@ const ReportStatus = (): React.JSX.Element => {
 
   return (
     <div className="report-status">
-      <button
-        className="report-status-back"
-        onClick={() => navigate("/reports")}
-        type="button"
-      >
+      <Link to="/reports" className="report-status-back">
         <ArrowLeft size={16} />
         Back to Reports
-      </button>
+      </Link>
 
       <div className="report-status-header">
         <div>
@@ -390,20 +385,12 @@ const ReportStatus = (): React.JSX.Element => {
       )}
 
       <div className="report-status-actions">
-        <button
-          className="report-status-secondary"
-          type="button"
-          onClick={() => navigate("/reports")}
-        >
+        <Link to="/reports" className="report-status-secondary">
           View all reports
-        </button>
-        <button
-          className="report-status-primary"
-          type="button"
-          onClick={() => navigate("/brands")}
-        >
+        </Link>
+        <Link to="/brands" className="report-status-primary">
           Back to brands
-        </button>
+        </Link>
       </div>
     </div>
   );

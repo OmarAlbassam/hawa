@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { getBrands } from "../../services/brandService";
 import type { Page } from "../../types/page";
 import type { BrandSummaryResponse } from "../../types/brand";
@@ -8,7 +8,6 @@ import { formatDate } from "../../utils/formatDate";
 import "./BrandList.css";
 
 const BrandList = (): React.JSX.Element => {
-  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page<BrandSummaryResponse> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,10 +45,10 @@ const BrandList = (): React.JSX.Element => {
         <>
           <div className="brand-list-grid">
             {data.content.map((brand) => (
-              <div
+              <Link
                 key={brand.brandId}
+                to={`/brands/${brand.brandId}`}
                 className="brand-card"
-                onClick={() => navigate(`/brands/${brand.brandId}`)}
               >
                 <div className="brand-card-header">
                   <h3 className="brand-card-name">{brand.brandName}</h3>
@@ -66,7 +65,7 @@ const BrandList = (): React.JSX.Element => {
                   <span>{brand.keywordCount} keyword{brand.keywordCount !== 1 ? "s" : ""}</span>
                   <span>{formatDate(brand.createdAt)}</span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 

@@ -20,6 +20,7 @@
   cursor: pointer;
   padding: var(--space-1) 0;
   margin-bottom: var(--space-6);
+  text-decoration: none;
 }
 
 .report-status-back:hover {
@@ -191,6 +192,8 @@
 }
 
 .report-status-secondary {
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -199,6 +202,7 @@
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .report-status-secondary:hover {
@@ -206,6 +210,8 @@
 }
 
 .report-status-primary {
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -214,6 +220,7 @@
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .report-status-primary:hover {
@@ -229,7 +236,8 @@
     flex-direction: column-reverse;
   }
 
-  .report-status-actions button {
+  .report-status-actions > * {
     width: 100%;
+    justify-content: center;
   }
 }
