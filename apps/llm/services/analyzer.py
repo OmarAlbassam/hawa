@@ -9,6 +9,7 @@ from models import (
     AnalyzeResult,
     BatchAnalyzeResponse,
     FailedResult,
+    IrrelevanceReason,
 )
 from prompts.sentiment import build_system_prompt
 from services.llm_client import LLMClient, RateLimitExhaustedError
@@ -30,12 +31,35 @@ class AnalyzerService:
         brand_industry: str | None = None,
         keywords: list[str] | None = None,
     ) -> AnalyzeResult:
-        """Preprocess, analyze, and validate a single post."""
+        """Preprocess, analyze, and validate a single post.
+
+        Posts that are empty after cleaning short-circuit to an irrelevant
+        result without calling the LLM. Posts that the LLM flags as
+        is_relevant=False get their score/emotion/aspect nulled out so a
+        buggy model output can't leak into aggregations.
+        """
         cleaned = clean_text(post.text, self.settings.max_text_length)
+        if not cleaned:
+            return AnalyzeResult(
+                post_id=post.post_id,
+                is_relevant=False,
+                irrelevance_reason=IrrelevanceReason.EMPTY,
+            )
+
         prompt = build_system_prompt(brand_name, brand_industry, keywords)
         response = await self.llm_client.analyze(prompt, cleaned)
+
+        if not response.is_relevant:
+            return AnalyzeResult(
+                post_id=post.post_id,
+                is_relevant=False,
+                irrelevance_reason=response.irrelevance_reason
+                or IrrelevanceReason.OTHER,
+            )
+
         return AnalyzeResult(
             post_id=post.post_id,
+            is_relevant=True,
             score=response.score,
             llm_score=response.score,
             emotion=response.emotion,

@@ -11,8 +11,6 @@ import org.springframework.stereotype.Component;
 import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
-import com.hawa.hawa_backend.keyword.Keyword;
-import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.reddit.RedditClient;
 import com.hawa.hawa_backend.reddit.RedditProperties;
@@ -30,7 +28,6 @@ public class RedditPostCollector implements PostCollector {
 
     private final RedditClient redditClient;
     private final RedditPostCleaner cleaner;
-    private final KeywordRepository keywordRepository;
     private final RedditProperties properties;
 
     @Override
@@ -40,8 +37,7 @@ public class RedditPostCollector implements PostCollector {
 
     @Override
     public List<Post> collect(Report report, Brand brand, LocalDate from, LocalDate to) {
-        List<Keyword> keywords = keywordRepository.findAllByBrandBrandId(brand.getBrandId());
-        String query = RedditQueryBuilder.build(brand, keywords);
+        String query = RedditQueryBuilder.build(report.getSelectedKeywords());
 
         Instant fromInstant = (from != null ? from : LocalDate.now().minusDays(7))
                 .atStartOfDay(ZoneOffset.UTC).toInstant();

@@ -3,6 +3,8 @@ package com.hawa.hawa_backend.review;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +13,17 @@ import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    interface RelevantPostProjection {
+        Long getPostId();
+        String getPostText();
+        String getPostUrl();
+        String getLanguage();
+        BigDecimal getScore();
+        BigDecimal getConfidence();
+        String getEmotion();
+        String getAspect();
+    }
 
     interface ReviewAggregate {
         BigDecimal getAverageScore();
@@ -52,4 +65,43 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             group by r.aspect
             """)
     List<AspectCount> countByAspect(@Param("reportId") Long reportId);
+
+    @Query(value = """
+            SELECT p.post_id        AS postId,
+                   p.post_text      AS postText,
+                   p.post_url       AS postUrl,
+                   p.language::text AS language,
+                   r.score          AS score,
+                   r.confidence     AS confidence,
+                   r.emotion::text  AS emotion,
+                   r.aspect::text   AS aspect
+            FROM review r
+            JOIN post p ON p.post_id = r.post_id
+            WHERE p.report_id = :reportId
+              AND (CAST(:sentimentMin AS numeric) IS NULL OR r.score >= CAST(:sentimentMin AS numeric))
+              AND (CAST(:sentimentMax AS numeric) IS NULL OR r.score <= CAST(:sentimentMax AS numeric))
+              AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
+              AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
+              AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
+            """,
+            countQuery = """
+            SELECT count(*)
+            FROM review r
+            JOIN post p ON p.post_id = r.post_id
+            WHERE p.report_id = :reportId
+              AND (CAST(:sentimentMin AS numeric) IS NULL OR r.score >= CAST(:sentimentMin AS numeric))
+              AND (CAST(:sentimentMax AS numeric) IS NULL OR r.score <= CAST(:sentimentMax AS numeric))
+              AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
+              AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
+              AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
+            """,
+            nativeQuery = true)
+    Page<RelevantPostProjection> findRelevantPostsForReport(
+            @Param("reportId") Long reportId,
+            @Param("sentimentMin") BigDecimal sentimentMin,
+            @Param("sentimentMax") BigDecimal sentimentMax,
+            @Param("emotion") String emotion,
+            @Param("aspect") String aspect,
+            @Param("confidenceMin") BigDecimal confidenceMin,
+            Pageable pageable);
 }

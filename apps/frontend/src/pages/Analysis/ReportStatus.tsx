@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import FilteredPostsList from "./FilteredPostsList";
 import {
   getReportStatus,
   getReports,
@@ -123,11 +124,13 @@ const ReportStatus = (): React.JSX.Element => {
   const [overview, setOverview] = useState<ReportOverviewResponse | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [overviewReportId, setOverviewReportId] = useState<number>(reportId);
+  const [showFiltered, setShowFiltered] = useState(false);
   if (overviewReportId !== reportId) {
     // reset when navigating between reports without remount
     setOverviewReportId(reportId);
     setOverview(null);
     setOverviewError(null);
+    setShowFiltered(false);
   }
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(!seed);
@@ -343,6 +346,14 @@ const ReportStatus = (): React.JSX.Element => {
                       {overview.analyzedPosts}
                     </span>
                   </div>
+                  <div className="report-status-stat">
+                    <span className="report-status-stat-label">
+                      Filtered out
+                    </span>
+                    <span className="report-status-stat-value">
+                      {overview.filteredOutCount}
+                    </span>
+                  </div>
                 </div>
                 {status?.finishedAt && (
                   <p className="report-status-finished">
@@ -372,6 +383,27 @@ const ReportStatus = (): React.JSX.Element => {
                   colorMap={ASPECT_COLORS}
                 />
               </div>
+
+              {overview.filteredOutCount > 0 && (
+                <div className="report-status-card">
+                  <button
+                    type="button"
+                    className="report-status-filtered-toggle"
+                    onClick={() => setShowFiltered((v) => !v)}
+                    aria-expanded={showFiltered}
+                  >
+                    {showFiltered ? (
+                      <ChevronUp size={16} />
+                    ) : (
+                      <ChevronDown size={16} />
+                    )}
+                    Want to see filtered-out posts? ({overview.filteredOutCount})
+                  </button>
+                  {showFiltered && (
+                    <FilteredPostsList reportId={reportId} />
+                  )}
+                </div>
+              )}
             </>
           )}
         </>

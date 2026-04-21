@@ -20,15 +20,25 @@ class Aspect(str, Enum):
     PRICING = "PRICING"
 
 
+class IrrelevanceReason(str, Enum):
+    HOMONYM = "HOMONYM"
+    SPAM = "SPAM"
+    EMPTY = "EMPTY"
+    WRONG_LANGUAGE = "WRONG_LANGUAGE"
+    OTHER = "OTHER"
+
+
 # --- LLM Response ---
 
 
 class SentimentResponse(BaseModel):
     """Schema for what the LLM returns. Used as instructor's response_model."""
 
+    is_relevant: bool = True
+    irrelevance_reason: IrrelevanceReason | None = None
     score: float = Field(default=2.5)
-    emotion: Emotion
-    aspect: str  # TODO: define fixed aspect categories once requirements are settled
+    emotion: Emotion = Emotion.NEUTRAL
+    aspect: str = ""
 
     @field_validator("score", mode="before")
     @classmethod
@@ -37,7 +47,7 @@ class SentimentResponse(BaseModel):
 
     @field_validator("emotion", mode="before")
     @classmethod
-    def uppercase_emotion(cls, v: object) -> str:
+    def uppercase_emotion(cls, v: object) -> str | object:
         return v.upper() if isinstance(v, str) else v
 
 
@@ -61,10 +71,12 @@ class BatchAnalyzeRequest(BaseModel):
 
 class AnalyzeResult(BaseModel):
     post_id: int
-    score: float = Field(ge=0.0, le=5.0)
-    llm_score: float
-    emotion: Emotion
-    aspect: str  # TODO: define fixed aspect categories once requirements are settled
+    is_relevant: bool = True
+    irrelevance_reason: IrrelevanceReason | None = None
+    score: float | None = Field(default=None, ge=0.0, le=5.0)
+    llm_score: float | None = None
+    emotion: Emotion | None = None
+    aspect: str | None = None
 
 
 class FailedResult(BaseModel):
