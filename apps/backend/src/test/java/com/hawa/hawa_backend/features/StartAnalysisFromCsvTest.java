@@ -169,6 +169,32 @@ class StartAnalysisFromCsvTest {
     }
 
     @Test
+    void shouldParseCsv_whenHeadersUseMixedCase() throws Exception {
+        String csv = """
+                Text,URL,Language
+                "I love this product","https://example.com/1",EN
+                """;
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "posts.csv", "text/csv", csv.getBytes());
+
+        when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
+            BatchAnalyzeRequest req = inv.getArgument(0);
+            return new BatchAnalyzeResponse(List.of(new AnalyzeResult(
+                    req.posts().getFirst().postId(), 4.0, 4.0, "JOY", "PRODUCT")), List.of());
+        });
+
+        mockMvc.perform(multipart("/api/brands/" + brand.getBrandId() + "/reports/csv")
+                        .file(file)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isCreated());
+
+        List<Post> posts = postRepository.findAll();
+        assertThat(posts).hasSize(1);
+        assertThat(posts.getFirst().getPostText()).isEqualTo("I love this product");
+        assertThat(posts.getFirst().getLanguage()).isEqualTo(LanguageEnum.EN);
+    }
+
+    @Test
     void shouldDefaultLanguageToEnglish_whenLanguageColumnBlank() throws Exception {
         String csv = "text\n\"Hello world\"\n";
         MockMultipartFile file = new MockMultipartFile(

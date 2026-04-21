@@ -64,6 +64,7 @@ public class DatasetCsvParser {
                 .setSkipHeaderRecord(true)
                 .setIgnoreEmptyLines(true)
                 .setTrim(true)
+                .setIgnoreHeaderCase(true)
                 .build();
 
         List<ParsedPost> parsed = new ArrayList<>();
