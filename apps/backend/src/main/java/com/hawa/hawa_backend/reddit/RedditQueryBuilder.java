@@ -3,9 +3,6 @@ package com.hawa.hawa_backend.reddit;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import com.hawa.hawa_backend.brand.Brand;
-import com.hawa.hawa_backend.keyword.Keyword;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -17,25 +14,26 @@ public final class RedditQueryBuilder {
     private RedditQueryBuilder() {
     }
 
-    public static String build(Brand brand, List<Keyword> keywords) {
-        if (brand == null || brand.getBrandName() == null || brand.getBrandName().isBlank()) {
-            throw new IllegalArgumentException("Brand must have a non-blank name");
+    public static String build(List<String> selectedKeywords) {
+        if (selectedKeywords == null || selectedKeywords.isEmpty()) {
+            throw new IllegalArgumentException("At least one keyword is required to build a Reddit query");
         }
-        StringBuilder q = new StringBuilder(quote(brand.getBrandName()));
+        StringBuilder q = new StringBuilder();
         int dropped = 0;
-        if (keywords != null) {
-            for (Keyword kw : keywords) {
-                if (kw == null || kw.getKeyword() == null || kw.getKeyword().isBlank()) {
-                    continue;
-                }
-                String term = formatTerm(kw.getKeyword().trim());
-                String next = " OR " + term;
-                if (q.length() + next.length() > MAX_QUERY_CHARS) {
-                    dropped++;
-                    continue;
-                }
-                q.append(next);
+        for (String raw : selectedKeywords) {
+            if (raw == null || raw.isBlank()) {
+                continue;
             }
+            String term = formatTerm(raw.trim());
+            String next = q.length() == 0 ? term : " OR " + term;
+            if (q.length() + next.length() > MAX_QUERY_CHARS) {
+                dropped++;
+                continue;
+            }
+            q.append(next);
+        }
+        if (q.length() == 0) {
+            throw new IllegalArgumentException("No usable keyword terms after trimming");
         }
         if (dropped > 0) {
             log.debug("Reddit query budget exceeded; dropped {} keyword(s)", dropped);

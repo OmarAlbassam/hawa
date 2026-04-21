@@ -4,6 +4,7 @@ export interface StartAnalysisRequest {
   dataSource: DataSource;
   dateFrom?: string;
   dateTo?: string;
+  selectedKeywordIds: number[];
 }
 
 export interface ReportResponse {
@@ -50,10 +51,45 @@ export interface ReportOverviewResponse {
   summary: string | null;
   score: number | null;
   analyzedPosts: number;
+  filteredOutCount: number;
   averageSentiment: number | null;
   averageConfidence: number | null;
   emotionDistribution: Record<EmotionEnum, number>;
   aspectDistribution: Record<AspectEnum, number>;
+}
+
+export type RelevanceStatus = "RELEVANT" | "IRRELEVANT";
+
+export type IrrelevanceReason =
+  | "HOMONYM"
+  | "SPAM"
+  | "EMPTY"
+  | "WRONG_LANGUAGE"
+  | "OTHER";
+
+export interface PostListItemResponse {
+  postId: number;
+  postText: string;
+  postUrl: string | null;
+  language: string;
+  relevanceStatus: RelevanceStatus;
+  irrelevanceReason: IrrelevanceReason | null;
+  score: number | null;
+  confidence: number | null;
+  emotion: EmotionEnum | null;
+  aspect: AspectEnum | null;
+}
+
+export interface ReportPostsParams {
+  relevance?: RelevanceStatus;
+  sentimentMin?: number;
+  sentimentMax?: number;
+  emotion?: EmotionEnum;
+  aspect?: AspectEnum;
+  confidenceMin?: number;
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
 export interface ReportListParams {

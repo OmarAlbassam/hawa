@@ -13,7 +13,9 @@ import com.hawa.hawa_backend.company.CompanyRepository;
 import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.IrrelevanceReasonEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
 import com.hawa.hawa_backend.post.Post;
@@ -236,6 +238,29 @@ class ReportControllerTest {
         }
 
         @Test
+        void shouldReportFilteredOutCount_andExcludeIrrelevantFromAggregations() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            // Two relevant reviews
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("2.0"), new BigDecimal("0.80"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            // Three irrelevant posts — no Review, just Post rows
+            createIrrelevantPost(report, "off-topic 1", IrrelevanceReasonEnum.HOMONYM);
+            createIrrelevantPost(report, "spam link", IrrelevanceReasonEnum.SPAM);
+            createIrrelevantPost(report, "", IrrelevanceReasonEnum.EMPTY);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId())
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.analyzedPosts").value(2))
+                    .andExpect(jsonPath("$.filteredOutCount").value(3))
+                    .andExpect(jsonPath("$.averageSentiment").value(3.0))
+                    .andExpect(jsonPath("$.emotionDistribution.JOY").value(1))
+                    .andExpect(jsonPath("$.emotionDistribution.ANGER").value(1))
+                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(1))
+                    .andExpect(jsonPath("$.aspectDistribution.SERVICE").value(1));
+        }
+
+        @Test
         void shouldReturnEmptyDistributions_whenCompletedReportHasNoReviews() throws Exception {
             Report report = createReport(brand, ReportStatusEnum.COMPLETED);
 
@@ -309,6 +334,97 @@ class ReportControllerTest {
         }
     }
 
+    @Nested
+    class ListPosts {
+
+        @Test
+        void shouldReturnRelevantPostsByDefault_withReviewFields() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            createIrrelevantPost(report, "off-topic", IrrelevanceReasonEnum.HOMONYM);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].score").exists())
+                    .andExpect(jsonPath("$.content[0].emotion").exists())
+                    .andExpect(jsonPath("$.content[0].aspect").exists())
+                    .andExpect(jsonPath("$.content[0].relevanceStatus").value("RELEVANT"));
+        }
+
+        @Test
+        void shouldReturnIrrelevantPosts_whenRelevanceIrrelevant() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createIrrelevantPost(report, "off-topic chatter", IrrelevanceReasonEnum.HOMONYM);
+            createIrrelevantPost(report, "spam!", IrrelevanceReasonEnum.SPAM);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("relevance", "IRRELEVANT")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].relevanceStatus").value("IRRELEVANT"))
+                    .andExpect(jsonPath("$.content[0].irrelevanceReason").exists())
+                    .andExpect(jsonPath("$.content[0].score").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].emotion").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].aspect").doesNotExist());
+        }
+
+        @Test
+        void shouldFilterByEmotion() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("emotion", "JOY")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].emotion").value("JOY"));
+        }
+
+        @Test
+        void shouldFilterBySentimentRange() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.5"), new BigDecimal("0.90"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("3.0"), new BigDecimal("0.80"), EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("1.5"), new BigDecimal("0.70"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("sentimentMin", "2.0")
+                            .param("sentimentMax", "4.0")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].score").value(3.0));
+        }
+
+        @Test
+        void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
+            Company otherCompany = new Company();
+            otherCompany.setCompanyName("Other Corp");
+            otherCompany = companyRepository.save(otherCompany);
+            Brand otherBrand = Brand.builder().brandName("Adidas").company(otherCompany).build();
+            otherBrand = brandRepository.save(otherBrand);
+            User otherUser = createUser("other@example.com", UserRoleEnum.MARKETING_USER, otherCompany);
+            Report report = Report.builder()
+                    .brand(otherBrand)
+                    .user(otherUser)
+                    .dataSource(DataSourceEnum.REDDIT)
+                    .status(ReportStatusEnum.COMPLETED)
+                    .build();
+            report = reportRepository.save(report);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
     // ==================== Helpers ====================
 
     private User createUser(String email, UserRoleEnum role, Company targetCompany) {
@@ -350,5 +466,16 @@ class ReportControllerTest {
                 .aspect(aspect)
                 .build();
         return reviewRepository.save(review);
+    }
+
+    private Post createIrrelevantPost(Report report, String text, IrrelevanceReasonEnum reason) {
+        Post post = Post.builder()
+                .report(report)
+                .postText(text)
+                .language(LanguageEnum.EN)
+                .relevanceStatus(RelevanceStatusEnum.IRRELEVANT)
+                .irrelevanceReason(reason)
+                .build();
+        return postRepository.save(post);
     }
 }

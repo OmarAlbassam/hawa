@@ -2,6 +2,8 @@ package com.hawa.hawa_backend.report;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -85,4 +87,9 @@ public class Report {
 
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
+
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "selected_keywords", nullable = false, columnDefinition = "jsonb")
+    private List<String> selectedKeywords = new ArrayList<>();
 }

@@ -16,10 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.IrrelevanceReasonEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
-import com.hawa.hawa_backend.keyword.Keyword;
-import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.llm.dto.AnalyzeResult;
 import com.hawa.hawa_backend.llm.dto.FailedResult;
 import com.hawa.hawa_backend.post.Post;
@@ -43,7 +43,6 @@ public class AnalysisJobOperations {
     private final ReportRepository reportRepository;
     private final PostRepository postRepository;
     private final ReviewRepository reviewRepository;
-    private final KeywordRepository keywordRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Report markProcessing(Long reportId) {
@@ -52,14 +51,8 @@ public class AnalysisJobOperations {
         report.setStatus(ReportStatusEnum.PROCESSING);
         // Touch lazy associations so they're usable after this tx closes.
         report.getBrand().getBrandName();
+        report.getSelectedKeywords().size();
         return reportRepository.save(report);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public List<String> loadKeywords(Long brandId) {
-        return keywordRepository.findAllByBrandBrandId(brandId).stream()
-                .map(Keyword::getKeyword)
-                .toList();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -81,10 +74,17 @@ public class AnalysisJobOperations {
             byId.put(post.getPostId(), post);
         }
         List<Review> reviews = new ArrayList<>(results.size());
+        List<Post> irrelevantPosts = new ArrayList<>();
         for (AnalyzeResult result : results) {
             Post post = byId.get(result.postId());
             if (post == null) {
                 log.warn("LLM returned result for unknown post_id={}, skipping", result.postId());
+                continue;
+            }
+            if (!result.relevant()) {
+                post.setRelevanceStatus(RelevanceStatusEnum.IRRELEVANT);
+                post.setIrrelevanceReason(parseIrrelevanceReason(result.irrelevanceReason()));
+                irrelevantPosts.add(post);
                 continue;
             }
             reviews.add(Review.builder()
@@ -95,6 +95,9 @@ public class AnalysisJobOperations {
                     .aspect(parseAspect(result.aspect()))
                     .confidence(BigDecimal.ONE)
                     .build());
+        }
+        if (!irrelevantPosts.isEmpty()) {
+            postRepository.saveAll(irrelevantPosts);
         }
         reviewRepository.saveAll(reviews);
     }
@@ -140,6 +143,9 @@ public class AnalysisJobOperations {
         double sum = 0.0;
         int count = 0;
         for (AnalyzeResult r : results) {
+            if (!r.relevant()) {
+                continue;
+            }
             if (r.score() != null) {
                 sum += r.score();
                 count++;
@@ -154,7 +160,14 @@ public class AnalysisJobOperations {
     private static String buildSummary(List<AnalyzeResult> results, List<FailedResult> failed) {
         Map<AspectEnum, Integer> aspectCounts = new EnumMap<>(AspectEnum.class);
         Map<EmotionEnum, Integer> emotionCounts = new EnumMap<>(EmotionEnum.class);
+        int analyzed = 0;
+        int filteredOut = 0;
         for (AnalyzeResult r : results) {
+            if (!r.relevant()) {
+                filteredOut++;
+                continue;
+            }
+            analyzed++;
             aspectCounts.merge(parseAspect(r.aspect()), 1, Integer::sum);
             EmotionEnum e = parseEmotion(r.emotion());
             if (e != null) {
@@ -163,7 +176,8 @@ public class AnalysisJobOperations {
         }
         AspectEnum topAspect = topKey(aspectCounts);
         EmotionEnum topEmotion = topKey(emotionCounts);
-        return "analyzed=" + results.size()
+        return "analyzed=" + analyzed
+                + ", filtered_out=" + filteredOut
                 + ", failed=" + failed.size()
                 + ", top_aspect=" + (topAspect == null ? "n/a" : topAspect.name())
                 + ", top_emotion=" + (topEmotion == null ? "n/a" : topEmotion.name());
@@ -190,6 +204,18 @@ public class AnalysisJobOperations {
         } catch (IllegalArgumentException ex) {
             log.warn("Unknown aspect from LLM: '{}', defaulting to PRODUCT", raw);
             return AspectEnum.PRODUCT;
+        }
+    }
+
+    static IrrelevanceReasonEnum parseIrrelevanceReason(String raw) {
+        if (raw == null) {
+            return IrrelevanceReasonEnum.OTHER;
+        }
+        try {
+            return IrrelevanceReasonEnum.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            log.warn("Unknown irrelevance reason from LLM: '{}', defaulting to OTHER", raw);
+            return IrrelevanceReasonEnum.OTHER;
         }
     }
 

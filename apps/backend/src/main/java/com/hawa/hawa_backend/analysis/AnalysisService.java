@@ -21,6 +21,8 @@ import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.keyword.Keyword;
+import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.report.Report;
 import com.hawa.hawa_backend.report.ReportRepository;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
@@ -36,6 +38,7 @@ public class AnalysisService {
 
     private final AuthenticatedUserService authenticatedUserService;
     private final BrandRepository brandRepository;
+    private final KeywordRepository keywordRepository;
     private final ReportRepository reportRepository;
     private final PostRepository postRepository;
     private final AnalysisJobRunner analysisJobRunner;
@@ -52,6 +55,8 @@ public class AnalysisService {
             throw new BadRequestException("Brand does not belong to your company");
         }
 
+        List<String> selectedKeywords = loadSelectedKeywords(brand, request.selectedKeywordIds());
+
         Report report = Report.builder()
                 .user(user)
                 .brand(brand)
@@ -59,6 +64,7 @@ public class AnalysisService {
                 .status(ReportStatusEnum.PENDING)
                 .dateFrom(request.dateFrom())
                 .dateTo(request.dateTo())
+                .selectedKeywords(selectedKeywords)
                 .build();
 
         report = reportRepository.save(report);
@@ -145,6 +151,19 @@ public class AnalysisService {
                 report.getCreatedAt(),
                 report.getFinishedAt(),
                 report.getFailureReason());
+    }
+
+    private List<String> loadSelectedKeywords(Brand brand, List<Long> keywordIds) {
+        List<Keyword> keywords = keywordRepository.findAllById(keywordIds);
+        if (keywords.size() != keywordIds.size()) {
+            throw new BadRequestException("One or more selected keywords do not exist");
+        }
+        for (Keyword keyword : keywords) {
+            if (!keyword.getBrand().getBrandId().equals(brand.getBrandId())) {
+                throw new BadRequestException("Selected keyword does not belong to the brand");
+            }
+        }
+        return keywords.stream().map(Keyword::getKeyword).toList();
     }
 
     private ReportResponse toReportResponse(Report report) {

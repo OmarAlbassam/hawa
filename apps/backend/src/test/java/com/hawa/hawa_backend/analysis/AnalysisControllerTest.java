@@ -12,8 +12,11 @@ import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
+import com.hawa.hawa_backend.enums.KeywordTypeEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
+import com.hawa.hawa_backend.keyword.Keyword;
+import com.hawa.hawa_backend.keyword.KeywordRepository;
 import com.hawa.hawa_backend.report.Report;
 import com.hawa.hawa_backend.report.ReportRepository;
 import com.hawa.hawa_backend.user.User;
@@ -42,6 +45,7 @@ class AnalysisControllerTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private BrandRepository brandRepository;
+    @Autowired private KeywordRepository keywordRepository;
     @Autowired private ReportRepository reportRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
@@ -76,7 +80,16 @@ class AnalysisControllerTest {
                 .company(company)
                 .build();
         brand = brandRepository.save(brand);
+
+        Keyword seeded = keywordRepository.save(Keyword.builder()
+                .brand(brand)
+                .keyword("nike")
+                .keywordType(KeywordTypeEnum.BRAND_NAME)
+                .build());
+        brandKeywordId = seeded.getKeywordId();
     }
+
+    private Long brandKeywordId;
 
     @Nested
     class StartAnalysis {
@@ -86,9 +99,8 @@ class AnalysisControllerTest {
             mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"dataSource": "REDDIT"}
-                                    """))
+                            .content(String.format(
+                                    "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", brandKeywordId)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.reportId").isNumber())
                     .andExpect(jsonPath("$.brandName").value("Nike"))
@@ -102,13 +114,14 @@ class AnalysisControllerTest {
             mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
+                            .content(String.format("""
                                     {
                                         "dataSource": "CSV_UPLOAD",
                                         "dateFrom": "2026-01-01",
-                                        "dateTo": "2026-03-31"
+                                        "dateTo": "2026-03-31",
+                                        "selectedKeywordIds": [%d]
                                     }
-                                    """))
+                                    """, brandKeywordId)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.dataSource").value("CSV_UPLOAD"))
                     .andExpect(jsonPath("$.dateFrom").value("2026-01-01"))
@@ -120,9 +133,8 @@ class AnalysisControllerTest {
             mockMvc.perform(post("/api/brands/99999/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"dataSource": "REDDIT"}
-                                    """))
+                            .content(String.format(
+                                    "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", brandKeywordId)))
                     .andExpect(status().isNotFound());
         }
 
@@ -141,9 +153,8 @@ class AnalysisControllerTest {
             mockMvc.perform(post("/api/brands/" + otherBrand.getBrandId() + "/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"dataSource": "REDDIT"}
-                                    """))
+                            .content(String.format(
+                                    "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d]}", brandKeywordId)))
                     .andExpect(status().isBadRequest());
         }
 
@@ -152,7 +163,30 @@ class AnalysisControllerTest {
             mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{}"))
+                            .content(String.format(
+                                    "{\"selectedKeywordIds\": [%d]}", brandKeywordId)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReject400_whenSelectedKeywordIdsMissing() throws Exception {
+            mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"dataSource": "REDDIT"}
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReject400_whenSelectedKeywordIdsEmpty() throws Exception {
+            mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"dataSource": "REDDIT", "selectedKeywordIds": []}
+                                    """))
                     .andExpect(status().isBadRequest());
         }
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Download, Settings2, Upload } from "lucide-react";
-import { getBrands } from "../../services/brandService";
+import { getBrands, getBrand } from "../../services/brandService";
 import { startAnalysis } from "../../services/reportService";
 import {
   downloadDatasetTemplate,
@@ -9,7 +9,7 @@ import {
 } from "../../services/datasetService";
 import { DatasetValidationFailed } from "../../types/dataset";
 import type { DatasetValidationError } from "../../types/dataset";
-import type { BrandSummaryResponse } from "../../types/brand";
+import type { BrandSummaryResponse, KeywordInfo } from "../../types/brand";
 import type { DataSource } from "../../types/dashboard";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
 import "./StartAnalysis.css";
@@ -44,6 +44,12 @@ const StartAnalysis = (): React.JSX.Element => {
   const [templateDownloading, setTemplateDownloading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [brandKeywords, setBrandKeywords] = useState<KeywordInfo[]>([]);
+  const [loadingKeywords, setLoadingKeywords] = useState(false);
+  const [keywordError, setKeywordError] = useState<string | null>(null);
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(
+    new Set()
+  );
 
   const loadBrands = useCallback(async () => {
     setLoadingBrands(true);
@@ -61,6 +67,38 @@ const StartAnalysis = (): React.JSX.Element => {
   useEffect(() => {
     loadBrands();
   }, [loadBrands]);
+
+  useEffect(() => {
+    if (!selectedBrandId) {
+      setBrandKeywords([]);
+      setSelectedKeywordIds(new Set());
+      setKeywordError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingKeywords(true);
+    setKeywordError(null);
+    getBrand(Number(selectedBrandId))
+      .then((detail) => {
+        if (cancelled) return;
+        setBrandKeywords(detail.keywords);
+        setSelectedKeywordIds(new Set(detail.keywords.map((k) => k.keywordId)));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setKeywordError(
+          err instanceof Error ? err.message : "Failed to load keywords"
+        );
+        setBrandKeywords([]);
+        setSelectedKeywordIds(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingKeywords(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBrandId]);
 
   const validDateRange =
     !dateFrom || !dateTo || new Date(dateFrom) <= new Date(dateTo);
@@ -108,6 +146,26 @@ const StartAnalysis = (): React.JSX.Element => {
     }
   };
 
+  const toggleKeyword = (keywordId: number) => {
+    setSelectedKeywordIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(keywordId)) {
+        next.delete(keywordId);
+      } else {
+        next.add(keywordId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllKeywords = () => {
+    setSelectedKeywordIds(new Set(brandKeywords.map((k) => k.keywordId)));
+  };
+
+  const clearKeywords = () => {
+    setSelectedKeywordIds(new Set());
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBrandId || !validDateRange) return;
@@ -115,6 +173,7 @@ const StartAnalysis = (): React.JSX.Element => {
       setSubmitError("Select a CSV file to upload");
       return;
     }
+    if (selectedKeywordIds.size === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     setCsvErrors([]);
@@ -130,6 +189,7 @@ const StartAnalysis = (): React.JSX.Element => {
               dataSource,
               dateFrom: dateFrom || undefined,
               dateTo: dateTo || undefined,
+              selectedKeywordIds: Array.from(selectedKeywordIds),
             });
       navigate(`/reports/${report.reportId}`, { state: { report } });
     } catch (err) {
@@ -156,6 +216,7 @@ const StartAnalysis = (): React.JSX.Element => {
   }
 
   const selectedBrand = brands.find((b) => b.brandId === selectedBrandId);
+  const hasSelection = selectedKeywordIds.size > 0;
 
   return (
     <div className="start-analysis">
@@ -170,11 +231,11 @@ const StartAnalysis = (): React.JSX.Element => {
           {selectedBrand ? (
             <>
               Run a sentiment analysis for{" "}
-              <strong>{selectedBrand.brandName}</strong>. Keywords configured on
-              the brand are used automatically.
+              <strong>{selectedBrand.brandName}</strong>. Pick the keywords to
+              use for this run.
             </>
           ) : (
-            "Select a brand and configure the analysis below. Keywords configured on the brand are used automatically."
+            "Select a brand and configure the analysis below."
           )}
         </p>
       </div>
@@ -224,6 +285,74 @@ const StartAnalysis = (): React.JSX.Element => {
             )}
           </fieldset>
 
+          {selectedBrandId !== "" && (
+            <fieldset className="start-analysis-fieldset">
+              <legend className="start-analysis-legend">Keywords</legend>
+              {loadingKeywords ? (
+                <p className="start-analysis-hint">Loading keywords…</p>
+              ) : keywordError ? (
+                <p className="start-analysis-hint start-analysis-hint--error">
+                  {keywordError}
+                </p>
+              ) : brandKeywords.length === 0 ? (
+                <p className="start-analysis-hint start-analysis-hint--error">
+                  This brand has no keywords. Add at least one on the brand
+                  page before starting an analysis.
+                </p>
+              ) : (
+                <>
+                  <p className="start-analysis-hint">
+                    Only selected keywords will drive post collection and LLM
+                    context for this run.
+                  </p>
+                  <div className="start-analysis-keyword-actions">
+                    <button
+                      type="button"
+                      className="start-analysis-link-btn"
+                      onClick={selectAllKeywords}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="start-analysis-link-btn"
+                      onClick={clearKeywords}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <ul className="start-analysis-keyword-list">
+                    {brandKeywords.map((kw) => (
+                      <li
+                        key={kw.keywordId}
+                        className="start-analysis-keyword-item"
+                      >
+                        <label className="start-analysis-keyword-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedKeywordIds.has(kw.keywordId)}
+                            onChange={() => toggleKeyword(kw.keywordId)}
+                          />
+                          <span className="start-analysis-keyword-text">
+                            {kw.keyword}
+                          </span>
+                          <span className="start-analysis-keyword-type">
+                            {kw.keywordType}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {!hasSelection && (
+                    <p className="start-analysis-hint start-analysis-hint--error">
+                      Select at least one keyword.
+                    </p>
+                  )}
+                </>
+              )}
+            </fieldset>
+          )}
+
           <fieldset className="start-analysis-fieldset">
             <legend className="start-analysis-legend">Data source</legend>
             <label className="start-analysis-radio">
@@ -240,7 +369,7 @@ const StartAnalysis = (): React.JSX.Element => {
               <div>
                 <span className="start-analysis-radio-title">Reddit</span>
                 <span className="start-analysis-radio-desc">
-                  Collect posts from Reddit using the brand's keywords.
+                  Collect posts from Reddit using the selected keywords.
                 </span>
               </div>
             </label>
@@ -382,6 +511,7 @@ const StartAnalysis = (): React.JSX.Element => {
                 submitting ||
                 !validDateRange ||
                 !selectedBrandId ||
+                !hasSelection ||
                 (dataSource === "CSV_UPLOAD" && !file)
               }
             >

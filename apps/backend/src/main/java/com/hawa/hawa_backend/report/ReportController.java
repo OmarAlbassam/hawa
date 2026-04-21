@@ -1,5 +1,6 @@
 package com.hawa.hawa_backend.report;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import org.springframework.data.domain.Page;
@@ -11,7 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.hawa.hawa_backend.enums.AspectEnum;
+import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
+import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
 
@@ -37,5 +42,19 @@ public class ReportController {
     @GetMapping("/{reportId}")
     public ResponseEntity<ReportOverviewResponse> getReportOverview(@PathVariable Long reportId) {
         return ResponseEntity.ok(reportService.getReportOverview(reportId));
+    }
+
+    @GetMapping("/{reportId}/posts")
+    public ResponseEntity<Page<PostListItemResponse>> listPosts(
+            @PathVariable Long reportId,
+            @RequestParam(defaultValue = "RELEVANT") RelevanceStatusEnum relevance,
+            @RequestParam(required = false) BigDecimal sentimentMin,
+            @RequestParam(required = false) BigDecimal sentimentMax,
+            @RequestParam(required = false) EmotionEnum emotion,
+            @RequestParam(required = false) AspectEnum aspect,
+            @RequestParam(required = false) BigDecimal confidenceMin,
+            Pageable pageable) {
+        return ResponseEntity.ok(reportService.listPosts(
+                reportId, relevance, sentimentMin, sentimentMax, emotion, aspect, confidenceMin, pageable));
     }
 }
