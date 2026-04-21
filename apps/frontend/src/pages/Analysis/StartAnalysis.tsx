@@ -1,8 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Settings2 } from "lucide-react";
+import { ArrowLeft, Download, Settings2, Upload } from "lucide-react";
 import { getBrands } from "../../services/brandService";
 import { startAnalysis } from "../../services/reportService";
+import {
+  downloadDatasetTemplate,
+  startAnalysisFromCsv,
+} from "../../services/datasetService";
+import { DatasetValidationFailed } from "../../types/dataset";
+import type { DatasetValidationError } from "../../types/dataset";
 import type { BrandSummaryResponse } from "../../types/brand";
 import type { DataSource } from "../../types/dashboard";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
@@ -11,6 +17,8 @@ import "./StartAnalysis.css";
 interface LocationState {
   preselectedBrandId?: number;
 }
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const StartAnalysis = (): React.JSX.Element => {
   const navigate = useNavigate();
@@ -30,6 +38,12 @@ const StartAnalysis = (): React.JSX.Element => {
   const [dateTo, setDateTo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [csvErrors, setCsvErrors] = useState<DatasetValidationError[]>([]);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadBrands = useCallback(async () => {
     setLoadingBrands(true);
@@ -56,22 +70,78 @@ const StartAnalysis = (): React.JSX.Element => {
     : "/dashboard";
   const backLabel = preselectedBrandId ? "Back to brand" : "Back to dashboard";
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0] ?? null;
+    setSubmitError(null);
+    setCsvErrors([]);
+    if (!picked) {
+      setFile(null);
+      return;
+    }
+    const name = picked.name.toLowerCase();
+    if (!name.endsWith(".csv")) {
+      setSubmitError("Only .csv files are supported");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (picked.size > MAX_FILE_BYTES) {
+      setSubmitError("File too large (max 10 MB)");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setFile(picked);
+  };
+
+  const handleDownloadTemplate = async () => {
+    setTemplateDownloading(true);
+    setTemplateError(null);
+    try {
+      await downloadDatasetTemplate();
+    } catch (err) {
+      setTemplateError(
+        err instanceof Error ? err.message : "Failed to download template"
+      );
+    } finally {
+      setTemplateDownloading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBrandId || !validDateRange) return;
+    if (dataSource === "CSV_UPLOAD" && !file) {
+      setSubmitError("Select a CSV file to upload");
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
+    setCsvErrors([]);
     try {
-      const report = await startAnalysis(Number(selectedBrandId), {
-        dataSource,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-      });
+      const report =
+        dataSource === "CSV_UPLOAD"
+          ? await startAnalysisFromCsv(Number(selectedBrandId), {
+              file: file as File,
+              dateFrom: dateFrom || undefined,
+              dateTo: dateTo || undefined,
+            })
+          : await startAnalysis(Number(selectedBrandId), {
+              dataSource,
+              dateFrom: dateFrom || undefined,
+              dateTo: dateTo || undefined,
+            });
       navigate(`/reports/${report.reportId}`, { state: { report } });
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Failed to start analysis"
-      );
+      if (err instanceof DatasetValidationFailed) {
+        setCsvErrors(err.errors);
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      } else {
+        setSubmitError(
+          err instanceof Error ? err.message : "Failed to start analysis"
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -162,7 +232,10 @@ const StartAnalysis = (): React.JSX.Element => {
                 name="dataSource"
                 value="REDDIT"
                 checked={dataSource === "REDDIT"}
-                onChange={() => setDataSource("REDDIT")}
+                onChange={() => {
+                  setDataSource("REDDIT");
+                  setCsvErrors([]);
+                }}
               />
               <div>
                 <span className="start-analysis-radio-title">Reddit</span>
@@ -180,12 +253,87 @@ const StartAnalysis = (): React.JSX.Element => {
                 onChange={() => setDataSource("CSV_UPLOAD")}
               />
               <div>
-                <span className="start-analysis-radio-title">CSV upload</span>
+                <span className="start-analysis-radio-title">
+                  Upload Custom Dataset
+                </span>
                 <span className="start-analysis-radio-desc">
-                  Use a previously uploaded dataset for this brand.
+                  Upload a CSV of posts you've collected yourself.
                 </span>
               </div>
             </label>
+
+            {dataSource === "CSV_UPLOAD" && (
+              <div className="start-analysis-csv">
+                <div className="start-analysis-csv-template">
+                  <button
+                    type="button"
+                    className="start-analysis-template-btn"
+                    onClick={handleDownloadTemplate}
+                    disabled={templateDownloading}
+                  >
+                    <Download size={14} />
+                    {templateDownloading
+                      ? "Preparing…"
+                      : "Download template"}
+                  </button>
+                  <p className="start-analysis-hint">
+                    Columns: <code>text</code> (required),{" "}
+                    <code>url</code> (optional),{" "}
+                    <code>language</code> (EN or AR, defaults to EN). Max 10 MB.
+                  </p>
+                  {templateError && (
+                    <p className="start-analysis-hint start-analysis-hint--error">
+                      {templateError}
+                    </p>
+                  )}
+                </div>
+
+                <label className="start-analysis-field">
+                  <span className="start-analysis-label">CSV file</span>
+                  <div className="start-analysis-file">
+                    <label className="start-analysis-file-btn">
+                      <Upload size={14} />
+                      {file ? "Choose another file" : "Choose file"}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        onChange={handleFileChange}
+                        className="start-analysis-file-input"
+                      />
+                    </label>
+                    <span className="start-analysis-file-name">
+                      {file ? file.name : "No file selected"}
+                    </span>
+                  </div>
+                </label>
+
+                {csvErrors.length > 0 && (
+                  <div
+                    className="start-analysis-csv-errors"
+                    role="alert"
+                    aria-live="polite"
+                  >
+                    <p className="start-analysis-csv-errors-title">
+                      The uploaded file couldn't be processed. Fix these issues
+                      and select the file again:
+                    </p>
+                    <ul className="start-analysis-csv-errors-list">
+                      {csvErrors.map((err, i) => (
+                        <li key={i}>
+                          {err.field && (
+                            <code className="start-analysis-csv-errors-field">
+                              {err.field}
+                            </code>
+                          )}
+                          <span>{err.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </fieldset>
 
           <fieldset className="start-analysis-fieldset">
@@ -230,7 +378,12 @@ const StartAnalysis = (): React.JSX.Element => {
             <button
               type="submit"
               className="start-analysis-submit"
-              disabled={submitting || !validDateRange || !selectedBrandId}
+              disabled={
+                submitting ||
+                !validDateRange ||
+                !selectedBrandId ||
+                (dataSource === "CSV_UPLOAD" && !file)
+              }
             >
               {submitting ? "Starting..." : "Start analysis"}
             </button>
