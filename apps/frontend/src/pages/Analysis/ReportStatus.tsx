@@ -34,6 +34,7 @@ const EMOTION_ORDER: EmotionEnum[] = [
   "FEAR",
   "SURPRISE",
   "DISGUST",
+  "NEUTRAL",
 ];
 
 const EMOTION_COLORS: Record<EmotionEnum, string> = {
@@ -43,6 +44,7 @@ const EMOTION_COLORS: Record<EmotionEnum, string> = {
   FEAR: "#8B5CF6",
   SURPRISE: "#F97316",
   DISGUST: "#84CC16",
+  NEUTRAL: "#9CA3AF",
 };
 
 const ASPECT_ORDER: AspectEnum[] = [

@@ -33,7 +33,8 @@ export type EmotionEnum =
   | "SADNESS"
   | "FEAR"
   | "SURPRISE"
-  | "DISGUST";
+  | "DISGUST"
+  | "NEUTRAL";
 
 export type AspectEnum = "PRODUCT" | "SERVICE" | "DELIVERY" | "PRICING";
 
