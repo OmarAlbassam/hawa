@@ -34,6 +34,10 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const insideModal = !!active && !!contentRef.current?.contains(active);
+      if (!insideModal) return;
+
       if (e.key === "Escape") {
         onCloseRef.current();
         return;
@@ -47,16 +51,14 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
       }
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
-      const active = document.activeElement as HTMLElement | null;
-      const insideModal = active ? contentRef.current.contains(active) : false;
 
       if (e.shiftKey) {
-        if (!insideModal || active === first) {
+        if (active === first) {
           e.preventDefault();
           last.focus();
         }
       } else {
-        if (!insideModal || active === last) {
+        if (active === last) {
           e.preventDefault();
           first.focus();
         }
