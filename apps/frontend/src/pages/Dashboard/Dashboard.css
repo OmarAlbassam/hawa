@@ -26,6 +26,7 @@
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 150ms ease;
 }
 
@@ -96,6 +97,7 @@
   cursor: pointer;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
+  text-decoration: none;
 }
 
 .dashboard-link-btn:hover {
@@ -122,6 +124,8 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
   transition: background-color 150ms ease;
 }
 

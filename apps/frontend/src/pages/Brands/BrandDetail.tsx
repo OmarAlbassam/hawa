@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { getBrand } from "../../services/brandService";
 import type { BrandDetailResponse } from "../../types/brand";
@@ -10,7 +10,6 @@ import "./BrandDetail.css";
 
 const BrandDetail = (): React.JSX.Element => {
   const { brandId } = useParams<{ brandId: string }>();
-  const navigate = useNavigate();
   const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +43,10 @@ const BrandDetail = (): React.JSX.Element => {
 
   return (
     <div className="brand-detail">
-      <button className="brand-detail-back" onClick={() => navigate("/brands")}>
+      <Link to="/brands" className="brand-detail-back">
         <ArrowLeft size={16} />
         Back to Brands
-      </button>
+      </Link>
 
       <div className="brand-detail-header">
         <div>
@@ -77,22 +76,19 @@ const BrandDetail = (): React.JSX.Element => {
       </section>
 
       <div className="brand-detail-actions">
-        <button
+        <Link
+          to="/analyze"
+          state={{ preselectedBrandId: brand.brandId }}
           className="brand-detail-analyze-btn"
-          onClick={() =>
-            navigate("/analyze", {
-              state: { preselectedBrandId: brand.brandId },
-            })
-          }
         >
           Start Analysis
-        </button>
-        <button
+        </Link>
+        <Link
+          to={`/reports?brandId=${brand.brandId}`}
           className="brand-detail-reports-btn"
-          onClick={() => navigate(`/reports?brandId=${brand.brandId}`)}
         >
           View Reports
-        </button>
+        </Link>
       </div>
     </div>
   );

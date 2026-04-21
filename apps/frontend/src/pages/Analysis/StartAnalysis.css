@@ -20,6 +20,7 @@
   cursor: pointer;
   padding: var(--space-1) 0;
   margin-bottom: var(--space-6);
+  text-decoration: none;
 }
 
 .start-analysis-back:hover {
@@ -162,6 +163,7 @@ select.start-analysis-input {
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
@@ -206,6 +208,8 @@ select.start-analysis-input {
 }
 
 .start-analysis-cancel {
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -214,6 +218,7 @@ select.start-analysis-input {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .start-analysis-cancel:hover {
@@ -221,6 +226,8 @@ select.start-analysis-input {
 }
 
 .start-analysis-submit {
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -229,6 +236,7 @@ select.start-analysis-input {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 150ms ease;
 }
 
@@ -250,7 +258,8 @@ select.start-analysis-input {
     flex-direction: column-reverse;
   }
 
-  .start-analysis-actions button {
+  .start-analysis-actions > * {
     width: 100%;
+    justify-content: center;
   }
 }
