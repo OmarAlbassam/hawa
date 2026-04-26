@@ -89,6 +89,9 @@ Review  1──* Feedback
 | `post_text` | `text` | NOT NULL | — |
 | `post_url` | `text` | — | — |
 | `language` | `enum` | NOT NULL | — |
+| `relevance_status` | `enum` | NOT NULL | `'RELEVANT'` |
+| `irrelevance_reason` | `enum` | — | — |
+| `created_at` | `timestamp` | NOT NULL | `now()` |
 
 ### review
 

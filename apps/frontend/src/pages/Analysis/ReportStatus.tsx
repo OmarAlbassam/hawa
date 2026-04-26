@@ -327,14 +327,20 @@ const ReportStatus = (): React.JSX.Element => {
                       <span className="report-status-stat-suffix">/ 5</span>
                     </span>
                   </div>
-                  <div className="report-status-stat">
+                  <Link
+                    to={`/reports/${reportId}/posts`}
+                    className="report-status-stat report-status-stat--link"
+                  >
                     <span className="report-status-stat-label">
                       Posts analyzed
                     </span>
                     <span className="report-status-stat-value">
                       {overview.analyzedPosts}
                     </span>
-                  </div>
+                    <span className="report-status-stat-hint">
+                      View all posts →
+                    </span>
+                  </Link>
                   <div className="report-status-stat">
                     <span className="report-status-stat-label">
                       Filtered out
