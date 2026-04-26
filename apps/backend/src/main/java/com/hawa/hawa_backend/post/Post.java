@@ -1,10 +1,13 @@
 package com.hawa.hawa_backend.post;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import jakarta.persistence.FetchType;
@@ -63,4 +66,8 @@ public class Post {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "irrelevance_reason")
     private IrrelevanceReasonEnum irrelevanceReason;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 }
