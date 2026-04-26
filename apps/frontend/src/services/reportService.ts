@@ -84,7 +84,6 @@ export async function getReportPosts(
   if (params.sentimentMax != null) searchParams.set("sentimentMax", String(params.sentimentMax));
   if (params.emotion) searchParams.set("emotion", params.emotion);
   if (params.aspect) searchParams.set("aspect", params.aspect);
-  if (params.confidenceMin != null) searchParams.set("confidenceMin", String(params.confidenceMin));
   searchParams.set("page", String(params.page ?? 0));
   searchParams.set("size", String(params.size ?? 20));
   if (params.sort) searchParams.set("sort", params.sort);

@@ -68,9 +68,6 @@ const toTitle = (key: string): string =>
 const fmtScore = (value: number | null | undefined): string =>
   value == null ? "—" : Number(value).toFixed(1);
 
-const fmtPct = (value: number | null | undefined): string =>
-  value == null ? "—" : `${Math.round(Number(value) * 100)}%`;
-
 interface DistributionProps<K extends string> {
   entries: Array<[K, number]>;
   colorMap: Record<K, string>;
@@ -328,14 +325,6 @@ const ReportStatus = (): React.JSX.Element => {
                     <span className="report-status-stat-value">
                       {fmtScore(overview.averageSentiment)}
                       <span className="report-status-stat-suffix">/ 5</span>
-                    </span>
-                  </div>
-                  <div className="report-status-stat">
-                    <span className="report-status-stat-label">
-                      Average confidence
-                    </span>
-                    <span className="report-status-stat-value">
-                      {fmtPct(overview.averageConfidence)}
                     </span>
                   </div>
                   <div className="report-status-stat">

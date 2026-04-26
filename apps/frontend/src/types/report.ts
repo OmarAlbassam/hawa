@@ -53,7 +53,6 @@ export interface ReportOverviewResponse {
   analyzedPosts: number;
   filteredOutCount: number;
   averageSentiment: number | null;
-  averageConfidence: number | null;
   emotionDistribution: Record<EmotionEnum, number>;
   aspectDistribution: Record<AspectEnum, number>;
 }
@@ -75,7 +74,6 @@ export interface PostListItemResponse {
   relevanceStatus: RelevanceStatus;
   irrelevanceReason: IrrelevanceReason | null;
   score: number | null;
-  confidence: number | null;
   emotion: EmotionEnum | null;
   aspect: AspectEnum | null;
 }
@@ -86,7 +84,6 @@ export interface ReportPostsParams {
   sentimentMax?: number;
   emotion?: EmotionEnum;
   aspect?: AspectEnum;
-  confidenceMin?: number;
   page?: number;
   size?: number;
   sort?: string;
