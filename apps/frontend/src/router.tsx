@@ -19,6 +19,7 @@ const BrandDetail = lazy(() => import("./pages/Brands/BrandDetail"));
 const ReportList = lazy(() => import("./pages/Reports/ReportList"));
 const StartAnalysis = lazy(() => import("./pages/Analysis/StartAnalysis"));
 const ReportStatus = lazy(() => import("./pages/Analysis/ReportStatus"));
+const PostsList = lazy(() => import("./pages/Analysis/PostsList"));
 const NotFound = lazy(() => import("./pages/NotFound/NotFound"));
 
 const AppRouter = () => (
@@ -55,6 +56,7 @@ const AppRouter = () => (
             <Route path="/analyze" element={<StartAnalysis />} />
             <Route path="/reports" element={<ReportList />} />
             <Route path="/reports/:reportId" element={<ReportStatus />} />
+            <Route path="/reports/:reportId/posts" element={<PostsList />} />
           </Route>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<NotFound />} />
