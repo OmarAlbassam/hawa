@@ -26,6 +26,8 @@ import com.hawa.hawa_backend.user.User;
 import com.hawa.hawa_backend.user.UserRepository;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -404,6 +406,156 @@ class ReportControllerTest {
         }
 
         @Test
+        void shouldFilterByLanguage() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+            createReview(report, new BigDecimal("3.0"), new BigDecimal("0.80"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.AR);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("language", "AR")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].language").value("AR"));
+        }
+
+        @Test
+        void shouldFilterByConfidenceMax() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.95"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("3.0"), new BigDecimal("0.50"),
+                    EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("confidenceMax", "0.80")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].confidence").value(0.50));
+        }
+
+        @Test
+        void shouldFilterByDateRange() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            Review older = createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT);
+            Review middle = createReview(report, new BigDecimal("3.0"), new BigDecimal("0.80"),
+                    EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+            Review newer = createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"),
+                    EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            setPostCreatedAt(older.getPost().getPostId(), "2026-01-01 12:00:00");
+            setPostCreatedAt(middle.getPost().getPostId(), "2026-03-15 12:00:00");
+            setPostCreatedAt(newer.getPost().getPostId(), "2026-06-10 12:00:00");
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("dateFrom", "2026-03-01")
+                            .param("dateTo", "2026-03-31")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].score").value(3.0));
+        }
+
+        @Test
+        void shouldFilterIrrelevantByDateRange() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            Post older = createIrrelevantPost(report, "old spam", IrrelevanceReasonEnum.SPAM);
+            Post newer = createIrrelevantPost(report, "new spam", IrrelevanceReasonEnum.SPAM);
+
+            setPostCreatedAt(older.getPostId(), "2026-01-01 12:00:00");
+            setPostCreatedAt(newer.getPostId(), "2026-06-10 12:00:00");
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("relevance", "IRRELEVANT")
+                            .param("dateFrom", "2026-05-01")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].postText").value("new spam"));
+        }
+
+        @Test
+        void shouldSortIrrelevantByCreatedAt() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            Post older = createIrrelevantPost(report, "old spam", IrrelevanceReasonEnum.SPAM);
+            Post newer = createIrrelevantPost(report, "new spam", IrrelevanceReasonEnum.SPAM);
+
+            setPostCreatedAt(older.getPostId(), "2026-01-01 12:00:00");
+            setPostCreatedAt(newer.getPostId(), "2026-06-10 12:00:00");
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("relevance", "IRRELEVANT")
+                            .param("sort", "createdAt,desc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].postText").value("new spam"))
+                    .andExpect(jsonPath("$.content[1].postText").value("old spam"));
+        }
+
+        @Test
+        void shouldIncludeCreatedAt_onResponse() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].createdAt").exists());
+        }
+
+        @Test
+        void shouldSortByCreatedAtDesc() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            Review older = createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT);
+            Review newer = createReview(report, new BigDecimal("2.0"), new BigDecimal("0.70"),
+                    EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            setPostCreatedAt(older.getPost().getPostId(), "2026-01-01 12:00:00");
+            setPostCreatedAt(newer.getPost().getPostId(), "2026-06-10 12:00:00");
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("sort", "createdAt,desc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].score").value(2.0))
+                    .andExpect(jsonPath("$.content[1].score").value(4.0));
+        }
+
+        @Test
+        void shouldSortByScoreAsc() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), new BigDecimal("0.90"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("1.0"), new BigDecimal("0.70"),
+                    EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("sort", "score,asc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].score").value(1.0))
+                    .andExpect(jsonPath("$.content[1].score").value(4.0));
+        }
+
+        @Test
+        void shouldReject400_whenSortByScoreWithIrrelevantRelevance() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createIrrelevantPost(report, "spam", IrrelevanceReasonEnum.SPAM);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("relevance", "IRRELEVANT")
+                            .param("sort", "score,desc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
             Company otherCompany = new Company();
             otherCompany.setCompanyName("Other Corp");
@@ -451,10 +603,15 @@ class ReportControllerTest {
 
     private Review createReview(Report report, BigDecimal score, BigDecimal confidence,
                                 EmotionEnum emotion, AspectEnum aspect) {
+        return createReview(report, score, confidence, emotion, aspect, LanguageEnum.EN);
+    }
+
+    private Review createReview(Report report, BigDecimal score, BigDecimal confidence,
+                                EmotionEnum emotion, AspectEnum aspect, LanguageEnum language) {
         Post post = Post.builder()
                 .report(report)
                 .postText("sample text")
-                .language(LanguageEnum.EN)
+                .language(language)
                 .build();
         post = postRepository.save(post);
 
@@ -466,6 +623,12 @@ class ReportControllerTest {
                 .aspect(aspect)
                 .build();
         return reviewRepository.save(review);
+    }
+
+    private void setPostCreatedAt(Long postId, String timestamp) {
+        jdbcTemplate.update(
+                "UPDATE post SET created_at = ? WHERE post_id = ?",
+                Timestamp.valueOf(timestamp), postId);
     }
 
     private Post createIrrelevantPost(Report report, String text, IrrelevanceReasonEnum reason) {

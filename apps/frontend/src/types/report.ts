@@ -39,6 +39,8 @@ export type EmotionEnum =
 
 export type AspectEnum = "PRODUCT" | "SERVICE" | "DELIVERY" | "PRICING";
 
+export type LanguageEnum = "EN" | "AR";
+
 export interface ReportOverviewResponse {
   reportId: number;
   brandName: string;
@@ -71,13 +73,14 @@ export interface PostListItemResponse {
   postId: number;
   postText: string;
   postUrl: string | null;
-  language: string;
+  language: LanguageEnum;
   relevanceStatus: RelevanceStatus;
   irrelevanceReason: IrrelevanceReason | null;
   score: number | null;
   confidence: number | null;
   emotion: EmotionEnum | null;
   aspect: AspectEnum | null;
+  createdAt: string;
 }
 
 export interface ReportPostsParams {
@@ -87,6 +90,10 @@ export interface ReportPostsParams {
   emotion?: EmotionEnum;
   aspect?: AspectEnum;
   confidenceMin?: number;
+  confidenceMax?: number;
+  language?: LanguageEnum;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   size?: number;
   sort?: string;

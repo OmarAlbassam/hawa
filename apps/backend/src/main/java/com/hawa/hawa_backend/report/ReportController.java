@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
+import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
@@ -53,8 +54,13 @@ public class ReportController {
             @RequestParam(required = false) EmotionEnum emotion,
             @RequestParam(required = false) AspectEnum aspect,
             @RequestParam(required = false) BigDecimal confidenceMin,
+            @RequestParam(required = false) BigDecimal confidenceMax,
+            @RequestParam(required = false) LanguageEnum language,
+            @RequestParam(required = false) LocalDate dateFrom,
+            @RequestParam(required = false) LocalDate dateTo,
             Pageable pageable) {
         return ResponseEntity.ok(reportService.listPosts(
-                reportId, relevance, sentimentMin, sentimentMax, emotion, aspect, confidenceMin, pageable));
+                reportId, relevance, sentimentMin, sentimentMax, emotion, aspect,
+                confidenceMin, confidenceMax, language, dateFrom, dateTo, pageable));
     }
 }
