@@ -22,7 +22,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         String getPostUrl();
         String getLanguage();
         BigDecimal getScore();
-        BigDecimal getConfidence();
         String getEmotion();
         String getAspect();
         LocalDateTime getCreatedAt();
@@ -30,7 +29,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     interface ReviewAggregate {
         BigDecimal getAverageScore();
-        BigDecimal getAverageConfidence();
         Long getTotalCount();
     }
 
@@ -45,9 +43,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     }
 
     @Query("""
-            select avg(r.score)      as averageScore,
-                   avg(r.confidence) as averageConfidence,
-                   count(r)          as totalCount
+            select avg(r.score) as averageScore,
+                   count(r)     as totalCount
             from Review r
             where r.post.report.reportId = :reportId
             """)
@@ -75,7 +72,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                    p.post_url       AS postUrl,
                    p.language::text AS language,
                    r.score          AS score,
-                   r.confidence     AS confidence,
                    r.emotion::text  AS emotion,
                    r.aspect::text   AS aspect,
                    p.created_at     AS createdAt
@@ -86,8 +82,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
               AND (CAST(:sentimentMax AS numeric) IS NULL OR r.score <= CAST(:sentimentMax AS numeric))
               AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
               AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
-              AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
-              AND (CAST(:confidenceMax AS numeric) IS NULL OR r.confidence <= CAST(:confidenceMax AS numeric))
               AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
               AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
               AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
@@ -101,8 +95,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
               AND (CAST(:sentimentMax AS numeric) IS NULL OR r.score <= CAST(:sentimentMax AS numeric))
               AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
               AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
-              AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
-              AND (CAST(:confidenceMax AS numeric) IS NULL OR r.confidence <= CAST(:confidenceMax AS numeric))
               AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
               AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
               AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
@@ -114,8 +106,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("sentimentMax") BigDecimal sentimentMax,
             @Param("emotion") String emotion,
             @Param("aspect") String aspect,
-            @Param("confidenceMin") BigDecimal confidenceMin,
-            @Param("confidenceMax") BigDecimal confidenceMax,
             @Param("language") String language,
             @Param("dateFrom") LocalDate dateFrom,
             @Param("dateTo") LocalDate dateTo,

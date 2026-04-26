@@ -42,7 +42,6 @@ const BASE_SORT_OPTIONS: Array<{ value: string; label: string }> = [
 const RELEVANT_SORT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "score,desc", label: "Highest sentiment" },
   { value: "score,asc", label: "Lowest sentiment" },
-  { value: "confidence,desc", label: "Highest confidence" },
 ];
 
 const DEFAULT_SORT = "createdAt,desc";
@@ -79,15 +78,10 @@ const toTitle = (key: string): string =>
 const fmtScore = (value: number | null | undefined): string =>
   value == null ? "—" : Number(value).toFixed(1);
 
-const fmtPct = (value: number | null | undefined): string =>
-  value == null ? "—" : `${Math.round(Number(value) * 100)}%`;
-
 interface Filters {
   relevance: RelevanceStatus;
   sentimentMin: string;
   sentimentMax: string;
-  confidenceMin: string;
-  confidenceMax: string;
   emotion: EmotionEnum | "";
   aspect: AspectEnum | "";
   language: LanguageEnum | "";
@@ -99,8 +93,6 @@ const EMPTY_FILTERS: Filters = {
   relevance: "RELEVANT",
   sentimentMin: "",
   sentimentMax: "",
-  confidenceMin: "",
-  confidenceMax: "",
   emotion: "",
   aspect: "",
   language: "",
@@ -112,8 +104,6 @@ const filtersFromSearch = (search: URLSearchParams): Filters => ({
   relevance: (search.get("relevance") as RelevanceStatus) || "RELEVANT",
   sentimentMin: search.get("sentimentMin") ?? "",
   sentimentMax: search.get("sentimentMax") ?? "",
-  confidenceMin: search.get("confidenceMin") ?? "",
-  confidenceMax: search.get("confidenceMax") ?? "",
   emotion: (search.get("emotion") as EmotionEnum) || "",
   aspect: (search.get("aspect") as AspectEnum) || "",
   language: (search.get("language") as LanguageEnum) || "",
@@ -135,8 +125,6 @@ const filtersToQuery = (
   relevance: filters.relevance,
   sentimentMin: parseNumber(filters.sentimentMin),
   sentimentMax: parseNumber(filters.sentimentMax),
-  confidenceMin: parseNumber(filters.confidenceMin),
-  confidenceMax: parseNumber(filters.confidenceMax),
   emotion: filters.emotion || undefined,
   aspect: filters.aspect || undefined,
   language: filters.language || undefined,
@@ -210,8 +198,6 @@ const PostsList = (): React.JSX.Element => {
       writeOrDelete("relevance", f.relevance);
       writeOrDelete("sentimentMin", f.sentimentMin);
       writeOrDelete("sentimentMax", f.sentimentMax);
-      writeOrDelete("confidenceMin", f.confidenceMin);
-      writeOrDelete("confidenceMax", f.confidenceMax);
       writeOrDelete("emotion", f.emotion);
       writeOrDelete("aspect", f.aspect);
       writeOrDelete("language", f.language);
@@ -397,34 +383,6 @@ const PostsList = (): React.JSX.Element => {
                 </div>
               </label>
 
-              <label className="posts-list-field posts-list-field--range">
-                <span>Confidence</span>
-                <div className="posts-list-range">
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    placeholder="min"
-                    value={draft.confidenceMin}
-                    onChange={(e) =>
-                      setDraft({ ...draft, confidenceMin: e.target.value })
-                    }
-                  />
-                  <span className="posts-list-range-sep">–</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    placeholder="max"
-                    value={draft.confidenceMax}
-                    onChange={(e) =>
-                      setDraft({ ...draft, confidenceMax: e.target.value })
-                    }
-                  />
-                </div>
-              </label>
             </>
           )}
         </div>
@@ -485,7 +443,6 @@ const PostsList = (): React.JSX.Element => {
                     <th>Score</th>
                     <th>Emotion</th>
                     <th>Aspect</th>
-                    <th>Confidence</th>
                     <th>Language</th>
                     <th>Collected</th>
                   </>
@@ -553,9 +510,6 @@ const PostsList = (): React.JSX.Element => {
                           "—"
                         )}
                       </td>
-                      <td className="posts-list-numeric">
-                        {fmtPct(post.confidence)}
-                      </td>
                       <td>{post.language}</td>
                       <td>{formatDate(post.createdAt)}</td>
                     </>
@@ -603,10 +557,6 @@ const PostsList = (): React.JSX.Element => {
                   <div>
                     <dt>Sentiment</dt>
                     <dd>{fmtScore(selected.score)} / 5</dd>
-                  </div>
-                  <div>
-                    <dt>Confidence</dt>
-                    <dd>{fmtPct(selected.confidence)}</dd>
                   </div>
                   <div>
                     <dt>Emotion</dt>

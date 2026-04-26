@@ -58,7 +58,4 @@ public class Review {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "aspect", nullable = false)
     private AspectEnum aspect;
-
-    @Column(name = "confidence", nullable = false)
-    private BigDecimal confidence;
 }

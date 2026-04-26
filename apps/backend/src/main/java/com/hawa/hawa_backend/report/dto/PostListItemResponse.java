@@ -17,7 +17,6 @@ public record PostListItemResponse(
         RelevanceStatusEnum relevanceStatus,
         IrrelevanceReasonEnum irrelevanceReason,
         BigDecimal score,
-        BigDecimal confidence,
         EmotionEnum emotion,
         AspectEnum aspect,
         LocalDateTime createdAt

@@ -19,8 +19,7 @@ public record ReportedReviewResponse(
             BigDecimal score,
             BigDecimal llmScore,
             EmotionEnum emotion,
-            AspectEnum aspect,
-            BigDecimal confidence
+            AspectEnum aspect
     ) {}
 
     public record ReporterInfo(

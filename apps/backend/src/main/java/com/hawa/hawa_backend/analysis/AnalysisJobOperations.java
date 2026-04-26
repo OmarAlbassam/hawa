@@ -93,7 +93,6 @@ public class AnalysisJobOperations {
                     .score(BigDecimal.valueOf(result.score() == null ? 2.5 : result.score()))
                     .emotion(parseEmotion(result.emotion()))
                     .aspect(parseAspect(result.aspect()))
-                    .confidence(BigDecimal.ONE)
                     .build());
         }
         if (!irrelevantPosts.isEmpty()) {

@@ -50,7 +50,6 @@ export interface ReportedReviewResponse {
     llmScore: number | null;
     emotion: string | null;
     aspect: string;
-    confidence: number;
   };
   postText: string;
   brandName: string;
