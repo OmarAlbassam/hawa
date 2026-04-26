@@ -459,7 +459,6 @@ class AdminControllerTest {
                     .llmScore(new BigDecimal("4.2"))
                     .emotion(EmotionEnum.JOY)
                     .aspect(AspectEnum.PRODUCT)
-                    .confidence(new BigDecimal("0.95"))
                     .build();
             reviewRepository.save(review);
 
@@ -485,7 +484,6 @@ class AdminControllerTest {
                     .andExpect(jsonPath("$.content[0].review.llmScore").value(4.2))
                     .andExpect(jsonPath("$.content[0].review.emotion").value("JOY"))
                     .andExpect(jsonPath("$.content[0].review.aspect").value("PRODUCT"))
-                    .andExpect(jsonPath("$.content[0].review.confidence").value(0.95))
                     .andExpect(jsonPath("$.content[0].postText").value("This product is amazing!"))
                     .andExpect(jsonPath("$.content[0].brandName").value("Acme Widget"))
                     .andExpect(jsonPath("$.content[0].companyName").value("Test Corp"))
