@@ -1,6 +1,8 @@
 package com.hawa.hawa_backend.review;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -23,6 +25,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         BigDecimal getConfidence();
         String getEmotion();
         String getAspect();
+        Instant getCreatedAt();
     }
 
     interface ReviewAggregate {
@@ -74,7 +77,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                    r.score          AS score,
                    r.confidence     AS confidence,
                    r.emotion::text  AS emotion,
-                   r.aspect::text   AS aspect
+                   r.aspect::text   AS aspect,
+                   p.created_at     AS createdAt
             FROM review r
             JOIN post p ON p.post_id = r.post_id
             WHERE p.report_id = :reportId
@@ -83,6 +87,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
               AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
               AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
               AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
+              AND (CAST(:confidenceMax AS numeric) IS NULL OR r.confidence <= CAST(:confidenceMax AS numeric))
+              AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
+              AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
+              AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
             """,
             countQuery = """
             SELECT count(*)
@@ -94,6 +102,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
               AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
               AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
               AND (CAST(:confidenceMin AS numeric) IS NULL OR r.confidence >= CAST(:confidenceMin AS numeric))
+              AND (CAST(:confidenceMax AS numeric) IS NULL OR r.confidence <= CAST(:confidenceMax AS numeric))
+              AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
+              AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
+              AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
             """,
             nativeQuery = true)
     Page<RelevantPostProjection> findRelevantPostsForReport(
@@ -103,5 +115,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("emotion") String emotion,
             @Param("aspect") String aspect,
             @Param("confidenceMin") BigDecimal confidenceMin,
+            @Param("confidenceMax") BigDecimal confidenceMax,
+            @Param("language") String language,
+            @Param("dateFrom") LocalDate dateFrom,
+            @Param("dateTo") LocalDate dateTo,
             Pageable pageable);
 }

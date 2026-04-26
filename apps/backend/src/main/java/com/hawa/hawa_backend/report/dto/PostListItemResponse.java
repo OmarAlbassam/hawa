@@ -1,6 +1,7 @@
 package com.hawa.hawa_backend.report.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
@@ -18,5 +19,6 @@ public record PostListItemResponse(
         BigDecimal score,
         BigDecimal confidence,
         EmotionEnum emotion,
-        AspectEnum aspect
+        AspectEnum aspect,
+        Instant createdAt
 ) {}
