@@ -1,8 +1,8 @@
 package com.hawa.hawa_backend.review;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -25,7 +25,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         BigDecimal getConfidence();
         String getEmotion();
         String getAspect();
-        Instant getCreatedAt();
+        LocalDateTime getCreatedAt();
     }
 
     interface ReviewAggregate {

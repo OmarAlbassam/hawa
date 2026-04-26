@@ -544,6 +544,18 @@ class ReportControllerTest {
         }
 
         @Test
+        void shouldReject400_whenSortByScoreWithIrrelevantRelevance() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createIrrelevantPost(report, "spam", IrrelevanceReasonEnum.SPAM);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/posts")
+                            .param("relevance", "IRRELEVANT")
+                            .param("sort", "score,desc")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
             Company otherCompany = new Company();
             otherCompany.setCompanyName("Other Corp");

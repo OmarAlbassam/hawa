@@ -34,13 +34,23 @@ const ASPECT_OPTIONS: AspectEnum[] = ["PRODUCT", "SERVICE", "DELIVERY", "PRICING
 
 const LANGUAGE_OPTIONS: LanguageEnum[] = ["EN", "AR"];
 
-const SORT_OPTIONS: Array<{ value: string; label: string }> = [
+const BASE_SORT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "createdAt,desc", label: "Newest first" },
   { value: "createdAt,asc", label: "Oldest first" },
+];
+
+const RELEVANT_SORT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "score,desc", label: "Highest sentiment" },
   { value: "score,asc", label: "Lowest sentiment" },
   { value: "confidence,desc", label: "Highest confidence" },
 ];
+
+const DEFAULT_SORT = "createdAt,desc";
+
+const isSortAllowed = (sort: string, isIrrelevant: boolean): boolean => {
+  if (!isIrrelevant) return true;
+  return BASE_SORT_OPTIONS.some((opt) => opt.value === sort);
+};
 
 const REASON_LABEL: Record<IrrelevanceReason, string> = {
   HOMONYM: "Homonym",
@@ -147,7 +157,10 @@ const PostsList = (): React.JSX.Element => {
     [searchParams]
   );
   const pageNumber = Number(searchParams.get("page") ?? "0");
-  const sort = searchParams.get("sort") ?? "createdAt,desc";
+  const rawSort = searchParams.get("sort") ?? DEFAULT_SORT;
+  const sort = isSortAllowed(rawSort, appliedFilters.relevance === "IRRELEVANT")
+    ? rawSort
+    : DEFAULT_SORT;
 
   const [draft, setDraft] = useState<Filters>(appliedFilters);
   const [data, setData] = useState<Page<PostListItemResponse> | null>(null);
@@ -212,7 +225,9 @@ const PostsList = (): React.JSX.Element => {
 
   const applyFilters = (e?: React.FormEvent) => {
     e?.preventDefault();
-    writeSearch({ filters: draft, page: 0 });
+    const draftIsIrrelevant = draft.relevance === "IRRELEVANT";
+    const nextSort = isSortAllowed(sort, draftIsIrrelevant) ? undefined : DEFAULT_SORT;
+    writeSearch({ filters: draft, page: 0, sort: nextSort });
   };
 
   const clearFilters = () => {
@@ -233,6 +248,9 @@ const PostsList = (): React.JSX.Element => {
   }
 
   const isIrrelevant = appliedFilters.relevance === "IRRELEVANT";
+  const sortOptions = isIrrelevant
+    ? BASE_SORT_OPTIONS
+    : [...BASE_SORT_OPTIONS, ...RELEVANT_SORT_OPTIONS];
 
   return (
     <div className="posts-list">
@@ -429,7 +447,7 @@ const PostsList = (): React.JSX.Element => {
               value={sort}
               onChange={(e) => changeSort(e.target.value)}
             >
-              {SORT_OPTIONS.map((opt) => (
+              {sortOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
