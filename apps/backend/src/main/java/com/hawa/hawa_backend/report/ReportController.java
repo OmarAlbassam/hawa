@@ -52,9 +52,8 @@ public class ReportController {
             @RequestParam(required = false) BigDecimal sentimentMax,
             @RequestParam(required = false) EmotionEnum emotion,
             @RequestParam(required = false) AspectEnum aspect,
-            @RequestParam(required = false) BigDecimal confidenceMin,
             Pageable pageable) {
         return ResponseEntity.ok(reportService.listPosts(
-                reportId, relevance, sentimentMin, sentimentMax, emotion, aspect, confidenceMin, pageable));
+                reportId, relevance, sentimentMin, sentimentMax, emotion, aspect, pageable));
     }
 }

@@ -24,7 +24,6 @@ public record ReportOverviewResponse(
         long analyzedPosts,
         long filteredOutCount,
         BigDecimal averageSentiment,
-        BigDecimal averageConfidence,
         Map<EmotionEnum, Long> emotionDistribution,
         Map<AspectEnum, Long> aspectDistribution
 ) {}
