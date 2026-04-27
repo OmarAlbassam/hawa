@@ -248,13 +248,9 @@ const ReportStatus = (): React.JSX.Element => {
   const fetchOverview = useCallback(async () => {
     if (Number.isNaN(reportId)) return;
     try {
-      const [data, breakdownData] = await Promise.all([
-        getReportOverview(reportId),
-        getAspectBreakdown(reportId),
-      ]);
+      const data = await getReportOverview(reportId);
       if (mountedRef.current) {
         setOverview(data);
-        setBreakdown(breakdownData);
         setOverviewError(null);
       }
     } catch (err) {
@@ -263,6 +259,15 @@ const ReportStatus = (): React.JSX.Element => {
           err instanceof Error ? err.message : "Failed to load overview"
         );
       }
+      return;
+    }
+    try {
+      const breakdownData = await getAspectBreakdown(reportId);
+      if (mountedRef.current) {
+        setBreakdown(breakdownData);
+      }
+    } catch {
+      // Breakdown is supplementary; fall back to Distribution component.
     }
   }, [reportId]);
 
@@ -273,13 +278,9 @@ const ReportStatus = (): React.JSX.Element => {
     let cancelled = false;
     (async () => {
       try {
-        const [data, breakdownData] = await Promise.all([
-          getReportOverview(reportId),
-          getAspectBreakdown(reportId),
-        ]);
+        const data = await getReportOverview(reportId);
         if (!cancelled && mountedRef.current) {
           setOverview(data);
-          setBreakdown(breakdownData);
           setOverviewError(null);
         }
       } catch (err) {
@@ -288,6 +289,15 @@ const ReportStatus = (): React.JSX.Element => {
             err instanceof Error ? err.message : "Failed to load overview"
           );
         }
+        return;
+      }
+      try {
+        const breakdownData = await getAspectBreakdown(reportId);
+        if (!cancelled && mountedRef.current) {
+          setBreakdown(breakdownData);
+        }
+      } catch {
+        // Breakdown is supplementary; fall back to Distribution component.
       }
     })();
     return () => {
