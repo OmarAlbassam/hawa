@@ -110,4 +110,35 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("dateFrom") LocalDate dateFrom,
             @Param("dateTo") LocalDate dateTo,
             Pageable pageable);
+
+    @Query(value = """
+            SELECT p.post_id        AS postId,
+                   p.post_text      AS postText,
+                   p.post_url       AS postUrl,
+                   p.language::text AS language,
+                   r.score          AS score,
+                   r.emotion::text  AS emotion,
+                   r.aspect::text   AS aspect,
+                   p.created_at     AS createdAt
+            FROM review r
+            JOIN post p ON p.post_id = r.post_id
+            WHERE p.report_id = :reportId
+              AND (CAST(:sentimentMin AS numeric) IS NULL OR r.score >= CAST(:sentimentMin AS numeric))
+              AND (CAST(:sentimentMax AS numeric) IS NULL OR r.score <= CAST(:sentimentMax AS numeric))
+              AND (CAST(:emotion AS text) IS NULL OR r.emotion::text = CAST(:emotion AS text))
+              AND (CAST(:aspect AS text) IS NULL OR r.aspect::text = CAST(:aspect AS text))
+              AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
+              AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
+              AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
+            ORDER BY p.created_at ASC, p.post_id ASC
+            """, nativeQuery = true)
+    List<RelevantPostProjection> findRelevantPostsForReportList(
+            @Param("reportId") Long reportId,
+            @Param("sentimentMin") BigDecimal sentimentMin,
+            @Param("sentimentMax") BigDecimal sentimentMax,
+            @Param("emotion") String emotion,
+            @Param("aspect") String aspect,
+            @Param("language") String language,
+            @Param("dateFrom") LocalDate dateFrom,
+            @Param("dateTo") LocalDate dateTo);
 }

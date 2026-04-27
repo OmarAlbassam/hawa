@@ -1,6 +1,9 @@
 package com.hawa.hawa_backend.report;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -560,6 +563,155 @@ class ReportControllerTest {
         }
     }
 
+    @Nested
+    class ExportReportCsv {
+
+        @Test
+        void shouldStreamCsv_withRelevantAndIrrelevantRows_whenReportCompleted() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, "Great product!", new BigDecimal("4.0"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+            createReview(report, "Terrible service", new BigDecimal("1.5"),
+                    EmotionEnum.ANGER, AspectEnum.SERVICE, LanguageEnum.EN);
+            createIrrelevantPost(report, "spam link", IrrelevanceReasonEnum.SPAM);
+
+            String body = mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Content-Type",
+                            org.hamcrest.Matchers.startsWith("text/csv")))
+                    .andExpect(header().string("Content-Disposition",
+                            org.hamcrest.Matchers.containsString(
+                                    "attachment; filename=\"report-" + report.getReportId() + ".csv\"")))
+                    .andReturn().getResponse().getContentAsString();
+
+            String[] lines = body.split("\\r?\\n");
+            assertThat(lines[0]).isEqualTo("post_text,sentiment_score,emotion,aspect,language,created_at");
+            assertThat(lines).hasSize(4);
+            // Two relevant rows have analysis fields populated
+            assertThat(body).contains("Great product!,4.0,JOY,PRODUCT,EN,");
+            assertThat(body).contains("Terrible service,1.5,ANGER,SERVICE,EN,");
+            // Irrelevant row leaves analysis cells blank
+            assertThat(body).containsPattern("spam link,,,,EN,[^\\n]+");
+        }
+
+        @Test
+        void shouldEscapeCommasAndQuotesInPostText() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, "hello, \"world\"", new BigDecimal("3.0"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+
+            String body = mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            // Commons CSV quotes the cell and doubles internal quotes
+            assertThat(body).contains("\"hello, \"\"world\"\"\",3.0,JOY,PRODUCT,EN,");
+        }
+
+        @Test
+        void shouldFilterByEmotion_andExcludeIrrelevant_whenAnalysisFilterPresent() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, "happy", new BigDecimal("4.0"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+            createReview(report, "angry", new BigDecimal("1.5"),
+                    EmotionEnum.ANGER, AspectEnum.SERVICE, LanguageEnum.EN);
+            createIrrelevantPost(report, "spam", IrrelevanceReasonEnum.SPAM);
+
+            String body = mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .param("emotion", "JOY")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            String[] lines = body.split("\\r?\\n");
+            assertThat(lines).hasSize(2); // header + 1 row
+            assertThat(body).contains("happy,4.0,JOY,PRODUCT,EN,");
+            assertThat(body).doesNotContain("angry");
+            assertThat(body).doesNotContain("spam");
+        }
+
+        @Test
+        void shouldFilterByDateRange_acrossBothRelevantAndIrrelevant() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            Review keep = createReview(report, "in range", new BigDecimal("3.0"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+            Review tooOld = createReview(report, "too old", new BigDecimal("4.0"),
+                    EmotionEnum.JOY, AspectEnum.PRODUCT, LanguageEnum.EN);
+            Post irrelevantKeep = createIrrelevantPost(report, "spam in range",
+                    IrrelevanceReasonEnum.SPAM);
+            Post irrelevantOld = createIrrelevantPost(report, "old spam",
+                    IrrelevanceReasonEnum.SPAM);
+
+            setPostCreatedAt(keep.getPost().getPostId(), "2026-03-15 12:00:00");
+            setPostCreatedAt(tooOld.getPost().getPostId(), "2026-01-01 12:00:00");
+            setPostCreatedAt(irrelevantKeep.getPostId(), "2026-03-20 12:00:00");
+            setPostCreatedAt(irrelevantOld.getPostId(), "2026-01-05 12:00:00");
+
+            String body = mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .param("dateFrom", "2026-03-01")
+                            .param("dateTo", "2026-03-31")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(body).contains("in range");
+            assertThat(body).contains("spam in range");
+            assertThat(body).doesNotContain("too old");
+            assertThat(body).doesNotContain("old spam");
+        }
+
+        @Test
+        void shouldReturnHeaderOnly_whenNoPosts() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            "post_text,sentiment_score,emotion,aspect,language,created_at\r\n"));
+        }
+
+        @Test
+        void shouldReturn400_whenReportStatusIsProcessing() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.PROCESSING);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
+            Company otherCompany = new Company();
+            otherCompany.setCompanyName("Other Corp");
+            otherCompany = companyRepository.save(otherCompany);
+            Brand otherBrand = Brand.builder().brandName("Adidas").company(otherCompany).build();
+            otherBrand = brandRepository.save(otherBrand);
+            User otherUser = createUser("other@example.com", UserRoleEnum.MARKETING_USER, otherCompany);
+            Report report = Report.builder()
+                    .brand(otherBrand)
+                    .user(otherUser)
+                    .dataSource(DataSourceEnum.REDDIT)
+                    .status(ReportStatusEnum.COMPLETED)
+                    .build();
+            report = reportRepository.save(report);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn401_whenUnauthenticated() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/export"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
     // ==================== Helpers ====================
 
     private User createUser(String email, UserRoleEnum role, Company targetCompany) {
@@ -591,9 +743,14 @@ class ReportControllerTest {
 
     private Review createReview(Report report, BigDecimal score,
                                 EmotionEnum emotion, AspectEnum aspect, LanguageEnum language) {
+        return createReview(report, "sample text", score, emotion, aspect, language);
+    }
+
+    private Review createReview(Report report, String postText, BigDecimal score,
+                                EmotionEnum emotion, AspectEnum aspect, LanguageEnum language) {
         Post post = Post.builder()
                 .report(report)
-                .postText("sample text")
+                .postText(postText)
                 .language(language)
                 .build();
         post = postRepository.save(post);

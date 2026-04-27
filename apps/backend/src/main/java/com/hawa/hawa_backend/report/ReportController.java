@@ -3,8 +3,14 @@ package com.hawa.hawa_backend.report;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ReportExportService reportExportService;
 
     @GetMapping
     public ResponseEntity<Page<ReportResponse>> listReports(
@@ -43,6 +50,35 @@ public class ReportController {
     @GetMapping("/{reportId}")
     public ResponseEntity<ReportOverviewResponse> getReportOverview(@PathVariable Long reportId) {
         return ResponseEntity.ok(reportService.getReportOverview(reportId));
+    }
+
+    @GetMapping("/{reportId}/export")
+    public ResponseEntity<byte[]> exportReportCsv(
+            @PathVariable Long reportId,
+            @RequestParam(required = false) BigDecimal sentimentMin,
+            @RequestParam(required = false) BigDecimal sentimentMax,
+            @RequestParam(required = false) EmotionEnum emotion,
+            @RequestParam(required = false) AspectEnum aspect,
+            @RequestParam(required = false) LanguageEnum language,
+            @RequestParam(required = false) LocalDate dateFrom,
+            @RequestParam(required = false) LocalDate dateTo) {
+        ReportExportService.ExportFilters filters = new ReportExportService.ExportFilters(
+                sentimentMin, sentimentMax, emotion, aspect, language, dateFrom, dateTo);
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            reportExportService.writeReportCsv(reportId, filters, buffer);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"report-" + reportId + ".csv\"");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(buffer.toByteArray());
     }
 
     @GetMapping("/{reportId}/posts")

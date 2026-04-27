@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { getReportPosts } from "../../services/reportService";
+import { ArrowLeft, Download } from "lucide-react";
+import { exportReportCsv, getReportPosts } from "../../services/reportService";
 import type {
   AspectEnum,
   EmotionEnum,
@@ -9,6 +9,7 @@ import type {
   LanguageEnum,
   PostListItemResponse,
   RelevanceStatus,
+  ReportExportParams,
   ReportPostsParams,
 } from "../../types/report";
 import type { Page } from "../../types/page";
@@ -135,6 +136,27 @@ const filtersToQuery = (
   sort,
 });
 
+const filtersToExportQuery = (filters: Filters): ReportExportParams => ({
+  sentimentMin: parseNumber(filters.sentimentMin),
+  sentimentMax: parseNumber(filters.sentimentMax),
+  emotion: filters.emotion || undefined,
+  aspect: filters.aspect || undefined,
+  language: filters.language || undefined,
+  dateFrom: filters.dateFrom || undefined,
+  dateTo: filters.dateTo || undefined,
+});
+
+const triggerBlobDownload = (blob: Blob, filename: string): void => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 const PostsList = (): React.JSX.Element => {
   const { reportId: reportIdParam } = useParams<{ reportId: string }>();
   const reportId = reportIdParam ? Number(reportIdParam) : NaN;
@@ -155,6 +177,8 @@ const PostsList = (): React.JSX.Element => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PostListItemResponse | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(appliedFilters);
@@ -227,6 +251,23 @@ const PostsList = (): React.JSX.Element => {
 
   const changeSort = (value: string) => {
     writeSearch({ sort: value, page: 0 });
+  };
+
+  const handleExport = async () => {
+    if (Number.isNaN(reportId) || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { blob, filename } = await exportReportCsv(
+        reportId,
+        filtersToExportQuery(appliedFilters)
+      );
+      triggerBlobDownload(blob, filename);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (Number.isNaN(reportId)) {
@@ -398,6 +439,17 @@ const PostsList = (): React.JSX.Element => {
           >
             Clear
           </button>
+          <button
+            type="button"
+            className="posts-list-export"
+            onClick={handleExport}
+            disabled={exporting}
+            aria-busy={exporting}
+            title="Download all matching posts as CSV"
+          >
+            <Download size={16} aria-hidden />
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
           <div className="posts-list-sort">
             <label htmlFor="posts-list-sort-select">Sort</label>
             <select
@@ -416,6 +468,10 @@ const PostsList = (): React.JSX.Element => {
       </form>
 
       {error && <ErrorBanner message={error} onRetry={load} />}
+
+      {exportError && (
+        <ErrorBanner message={exportError} onRetry={handleExport} />
+      )}
 
       {loading && !data && <p className="posts-list-status">Loading posts…</p>}
 
