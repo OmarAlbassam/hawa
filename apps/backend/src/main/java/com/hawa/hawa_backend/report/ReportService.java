@@ -2,7 +2,10 @@ package com.hawa.hawa_backend.report;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -25,6 +28,8 @@ import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
+import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse.AspectBreakdownItem;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
@@ -112,6 +117,52 @@ public class ReportService {
                 averageSentiment,
                 emotionDistribution,
                 aspectDistribution);
+    }
+
+    @Transactional(readOnly = true)
+    public AspectBreakdownResponse getAspectBreakdown(Long reportId, AspectEnum aspectFilter) {
+        Long companyId = authenticatedUserService.getCompanyId();
+        log.debug("Computing aspect breakdown reportId={} companyId={} filter={}",
+                reportId, companyId, aspectFilter);
+
+        Report report = reportRepository.findById(reportId)
+                .filter(r -> r.getBrand().getCompany().getCompanyId().equals(companyId))
+                .orElseThrow(() -> new ResourceNotFoundException("Report not found: " + reportId));
+
+        if (report.getStatus() != ReportStatusEnum.COMPLETED) {
+            throw new BadRequestException(
+                    "Report is not ready (status: " + report.getStatus() + ")");
+        }
+
+        Map<AspectEnum, Long> counts = new EnumMap<>(AspectEnum.class);
+        Map<AspectEnum, BigDecimal> averages = new EnumMap<>(AspectEnum.class);
+        for (ReviewRepository.AspectAggregate row : reviewRepository.aggregateByAspect(reportId)) {
+            counts.put(row.getKey(), row.getCount());
+            averages.put(row.getKey(), row.getAverageScore());
+        }
+
+        Map<AspectEnum, Map<EmotionEnum, Long>> emotionByAspect = new EnumMap<>(AspectEnum.class);
+        for (AspectEnum a : AspectEnum.values()) {
+            Map<EmotionEnum, Long> zeroed = new EnumMap<>(EmotionEnum.class);
+            for (EmotionEnum e : EmotionEnum.values()) zeroed.put(e, 0L);
+            emotionByAspect.put(a, zeroed);
+        }
+        for (ReviewRepository.AspectEmotionCount row : reviewRepository.countByAspectAndEmotion(reportId)) {
+            emotionByAspect.get(row.getAspect()).put(row.getEmotion(), row.getCount());
+        }
+
+        List<AspectBreakdownItem> items = new ArrayList<>();
+        for (AspectEnum a : AspectEnum.values()) {
+            if (aspectFilter != null && a != aspectFilter) continue;
+            long count = counts.getOrDefault(a, 0L);
+            BigDecimal avg = count > 0 ? averages.get(a) : null;
+            items.add(new AspectBreakdownItem(a, count, avg, emotionByAspect.get(a)));
+        }
+        items.sort(Comparator
+                .comparingLong(AspectBreakdownItem::postCount).reversed()
+                .thenComparing(AspectBreakdownItem::aspect));
+
+        return new AspectBreakdownResponse(report.getReportId(), items);
     }
 
     @Transactional(readOnly = true)

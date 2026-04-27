@@ -25,6 +25,7 @@ target/
 *.njsproj
 *.sln
 *.sw?
+*.code-workspace
 
 ### Node ###
 node_modules/
