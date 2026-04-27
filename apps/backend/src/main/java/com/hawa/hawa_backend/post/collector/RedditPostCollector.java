@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
@@ -52,8 +54,10 @@ public class RedditPostCollector implements PostCollector {
                 query, fromInstant, toInstant, properties.maxPostsPerReport());
 
         List<Post> posts = new ArrayList<>(rawPosts.size());
+        Set<String> seenTexts = new HashSet<>();
         int droppedByCleaner = 0;
         int droppedByKeywordFilter = 0;
+        int droppedAsDuplicate = 0;
         for (RedditPostDto dto : rawPosts) {
             String cleaned = cleaner.clean(dto.title(), dto.selftext());
             if (cleaned == null) {
@@ -62,6 +66,10 @@ public class RedditPostCollector implements PostCollector {
             }
             if (!containsAnyKeyword(cleaned, keywordPatterns)) {
                 droppedByKeywordFilter++;
+                continue;
+            }
+            if (!seenTexts.add(cleaned)) {
+                droppedAsDuplicate++;
                 continue;
             }
             posts.add(Post.builder()
@@ -73,9 +81,9 @@ public class RedditPostCollector implements PostCollector {
         }
 
         log.info("Reddit collection: reportId={}, query=\"{}\", fetched={}, kept={}, "
-                        + "droppedByCleaner={}, droppedByKeywordFilter={}",
+                        + "droppedByCleaner={}, droppedByKeywordFilter={}, droppedAsDuplicate={}",
                 report.getReportId(), query, rawPosts.size(), posts.size(),
-                droppedByCleaner, droppedByKeywordFilter);
+                droppedByCleaner, droppedByKeywordFilter, droppedAsDuplicate);
         return posts;
     }
 

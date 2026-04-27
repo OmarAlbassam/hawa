@@ -4,7 +4,9 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -49,6 +51,8 @@ public class RedditClient {
     public List<RedditPostDto> searchPosts(String query, Instant dateFrom, Instant dateTo, int maxResults) {
         String trimmedQuery = trimQuery(query);
         List<RedditPostDto> collected = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+        int duplicates = 0;
         String cursor = null;
         int pageSize = properties.pageSize();
         boolean stop = false;
@@ -79,6 +83,10 @@ public class RedditClient {
                     stop = true;
                     break;
                 }
+                if (post.id() != null && !seenIds.add(post.id())) {
+                    duplicates++;
+                    continue;
+                }
                 collected.add(post);
                 if (collected.size() >= maxResults) {
                     stop = true;
@@ -92,7 +100,8 @@ public class RedditClient {
             }
         }
 
-        log.info("Reddit search collected {} post(s) for query=\"{}\"", collected.size(), trimmedQuery);
+        log.info("Reddit search collected {} post(s) for query=\"{}\" (duplicates={})",
+                collected.size(), trimmedQuery, duplicates);
         return collected;
     }
 

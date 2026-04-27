@@ -115,6 +115,30 @@ class RedditPostCollectorTest {
     }
 
     @Test
+    void dropsDuplicatePosts_whenSameCleanedTextAppearsMultipleTimes() {
+        when(properties.maxPostsPerReport()).thenReturn(100);
+        // Three crossposts: distinct ids and permalinks but identical title + selftext.
+        RedditPostDto a = new RedditPostDto("id-a", "Same headline shared widely",
+                "Same body content here that is long enough to pass the cleaner",
+                "https://example.com/a", "/r/sub1/comments/a/x/",
+                System.currentTimeMillis() / 1000.0, "sub1", "alice", false, null);
+        RedditPostDto b = new RedditPostDto("id-b", "Same headline shared widely",
+                "Same body content here that is long enough to pass the cleaner",
+                "https://example.com/b", "/r/sub2/comments/b/x/",
+                System.currentTimeMillis() / 1000.0, "sub2", "bob", false, null);
+        RedditPostDto c = new RedditPostDto("id-c", "Same headline shared widely",
+                "Same body content here that is long enough to pass the cleaner",
+                "https://example.com/c", "/r/sub3/comments/c/x/",
+                System.currentTimeMillis() / 1000.0, "sub3", "carol", false, null);
+        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(a, b, c));
+
+        List<Post> posts = collector.collect(reportWithKeyword("headline"),
+                new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
+
+        assertThat(posts).hasSize(1);
+    }
+
+    @Test
     void multiWordKeyword_matchesAdjacentPhraseOnly() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
