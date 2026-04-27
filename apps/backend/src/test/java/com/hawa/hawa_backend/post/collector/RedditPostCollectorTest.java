@@ -53,7 +53,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void keepsPost_whenKeywordAppearsAsWholeWordInBody() {
+    void shouldKeepPost_whenKeywordAppearsAsWholeWordInBody() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Tried the new place", "Honestly the coffee here is excellent")));
@@ -66,7 +66,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void dropsPost_whenKeywordOnlyAppearedInUrlStrippedByCleaner() {
+    void shouldDropPost_whenKeywordOnlyAppearedInUrlStrippedByCleaner() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         // Cleaner strips bare URLs entirely; the keyword "coffee" only lives in the URL host.
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
@@ -79,7 +79,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void dropsPost_whenKeywordIsOnlySubstringOfLongerWord() {
+    void shouldDropPost_whenKeywordIsOnlySubstringOfLongerWord() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Morning routine", "I went running this morning around the park area")));
@@ -91,7 +91,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void keywordMatchIsCaseInsensitive() {
+    void shouldMatchKeyword_whenCaseIsDifferent() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("NIKE drop coming", "Saw the new shoes today, looked great")));
@@ -103,7 +103,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void dropsPost_whenSelftextIsRemovedAndTitleHasNoKeyword() {
+    void shouldDropPost_whenSelftextIsRemovedAndTitleHasNoKeyword() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Some unrelated title here", "[removed]")));
@@ -115,7 +115,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void dropsDuplicatePosts_whenSameCleanedTextAppearsMultipleTimes() {
+    void shouldDropDuplicatePosts_whenSameCleanedTextAppearsMultipleTimes() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         // Three crossposts: distinct ids and permalinks but identical title + selftext.
         RedditPostDto a = new RedditPostDto("id-a", "Same headline shared widely",
@@ -139,7 +139,7 @@ class RedditPostCollectorTest {
     }
 
     @Test
-    void multiWordKeyword_matchesAdjacentPhraseOnly() {
+    void shouldMatchMultiWordKeyword_whenPhraseIsAdjacent() {
         when(properties.maxPostsPerReport()).thenReturn(100);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Cafe review summary", "Ordered an iced latte and it was excellent today"),

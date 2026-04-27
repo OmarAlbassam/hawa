@@ -34,7 +34,8 @@ public final class RedditQueryBuilder {
             throw new IllegalArgumentException("No usable keyword terms after trimming");
         }
         if (dropped > 0) {
-            log.debug("Reddit query budget exceeded; dropped {} keyword(s)", dropped);
+            log.warn("Reddit query budget exceeded; dropped {} keyword(s) of {}",
+                    dropped, selectedKeywords.size());
         }
         return q.toString();
     }
