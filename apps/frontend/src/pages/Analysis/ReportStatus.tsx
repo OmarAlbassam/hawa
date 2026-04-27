@@ -259,15 +259,6 @@ const ReportStatus = (): React.JSX.Element => {
           err instanceof Error ? err.message : "Failed to load overview"
         );
       }
-      return;
-    }
-    try {
-      const breakdownData = await getAspectBreakdown(reportId);
-      if (mountedRef.current) {
-        setBreakdown(breakdownData);
-      }
-    } catch {
-      // Breakdown is supplementary; fall back to Distribution component.
     }
   }, [reportId]);
 
@@ -289,12 +280,22 @@ const ReportStatus = (): React.JSX.Element => {
             err instanceof Error ? err.message : "Failed to load overview"
           );
         }
-        return;
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStatus, overview, overviewError, reportId]);
+
+  useEffect(() => {
+    if (Number.isNaN(reportId)) return;
+    if (overview == null || breakdown != null) return;
+    let cancelled = false;
+    (async () => {
       try {
-        const breakdownData = await getAspectBreakdown(reportId);
+        const data = await getAspectBreakdown(reportId);
         if (!cancelled && mountedRef.current) {
-          setBreakdown(breakdownData);
+          setBreakdown(data);
         }
       } catch {
         // Breakdown is supplementary; fall back to Distribution component.
@@ -303,7 +304,7 @@ const ReportStatus = (): React.JSX.Element => {
     return () => {
       cancelled = true;
     };
-  }, [currentStatus, overview, overviewError, reportId]);
+  }, [overview, breakdown, reportId]);
 
   if (Number.isNaN(reportId)) {
     return <ErrorBanner message="Invalid report id" />;
