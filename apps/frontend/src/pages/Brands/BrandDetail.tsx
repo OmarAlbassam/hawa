@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { getBrand } from "../../services/brandService";
+import { getBrand, getBrandStatusIndicator } from "../../services/brandService";
 import type { BrandDetailResponse } from "../../types/brand";
+import type { StatusIndicatorResponse } from "../../types/statusIndicator";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import StatusIndicator from "../../components/StatusIndicator/StatusIndicator";
 import KeywordPanel from "./KeywordPanel";
 import { formatDate } from "../../utils/formatDate";
 import "./BrandDetail.css";
@@ -11,21 +13,41 @@ import "./BrandDetail.css";
 const BrandDetail = (): React.JSX.Element => {
   const { brandId } = useParams<{ brandId: string }>();
   const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
+  const [indicator, setIndicator] = useState<StatusIndicatorResponse | null>(
+    null
+  );
+  const [indicatorError, setIndicatorError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadIndicator = useCallback(async (id: number) => {
+    setIndicatorError(null);
+    try {
+      setIndicator(await getBrandStatusIndicator(id));
+    } catch (err) {
+      setIndicatorError(
+        err instanceof Error ? err.message : "Failed to load status indicator"
+      );
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     if (!brandId) return;
+    const numericId = Number(brandId);
     setLoading(true);
     setError(null);
     try {
-      setBrand(await getBrand(Number(brandId)));
+      const [brandData] = await Promise.all([
+        getBrand(numericId),
+        loadIndicator(numericId),
+      ]);
+      setBrand(brandData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
-  }, [brandId]);
+  }, [brandId, loadIndicator]);
 
   useEffect(() => {
     loadData();
@@ -41,6 +63,8 @@ const BrandDetail = (): React.JSX.Element => {
 
   if (!brand) return <></>;
 
+  const numericBrandId = brand.brandId;
+
   return (
     <div className="brand-detail">
       <Link to="/brands" className="brand-detail-back">
@@ -55,20 +79,25 @@ const BrandDetail = (): React.JSX.Element => {
             <span className="brand-detail-industry">{brand.industry}</span>
           )}
         </div>
-        {brand.statusIndicator != null && (
-          <div className="brand-detail-score">
-            <span className="brand-detail-score-value">
-              {brand.statusIndicator.toFixed(1)}
-            </span>
-            <span className="brand-detail-score-label">Health Score</span>
-          </div>
-        )}
       </div>
 
       <div className="brand-detail-meta">
         <span>Created {formatDate(brand.createdAt)}</span>
         <span>Updated {formatDate(brand.updatedAt)}</span>
       </div>
+
+      <section className="brand-detail-indicator">
+        {indicatorError && (
+          <ErrorBanner
+            message={indicatorError}
+            onRetry={() => loadIndicator(numericBrandId)}
+          />
+        )}
+        {!indicator && !indicatorError && (
+          <div className="brand-detail-loading">Loading status indicator...</div>
+        )}
+        {indicator && <StatusIndicator data={indicator} />}
+      </section>
 
       <section className="brand-detail-card">
         <h2 className="brand-detail-section-title">Keywords</h2>

@@ -1,6 +1,7 @@
 package com.hawa.hawa_backend.report;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,10 @@ import org.springframework.data.repository.query.Param;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
+
+    Optional<Report> findFirstByBrandBrandIdAndStatusOrderByFinishedAtDesc(
+            Long brandId, ReportStatusEnum status);
+
 
     long countByStatus(ReportStatusEnum status);
 

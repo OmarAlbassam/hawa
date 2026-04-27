@@ -5,6 +5,7 @@ import type {
   BrandDetailResponse,
   KeywordInfo,
 } from "../types/brand";
+import type { StatusIndicatorResponse } from "../types/statusIndicator";
 
 function getAuthHeaders(): HeadersInit {
   const token = localStorage.getItem("accessToken");
@@ -36,6 +37,20 @@ export async function getBrand(brandId: number): Promise<BrandDetailResponse> {
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || "Failed to fetch brand");
+  }
+  return response.json();
+}
+
+export async function getBrandStatusIndicator(
+  brandId: number
+): Promise<StatusIndicatorResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/brands/${brandId}/status-indicator`,
+    { headers: getAuthHeaders() }
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "Failed to fetch status indicator");
   }
   return response.json();
 }

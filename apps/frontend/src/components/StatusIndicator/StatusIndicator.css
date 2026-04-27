@@ -1,0 +1,308 @@
+.StatusIndicator {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.StatusIndicator-empty {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+}
+
+.StatusIndicator-empty-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.StatusIndicator-empty-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.StatusIndicator-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.StatusIndicator-score-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.StatusIndicator-score-value {
+  font-family: var(--font-heading);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.StatusIndicator-score-suffix {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.StatusIndicator-category {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-heading);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px var(--space-3);
+  border: 1px solid;
+  border-radius: 999px;
+  background-color: transparent;
+}
+
+.StatusIndicator-posts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.StatusIndicator-posts-value {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.StatusIndicator-posts-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Gradient bar with marker */
+.StatusIndicator-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.StatusIndicator-bar-track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #EF4444 0%,
+    #F97316 20%,
+    #94A3B8 50%,
+    #22C55E 80%,
+    #16A34A 100%
+  );
+}
+
+.StatusIndicator-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 22px;
+  background-color: var(--color-text-primary);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.StatusIndicator-bar-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Breakdown */
+.StatusIndicator-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.StatusIndicator-breakdown-bar {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background-color: var(--color-muted-bg);
+}
+
+.StatusIndicator-breakdown-seg--neg {
+  background-color: #EF4444;
+}
+
+.StatusIndicator-breakdown-seg--neu {
+  background-color: #94A3B8;
+}
+
+.StatusIndicator-breakdown-seg--pos {
+  background-color: #16A34A;
+}
+
+.StatusIndicator-breakdown-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.StatusIndicator-breakdown-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.StatusIndicator-breakdown-legend strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.StatusIndicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.StatusIndicator-dot--neg {
+  background-color: #EF4444;
+}
+
+.StatusIndicator-dot--neu {
+  background-color: #94A3B8;
+}
+
+.StatusIndicator-dot--pos {
+  background-color: #16A34A;
+}
+
+/* Emotions */
+.StatusIndicator-emotions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.StatusIndicator-emotions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.StatusIndicator-subtitle {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.StatusIndicator-emotions-meta {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  flex-wrap: wrap;
+}
+
+.StatusIndicator-emotions-meta strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.StatusIndicator-emotions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.StatusIndicator-emotion-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 56px 48px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.StatusIndicator-emotion-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.StatusIndicator-emotion-bar {
+  height: 8px;
+  background-color: var(--color-muted-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.StatusIndicator-emotion-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 300ms ease-out;
+}
+
+.StatusIndicator-emotion-pct {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+.StatusIndicator-emotion-count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .StatusIndicator {
+    padding: var(--space-4);
+  }
+
+  .StatusIndicator-posts {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .StatusIndicator-emotion-row {
+    grid-template-columns: 72px 1fr 52px;
+  }
+
+  .StatusIndicator-emotion-count {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .StatusIndicator-emotion-bar-fill {
+    transition: none;
+  }
+}
