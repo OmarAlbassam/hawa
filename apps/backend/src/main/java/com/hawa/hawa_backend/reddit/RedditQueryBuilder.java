@@ -1,7 +1,6 @@
 package com.hawa.hawa_backend.reddit;
 
 import java.util.List;
-import java.util.regex.Pattern;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -9,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 public final class RedditQueryBuilder {
 
     private static final int MAX_QUERY_CHARS = 500;
-    private static final Pattern NEEDS_QUOTING = Pattern.compile("[\\s\"'()\\-:/\\\\]");
 
     private RedditQueryBuilder() {
     }
@@ -24,8 +22,8 @@ public final class RedditQueryBuilder {
             if (raw == null || raw.isBlank()) {
                 continue;
             }
-            String term = formatTerm(raw.trim());
-            String next = q.length() == 0 ? term : " OR " + term;
+            String group = buildFieldGroup(raw.trim());
+            String next = q.length() == 0 ? group : " OR " + group;
             if (q.length() + next.length() > MAX_QUERY_CHARS) {
                 dropped++;
                 continue;
@@ -36,13 +34,15 @@ public final class RedditQueryBuilder {
             throw new IllegalArgumentException("No usable keyword terms after trimming");
         }
         if (dropped > 0) {
-            log.debug("Reddit query budget exceeded; dropped {} keyword(s)", dropped);
+            log.warn("Reddit query budget exceeded; dropped {} keyword(s) of {}",
+                    dropped, selectedKeywords.size());
         }
         return q.toString();
     }
 
-    private static String formatTerm(String term) {
-        return NEEDS_QUOTING.matcher(term).find() ? quote(term) : term;
+    private static String buildFieldGroup(String term) {
+        String quoted = quote(term);
+        return "(title:" + quoted + " OR selftext:" + quoted + ")";
     }
 
     private static String quote(String term) {
