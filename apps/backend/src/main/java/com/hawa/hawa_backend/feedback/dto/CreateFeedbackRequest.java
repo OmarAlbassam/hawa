@@ -7,4 +7,10 @@ public record CreateFeedbackRequest(
         @NotBlank
         @Size(min = 5, max = 1000)
         String brief
-) {}
+) {
+    public CreateFeedbackRequest {
+        if (brief != null) {
+            brief = brief.strip();
+        }
+    }
+}

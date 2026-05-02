@@ -146,6 +146,21 @@ class SubmitFeedbackTest {
         }
 
         @Test
+        void shouldStoreTrimmedBrief_whenSubmittedWithSurroundingWhitespace() throws Exception {
+            mockMvc.perform(post("/api/reviews/" + review.getReviewId() + "/feedback")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brief": "   wrong aspect classification   "}
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.brief").value("wrong aspect classification"));
+
+            assertThat(feedbackRepository.findAll().getFirst().getBrief())
+                    .isEqualTo("wrong aspect classification");
+        }
+
+        @Test
         void shouldUpdateExistingFeedback_whenSameUserSubmitsTwice() throws Exception {
             // First submission
             mockMvc.perform(post("/api/reviews/" + review.getReviewId() + "/feedback")
@@ -206,6 +221,20 @@ class SubmitFeedbackTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"brief": "abc"}
+                                    """))
+                    .andExpect(status().isBadRequest());
+
+            assertThat(feedbackRepository.count()).isZero();
+        }
+
+        @Test
+        void shouldReturn400_whenBriefIsBelowMinLengthAfterTrim() throws Exception {
+            // " abcd " — 6 chars raw, but only 4 after trim → should fail @Size(min=5)
+            mockMvc.perform(post("/api/reviews/" + review.getReviewId() + "/feedback")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brief": "  abcd  "}
                                     """))
                     .andExpect(status().isBadRequest());
 
