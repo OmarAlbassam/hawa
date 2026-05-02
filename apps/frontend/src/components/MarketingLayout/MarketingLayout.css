@@ -67,7 +67,7 @@
   top: var(--topbar-height, 56px);
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: var(--sidebar-width);
   background-color: var(--color-surface);
   border-right: 1px solid var(--color-border);
   display: flex;
@@ -129,9 +129,16 @@
 /* ── Content ── */
 .marketing-content {
   margin-top: var(--topbar-height, 56px);
-  margin-left: 260px;
-  padding: var(--space-6) var(--space-8);
-  max-width: 1280px;
+  margin-left: var(--sidebar-width);
+  padding-block: var(--page-padding-y);
+  /* Centers content (max-width = --content-max-width) within the area right of the sidebar.
+     Falls back to --page-padding-x when the area is narrower than the content cap.
+     Uses 100% (containing block = body width) instead of 100vw so vertical scrollbars
+     don't skew the centering. */
+  padding-inline: max(
+    var(--page-padding-x),
+    calc((100% - var(--sidebar-width) - var(--content-max-width)) / 2)
+  );
   min-height: calc(100vh - var(--topbar-height, 56px));
 }
 
