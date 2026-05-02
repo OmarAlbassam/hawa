@@ -95,6 +95,16 @@ export interface ReportPostsParams {
   sort?: string;
 }
 
+export interface ReportExportParams {
+  sentimentMin?: number;
+  sentimentMax?: number;
+  emotion?: EmotionEnum;
+  aspect?: AspectEnum;
+  language?: LanguageEnum;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export interface AspectBreakdownItem {
   aspect: AspectEnum;
   postCount: number;

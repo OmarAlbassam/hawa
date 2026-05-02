@@ -45,4 +45,18 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                                     @Param("dateFrom") LocalDate dateFrom,
                                     @Param("dateTo") LocalDate dateTo,
                                     Pageable pageable);
+
+    @Query(value = """
+            SELECT p.* FROM post p
+            WHERE p.report_id = :reportId
+              AND p.relevance_status::text = 'IRRELEVANT'
+              AND (CAST(:language AS text) IS NULL OR p.language::text = CAST(:language AS text))
+              AND (CAST(:dateFrom AS date) IS NULL OR p.created_at >= CAST(:dateFrom AS date))
+              AND (CAST(:dateTo   AS date) IS NULL OR p.created_at <  (CAST(:dateTo AS date) + INTERVAL '1 day'))
+            ORDER BY p.created_at ASC, p.post_id ASC
+            """, nativeQuery = true)
+    List<Post> findIrrelevantPostsList(@Param("reportId") Long reportId,
+                                       @Param("language") String language,
+                                       @Param("dateFrom") LocalDate dateFrom,
+                                       @Param("dateTo") LocalDate dateTo);
 }

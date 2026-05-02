@@ -139,6 +139,36 @@
   background-color: var(--color-primary-light);
 }
 
+.posts-list-export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.posts-list-export:hover:not(:disabled) {
+  background-color: var(--color-muted-bg);
+  border-color: var(--color-text-muted);
+}
+
+.posts-list-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.posts-list-export:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
 .posts-list-sort {
   margin-left: auto;
   display: flex;
