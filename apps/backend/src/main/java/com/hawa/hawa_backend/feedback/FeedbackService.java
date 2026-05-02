@@ -1,7 +1,8 @@
 package com.hawa.hawa_backend.feedback;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.hawa.hawa_backend.auth.AuthenticatedUserService;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
@@ -22,12 +23,23 @@ public class FeedbackService {
     private final FeedbackRepository feedbackRepository;
     private final ReviewRepository reviewRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
     public FeedbackResponse submitFeedback(Long reviewId, CreateFeedbackRequest request) {
         User currentUser = authenticatedUserService.getAuthenticatedUser();
         Long companyId = currentUser.getCompany().getCompanyId();
 
+        try {
+            return transactionTemplate.execute(s -> doUpsert(currentUser, companyId, reviewId, request));
+        } catch (DataIntegrityViolationException ex) {
+            log.info("Concurrent feedback insert detected, retrying upsert: userId={} reviewId={}",
+                    currentUser.getUserId(), reviewId);
+            return transactionTemplate.execute(s -> doUpsert(currentUser, companyId, reviewId, request));
+        }
+    }
+
+    private FeedbackResponse doUpsert(User currentUser, Long companyId, Long reviewId,
+                                       CreateFeedbackRequest request) {
         Review review = reviewRepository.findById(reviewId)
                 .filter(r -> r.getPost().getReport().getBrand().getCompany()
                         .getCompanyId().equals(companyId))

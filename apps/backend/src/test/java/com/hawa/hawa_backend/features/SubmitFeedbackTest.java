@@ -1,12 +1,15 @@
 package com.hawa.hawa_backend.features;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -15,10 +18,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.hawa.hawa_backend.TestcontainersConfiguration;
@@ -57,7 +62,7 @@ class SubmitFeedbackTest {
     @Autowired private ReportRepository reportRepository;
     @Autowired private PostRepository postRepository;
     @Autowired private ReviewRepository reviewRepository;
-    @Autowired private FeedbackRepository feedbackRepository;
+    @MockitoSpyBean private FeedbackRepository feedbackRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -336,6 +341,38 @@ class SubmitFeedbackTest {
                     .andExpect(status().isUnauthorized());
 
             assertThat(feedbackRepository.count()).isZero();
+        }
+    }
+
+    @Nested
+    class WhenConcurrentInsertRaces {
+
+        @Test
+        void shouldRetryAndSucceed_whenSaveThrowsDataIntegrityViolationOnce() throws Exception {
+            // Simulate the race: the first save() hits the unique constraint
+            // (because a concurrent transaction already inserted), the retry succeeds.
+            AtomicInteger saveCalls = new AtomicInteger(0);
+            doAnswer(inv -> {
+                if (saveCalls.getAndIncrement() == 0) {
+                    throw new DataIntegrityViolationException(
+                            "simulated unique violation on (user_id, review_id)");
+                }
+                Feedback f = inv.getArgument(0);
+                f.setFeedbackId(42L);
+                return f;
+            }).when(feedbackRepository).save(any(Feedback.class));
+
+            mockMvc.perform(post("/api/reviews/" + review.getReviewId() + "/feedback")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brief": "first save races, retry must succeed"}
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.feedbackId").value(42))
+                    .andExpect(jsonPath("$.brief").value("first save races, retry must succeed"));
+
+            assertThat(saveCalls.get()).isEqualTo(2);
         }
     }
 }
