@@ -131,9 +131,10 @@
   margin-top: var(--topbar-height, 56px);
   margin-left: var(--sidebar-width);
   padding-block: var(--page-padding-y);
+  /* 100% (containing block = body width) avoids 100vw's scrollbar skew. */
   padding-inline: max(
     var(--page-padding-x),
-    calc((100vw - var(--sidebar-width) - var(--content-max-width)) / 2)
+    calc((100% - var(--sidebar-width) - var(--content-max-width)) / 2)
   );
   min-height: calc(100vh - var(--topbar-height, 56px));
 }

@@ -132,10 +132,12 @@
   margin-left: var(--sidebar-width);
   padding-block: var(--page-padding-y);
   /* Centers content (max-width = --content-max-width) within the area right of the sidebar.
-     Falls back to --page-padding-x when the area is narrower than the content cap. */
+     Falls back to --page-padding-x when the area is narrower than the content cap.
+     Uses 100% (containing block = body width) instead of 100vw so vertical scrollbars
+     don't skew the centering. */
   padding-inline: max(
     var(--page-padding-x),
-    calc((100vw - var(--sidebar-width) - var(--content-max-width)) / 2)
+    calc((100% - var(--sidebar-width) - var(--content-max-width)) / 2)
   );
   min-height: calc(100vh - var(--topbar-height, 56px));
 }
