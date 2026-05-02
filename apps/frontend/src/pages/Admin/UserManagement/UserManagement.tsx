@@ -44,6 +44,7 @@ const UserManagement = (): React.JSX.Element => {
   // Modal state
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [editingUser, setEditingUser] = useState<AdminUserResponse | null>(null);
+  const [formRole, setFormRole] = useState<"ADMIN" | "MARKETING_USER">("MARKETING_USER");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -98,6 +99,21 @@ const UserManagement = (): React.JSX.Element => {
 
     const formData = new FormData(e.currentTarget);
     setFormError("");
+
+    const role = formRole;
+    const companyIdRaw = formData.get("companyId");
+    const companyId =
+      role === "ADMIN"
+        ? null
+        : companyIdRaw
+          ? Number(companyIdRaw)
+          : null;
+
+    if (role !== "ADMIN" && companyId === null) {
+      setFormError("Company is required for marketing users");
+      return;
+    }
+
     setFormLoading(true);
 
     try {
@@ -107,8 +123,8 @@ const UserManagement = (): React.JSX.Element => {
           lastName: formData.get("lastName") as string,
           email: formData.get("email") as string,
           password: formData.get("password") as string,
-          companyId: Number(formData.get("companyId")),
-          role: formData.get("role") as "ADMIN" | "MARKETING_USER",
+          role,
+          companyId,
         };
         await createUser(accessToken, payload);
       } else if (modalMode === "edit" && editingUser) {
@@ -116,10 +132,8 @@ const UserManagement = (): React.JSX.Element => {
           firstName: formData.get("firstName") as string,
           lastName: formData.get("lastName") as string,
           email: formData.get("email") as string,
-          companyId: formData.get("companyId")
-            ? Number(formData.get("companyId"))
-            : null,
-          role: formData.get("role") as "ADMIN" | "MARKETING_USER",
+          role,
+          companyId,
         };
         await updateUser(accessToken, editingUser.userId, payload);
       }
@@ -152,6 +166,7 @@ const UserManagement = (): React.JSX.Element => {
   const openEdit = (user: AdminUserResponse) => {
     loadCompanies();
     setEditingUser(user);
+    setFormRole(user.role);
     setModalMode("edit");
     setFormError("");
   };
@@ -159,6 +174,7 @@ const UserManagement = (): React.JSX.Element => {
   const openCreate = () => {
     loadCompanies();
     setEditingUser(null);
+    setFormRole("MARKETING_USER");
     setModalMode("create");
     setFormError("");
   };
@@ -182,7 +198,13 @@ const UserManagement = (): React.JSX.Element => {
     {
       key: "company",
       header: "Company",
-      render: (row) => row.company?.companyName ?? "—",
+      render: (row) =>
+        row.company?.companyName ??
+        (row.role === "ADMIN" ? (
+          <span className="users-platform-label">Platform</span>
+        ) : (
+          "—"
+        )),
     },
     {
       key: "createdAt",
@@ -319,34 +341,45 @@ const UserManagement = (): React.JSX.Element => {
           )}
           <div className="users-form-row">
             <label className="users-form-field">
-              <span className="users-form-label">Company</span>
-              <select
-                name="companyId"
-                className="users-form-input"
-                defaultValue={editingUser?.company?.companyId ?? ""}
-                required={modalMode === "create"}
-              >
-                {modalMode === "edit" && <option value="">Keep current</option>}
-                {modalMode === "create" && <option value="">Select company</option>}
-                {companies.map((c) => (
-                  <option key={c.companyId} value={c.companyId}>
-                    {c.companyName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="users-form-field">
               <span className="users-form-label">Role</span>
               <select
                 name="role"
                 className="users-form-input"
-                defaultValue={editingUser?.role ?? "MARKETING_USER"}
+                value={formRole}
+                onChange={(e) =>
+                  setFormRole(e.target.value as "ADMIN" | "MARKETING_USER")
+                }
                 required
               >
                 <option value="MARKETING_USER">Marketing User</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </label>
+            {formRole === "ADMIN" ? (
+              <div className="users-form-field users-form-admin-note">
+                <span className="users-form-label">Company</span>
+                <span className="users-form-static">
+                  Platform admin — no company
+                </span>
+              </div>
+            ) : (
+              <label className="users-form-field">
+                <span className="users-form-label">Company</span>
+                <select
+                  name="companyId"
+                  className="users-form-input"
+                  defaultValue={editingUser?.company?.companyId ?? ""}
+                  required
+                >
+                  <option value="">Select company</option>
+                  {companies.map((c) => (
+                    <option key={c.companyId} value={c.companyId}>
+                      {c.companyName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <div className="users-form-actions">
             <button

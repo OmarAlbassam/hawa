@@ -168,36 +168,6 @@ Source: Report.pdf (IS498 Capstone Project Report — Sentiment Analysis using L
 
 ---
 
-### UC-06: Report Inaccurate Review
-
-- **Actor(s):** Marketing Team User
-- **Scenario:** After viewing the analyzed posts inside the **View Posts** use case, the user may notice that a specific post's sentiment, emotion, or aspect classification is incorrect. The user clicks the "Inaccurate Analysis" button and submits a brief explanation. The system records this feedback for model improvement.
-- **Triggering Event:** The user clicks **"Inaccurate Analysis"** after viewing analyzed posts.
-- **Brief Description:** This use case allows the marketing team user to report that the system misinterpreted a specific post. When triggered, the system displays a small feedback input box. The user types a brief description and submits it. The feedback entry is stored in the system and linked to the corresponding analysis record for future review and model refinement.
-- **Related Use Cases:** View Posts
-- **Preconditions:**
-  - The user is logged in.
-  - The user is currently inside the **View Posts** use case.
-  - The analysis has been completed and posts are available to review.
-- **Postconditions:**
-  - The feedback entry is saved in the system.
-  - The feedback is linked to the correct userId, analysisId, and post.
-  - A confirmation message is returned to the user.
-- **Main Flow:**
-
-  **Actor's Actions:**
-  - The user clicks "Inaccurate Analysis" after viewing a post.
-  - The user enters a brief explanation of the issue.
-  - The user clicks "Send Feedback."
-
-  **System's Responses:**
-  - The system displays a feedback text field.
-  - The system receives the feedback input.
-  - The system saves the feedback (userId, analysisId, brief) through the feedback service and repository, then returns a success message.
-
-- **Exception Conditions:**
-  - User submits empty feedback. System displays: "Please enter a brief explanation."
-  - Feedback storage fails. System displays an error: "Could not submit feedback. Try again later."
 
 *(Source: Table 9, p.23)*
 

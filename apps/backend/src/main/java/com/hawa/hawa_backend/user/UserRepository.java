@@ -24,7 +24,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // does not exist" because the driver sends null as bytea.
     @Query(value = """
             SELECT u.* FROM "user" u
-            JOIN company c ON c.company_id = u.company_id
+            LEFT JOIN company c ON c.company_id = u.company_id
             WHERE (CAST(:role AS user_role) IS NULL OR u.role = CAST(:role AS user_role))
             AND (CAST(:companyId AS BIGINT) IS NULL OR c.company_id = CAST(:companyId AS BIGINT))
             AND (CAST(:search AS VARCHAR) IS NULL OR (
@@ -34,7 +34,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """,
             countQuery = """
             SELECT COUNT(*) FROM "user" u
-            JOIN company c ON c.company_id = u.company_id
+            LEFT JOIN company c ON c.company_id = u.company_id
             WHERE (CAST(:role AS user_role) IS NULL OR u.role = CAST(:role AS user_role))
             AND (CAST(:companyId AS BIGINT) IS NULL OR c.company_id = CAST(:companyId AS BIGINT))
             AND (CAST(:search AS VARCHAR) IS NULL OR (

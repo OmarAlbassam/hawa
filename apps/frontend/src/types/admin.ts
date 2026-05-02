@@ -16,16 +16,16 @@ export interface CreateUserRequest {
   lastName: string;
   email: string;
   password: string;
-  companyId: number;
   role: "ADMIN" | "MARKETING_USER";
+  companyId: number | null;
 }
 
 export interface UpdateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  companyId?: number | null;
-  role?: "ADMIN" | "MARKETING_USER" | null;
+  role?: "ADMIN" | "MARKETING_USER";
+  companyId: number | null;
 }
 
 export interface SystemAnalyticsResponse {
