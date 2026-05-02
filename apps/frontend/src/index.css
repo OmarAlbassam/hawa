@@ -56,6 +56,15 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 
+  /* Layout (fluid: 1080p → 4K)
+     Linear in viewport width: clamp(min @ 1920px, fluid, max @ 3840px).
+     The middle term uses calc(min + (max - min) * (vw - 1920px) / (3840 - 1920)). */
+  --topbar-height: 56px;
+  --sidebar-width: 260px;
+  --content-max-width: clamp(1280px, calc(1280px + (1920 - 1280) * (100vw - 1920px) / 1920), 1920px);
+  --page-padding-x: clamp(32px, calc(32px + (64 - 32) * (100vw - 1920px) / 1920), 64px);
+  --page-padding-y: clamp(24px, calc(24px + (40 - 24) * (100vw - 1920px) / 1920), 40px);
+
   font-family: var(--font-body);
   line-height: 1.6;
   font-weight: 400;
