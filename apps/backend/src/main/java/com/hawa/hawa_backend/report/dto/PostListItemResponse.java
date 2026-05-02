@@ -11,6 +11,7 @@ import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 
 public record PostListItemResponse(
         Long postId,
+        Long reviewId,
         String postText,
         String postUrl,
         LanguageEnum language,

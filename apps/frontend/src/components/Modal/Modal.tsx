@@ -14,6 +14,27 @@ interface ModalProps {
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Ref-counted body scroll lock so nested modals don't unlock the body when the
+// inner modal closes while the outer modal is still open.
+let openModalCount = 0;
+let savedBodyOverflow: string | null = null;
+
+const lockBodyScroll = () => {
+  if (openModalCount === 0) {
+    savedBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  openModalCount++;
+};
+
+const unlockBodyScroll = () => {
+  openModalCount = Math.max(0, openModalCount - 1);
+  if (openModalCount === 0) {
+    document.body.style.overflow = savedBodyOverflow ?? "";
+    savedBodyOverflow = null;
+  }
+};
+
 const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): React.JSX.Element | null => {
   const titleId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -66,7 +87,7 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
+    lockBodyScroll();
 
     const rafId = requestAnimationFrame(() => {
       const focusables = getFocusables();
@@ -77,7 +98,7 @@ const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): Re
     return () => {
       cancelAnimationFrame(rafId);
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      unlockBodyScroll();
       previouslyFocused?.focus?.();
     };
   }, [open]);

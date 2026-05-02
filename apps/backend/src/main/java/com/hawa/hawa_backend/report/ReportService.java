@@ -241,6 +241,7 @@ public class ReportService {
     private static PostListItemResponse toRelevantItem(ReviewRepository.RelevantPostProjection p) {
         return new PostListItemResponse(
                 p.getPostId(),
+                p.getReviewId(),
                 p.getPostText(),
                 p.getPostUrl(),
                 p.getLanguage() == null ? null : LanguageEnum.valueOf(p.getLanguage()),
@@ -255,6 +256,7 @@ public class ReportService {
     private static PostListItemResponse toIrrelevantItem(Post post) {
         return new PostListItemResponse(
                 post.getPostId(),
+                null,
                 post.getPostText(),
                 post.getPostUrl(),
                 post.getLanguage(),

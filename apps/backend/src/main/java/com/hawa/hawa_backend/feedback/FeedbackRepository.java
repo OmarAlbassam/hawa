@@ -1,5 +1,7 @@
 package com.hawa.hawa_backend.feedback;
 
+import java.util.Optional;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,4 +20,6 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
             """,
             countQuery = "SELECT COUNT(f) FROM Feedback f")
     Page<Feedback> findAllWithFullContext(Pageable pageable);
+
+    Optional<Feedback> findByUser_UserIdAndReview_ReviewId(Long userId, Long reviewId);
 }

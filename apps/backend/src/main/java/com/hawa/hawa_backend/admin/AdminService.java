@@ -454,6 +454,7 @@ public class AdminService {
     private ReportedReviewResponse toReportedReviewResponse(Feedback feedback) {
         Review review = feedback.getReview();
         User reporter = feedback.getUser();
+        com.hawa.hawa_backend.post.Post post = review.getPost();
 
         return new ReportedReviewResponse(
                 feedback.getFeedbackId(),
@@ -464,9 +465,14 @@ public class AdminService {
                         review.getLlmScore(),
                         review.getEmotion(),
                         review.getAspect()),
-                review.getPost().getPostText(),
-                review.getPost().getReport().getBrand().getBrandName(),
-                review.getPost().getReport().getBrand().getCompany().getCompanyName(),
+                new ReportedReviewResponse.PostInfo(
+                        post.getPostId(),
+                        post.getPostText(),
+                        post.getPostUrl(),
+                        post.getLanguage(),
+                        post.getCreatedAt()),
+                post.getReport().getBrand().getBrandName(),
+                post.getReport().getBrand().getCompany().getCompanyName(),
                 new ReportedReviewResponse.ReporterInfo(
                         reporter.getUserId(),
                         reporter.getFirstName(),
