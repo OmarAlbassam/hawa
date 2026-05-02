@@ -164,6 +164,24 @@
   box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.15);
 }
 
+.users-form-static {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-muted-bg);
+}
+
+.users-platform-label {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
 .users-form-actions {
   display: flex;
   justify-content: flex-end;

@@ -49,7 +49,7 @@ public class User {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id", nullable = false)
+    @JoinColumn(name = "company_id")
     private Company company;
 
     @Column(name = "first_name", nullable = false)

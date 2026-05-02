@@ -17,6 +17,12 @@ public class AuthenticatedUserService {
     }
 
     public Long getCompanyId() {
-        return getAuthenticatedUser().getCompany().getCompanyId();
+        User user = getAuthenticatedUser();
+        if (user.getCompany() == null) {
+            throw new IllegalStateException(
+                    "Authenticated user " + user.getUserId()
+                            + " has no company; tenant-scoped operations are not available for platform-level users (e.g. ADMIN).");
+        }
+        return user.getCompany().getCompanyId();
     }
 }

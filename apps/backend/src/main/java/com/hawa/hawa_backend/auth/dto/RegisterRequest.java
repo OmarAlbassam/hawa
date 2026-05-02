@@ -17,6 +17,6 @@ public record RegisterRequest(
         @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
                 message = "must contain at least one uppercase letter, one lowercase letter, and one number")
         String password,
-        @NotNull Long companyId,
+        Long companyId,
         @NotNull UserRoleEnum role
 ) {}

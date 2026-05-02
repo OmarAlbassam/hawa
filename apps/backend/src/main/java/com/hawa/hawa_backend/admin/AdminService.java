@@ -72,9 +72,7 @@ public class AdminService {
             throw new DuplicateEmailException("Email already registered");
         }
 
-        Company company = companyRepository.findById(request.companyId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Company not found with id: " + request.companyId()));
+        Company company = resolveCompanyForRole(request.role(), request.companyId());
 
         User user = User.builder()
                 .firstName(request.firstName())
@@ -88,6 +86,21 @@ public class AdminService {
         user = userRepository.save(user);
         log.info("Admin created user: {}", user.getEmail());
         return toAdminUserResponse(user);
+    }
+
+    private Company resolveCompanyForRole(UserRoleEnum role, Long companyId) {
+        if (role == UserRoleEnum.ADMIN) {
+            if (companyId != null) {
+                throw new BadRequestException("ADMIN users must not be assigned to a company");
+            }
+            return null;
+        }
+        if (companyId == null) {
+            throw new BadRequestException("Non-admin users must belong to a company");
+        }
+        return companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Company not found with id: " + companyId));
     }
 
     @Transactional(readOnly = true)
@@ -151,11 +164,19 @@ public class AdminService {
             user.setRole(request.role());
         }
 
-        if (request.companyId() != null) {
+        UserRoleEnum effectiveRole = user.getRole();
+        if (effectiveRole == UserRoleEnum.ADMIN) {
+            if (request.companyId() != null) {
+                throw new BadRequestException("ADMIN users must not be assigned to a company");
+            }
+            user.setCompany(null);
+        } else if (request.companyId() != null) {
             Company company = companyRepository.findById(request.companyId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Company not found with id: " + request.companyId()));
             user.setCompany(company);
+        } else if (user.getCompany() == null) {
+            throw new BadRequestException("Non-admin users must belong to a company");
         }
 
         user = userRepository.save(user);
@@ -438,15 +459,17 @@ public class AdminService {
     }
 
     private AdminUserResponse toAdminUserResponse(User user) {
+        AdminUserResponse.CompanyInfo companyInfo = user.getCompany() == null ? null
+                : new AdminUserResponse.CompanyInfo(
+                        user.getCompany().getCompanyId(),
+                        user.getCompany().getCompanyName());
         return new AdminUserResponse(
                 user.getUserId(),
                 user.getFirstName(),
                 user.getLastName(),
                 user.getEmail(),
                 user.getRole(),
-                new AdminUserResponse.CompanyInfo(
-                        user.getCompany().getCompanyId(),
-                        user.getCompany().getCompanyName()),
+                companyInfo,
                 user.getCreatedAt(),
                 user.getUpdatedAt());
     }

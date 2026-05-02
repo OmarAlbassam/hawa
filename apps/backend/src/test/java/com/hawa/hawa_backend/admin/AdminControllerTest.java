@@ -86,7 +86,7 @@ class AdminControllerTest {
         company.setCompanyName("Test Corp");
         companyId = companyRepository.save(company).getCompanyId();
 
-        adminUser = createUserDirectly("admin@example.com", "Password1", UserRoleEnum.ADMIN, companyId);
+        adminUser = createUserDirectly("admin@example.com", "Password1", UserRoleEnum.ADMIN, null);
         adminToken = jwtService.generateAccessToken(adminUser);
     }
 
@@ -168,6 +168,38 @@ class AdminControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(createUserJson("new@example.com", "weak",
                                     companyId, "MARKETING_USER")))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldCreateAdmin_withNullCompany() throws Exception {
+            mockMvc.perform(post("/api/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createUserJson("newadmin@example.com", "Password1",
+                                    null, "ADMIN")))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.role").value("ADMIN"))
+                    .andExpect(jsonPath("$.company").isEmpty());
+        }
+
+        @Test
+        void shouldReject400_whenCreatingAdminWithCompanyId() throws Exception {
+            mockMvc.perform(post("/api/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createUserJson("badadmin@example.com", "Password1",
+                                    companyId, "ADMIN")))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReject400_whenCreatingMarketingUserWithoutCompany() throws Exception {
+            mockMvc.perform(post("/api/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createUserJson("nocompany@example.com", "Password1",
+                                    null, "MARKETING_USER")))
                     .andExpect(status().isBadRequest());
         }
 
@@ -755,7 +787,8 @@ class AdminControllerTest {
 
     private User createUserDirectly(String email, String password,
                                      UserRoleEnum role, Long targetCompanyId) {
-        Company company = companyRepository.findById(targetCompanyId).orElseThrow();
+        Company company = targetCompanyId == null ? null
+                : companyRepository.findById(targetCompanyId).orElseThrow();
         User user = User.builder()
                 .firstName("Jane")
                 .lastName("Doe")
@@ -769,15 +802,16 @@ class AdminControllerTest {
 
     private String createUserJson(String email, String password,
                                    Long targetCompanyId, String role) {
+        String companyIdLiteral = targetCompanyId == null ? "null" : targetCompanyId.toString();
         return """
                 {
                     "firstName": "Jane",
                     "lastName": "Doe",
                     "email": "%s",
                     "password": "%s",
-                    "companyId": %d,
+                    "companyId": %s,
                     "role": "%s"
                 }
-                """.formatted(email, password, targetCompanyId, role);
+                """.formatted(email, password, companyIdLiteral, role);
     }
 }

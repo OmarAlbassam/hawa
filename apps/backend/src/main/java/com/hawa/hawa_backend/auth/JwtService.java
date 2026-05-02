@@ -30,10 +30,11 @@ public class JwtService {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessExpirationMs);
 
+        Long companyId = user.getCompany() != null ? user.getCompany().getCompanyId() : null;
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getUserId())
-                .claim("companyId", user.getCompany().getCompanyId())
+                .claim("companyId", companyId)
                 .claim("role", user.getRole().name())
                 .issuedAt(now)
                 .expiration(expiry)

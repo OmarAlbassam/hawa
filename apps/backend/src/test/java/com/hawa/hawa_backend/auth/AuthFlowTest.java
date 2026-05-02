@@ -52,6 +52,12 @@ class AuthFlowTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.execute("DELETE FROM feedback");
+        jdbcTemplate.execute("DELETE FROM review");
+        jdbcTemplate.execute("DELETE FROM post");
+        jdbcTemplate.execute("DELETE FROM report");
+        jdbcTemplate.execute("DELETE FROM keyword");
+        jdbcTemplate.execute("DELETE FROM brand");
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
         companyRepository.deleteAll();
@@ -60,13 +66,14 @@ class AuthFlowTest {
         company.setCompanyName("Test Corp");
         companyId = companyRepository.save(company).getCompanyId();
 
-        // Create an admin user for registration tests (register now requires ADMIN role)
+        // Create an admin user for registration tests (register now requires ADMIN role).
+        // Admins are platform-level and do not belong to a tenant company.
         User admin = User.builder()
                 .firstName("Admin")
                 .lastName("User")
                 .email("testadmin@example.com")
                 .password(passwordEncoder.encode("Password1"))
-                .company(company)
+                .company(null)
                 .role(UserRoleEnum.ADMIN)
                 .build();
         admin = userRepository.save(admin);
@@ -384,16 +391,17 @@ class AuthFlowTest {
     }
 
     private String registerJson(String email, String password, String role) {
+        String companyIdLiteral = "ADMIN".equals(role) ? "null" : companyId.toString();
         return """
                 {
                     "firstName": "John",
                     "lastName": "Doe",
                     "email": "%s",
                     "password": "%s",
-                    "companyId": %d,
+                    "companyId": %s,
                     "role": "%s"
                 }
-                """.formatted(email, password, companyId, role);
+                """.formatted(email, password, companyIdLiteral, role);
     }
 
     private JsonNode registerUser(String email, String password, String role) throws Exception {

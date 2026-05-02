@@ -12,6 +12,8 @@ import com.hawa.hawa_backend.auth.dto.RefreshRequest;
 import com.hawa.hawa_backend.auth.dto.RegisterRequest;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
+import com.hawa.hawa_backend.enums.UserRoleEnum;
+import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.DuplicateEmailException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.user.User;
@@ -51,9 +53,7 @@ public class AuthService {
             throw new DuplicateEmailException("Email already registered");
         }
 
-        Company company = companyRepository.findById(request.companyId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Company not found with id: " + request.companyId()));
+        Company company = resolveCompanyForRole(request.role(), request.companyId());
 
         User user = User.builder()
                 .firstName(request.firstName())
@@ -98,6 +98,21 @@ public class AuthService {
                 accessToken,
                 refreshToken.getToken(),
                 toUserInfo(user));
+    }
+
+    private Company resolveCompanyForRole(UserRoleEnum role, Long companyId) {
+        if (role == UserRoleEnum.ADMIN) {
+            if (companyId != null) {
+                throw new BadRequestException("ADMIN users must not be assigned to a company");
+            }
+            return null;
+        }
+        if (companyId == null) {
+            throw new BadRequestException("Non-admin users must belong to a company");
+        }
+        return companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Company not found with id: " + companyId));
     }
 
     private AuthResponse.UserInfo toUserInfo(User user) {
