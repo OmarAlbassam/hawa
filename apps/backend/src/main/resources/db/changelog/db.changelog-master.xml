@@ -15,5 +15,6 @@
     <include file="db/changelog/db.changelog-8-rename-off-topic-to-homonym.sql"/>
     <include file="db/changelog/db.changelog-9-add-post-created-at.sql"/>
     <include file="db/changelog/db.changelog-10-drop-review-confidence.sql"/>
+    <include file="db/changelog/db.changelog-11-add-feedback-user-review-unique.sql"/>
 
 </databaseChangeLog>
