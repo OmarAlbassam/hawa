@@ -70,6 +70,7 @@ export type IrrelevanceReason =
 
 export interface PostListItemResponse {
   postId: number;
+  reviewId: number | null;
   postText: string;
   postUrl: string | null;
   language: LanguageEnum;

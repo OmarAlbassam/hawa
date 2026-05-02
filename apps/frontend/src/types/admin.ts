@@ -48,10 +48,24 @@ export interface ReportedReviewResponse {
     reviewId: number;
     score: number;
     llmScore: number | null;
-    emotion: string | null;
+    emotion:
+      | "JOY"
+      | "ANGER"
+      | "SADNESS"
+      | "FEAR"
+      | "SURPRISE"
+      | "DISGUST"
+      | "NEUTRAL"
+      | null;
     aspect: string;
   };
-  postText: string;
+  post: {
+    postId: number;
+    postText: string;
+    postUrl: string | null;
+    language: "EN" | "AR";
+    createdAt: string;
+  };
   brandName: string;
   companyName: string;
   reporter: {

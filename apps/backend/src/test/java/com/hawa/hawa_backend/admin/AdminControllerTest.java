@@ -484,7 +484,10 @@ class AdminControllerTest {
                     .andExpect(jsonPath("$.content[0].review.llmScore").value(4.2))
                     .andExpect(jsonPath("$.content[0].review.emotion").value("JOY"))
                     .andExpect(jsonPath("$.content[0].review.aspect").value("PRODUCT"))
-                    .andExpect(jsonPath("$.content[0].postText").value("This product is amazing!"))
+                    .andExpect(jsonPath("$.content[0].post.postId").isNumber())
+                    .andExpect(jsonPath("$.content[0].post.postText").value("This product is amazing!"))
+                    .andExpect(jsonPath("$.content[0].post.language").value("EN"))
+                    .andExpect(jsonPath("$.content[0].post.createdAt").exists())
                     .andExpect(jsonPath("$.content[0].brandName").value("Acme Widget"))
                     .andExpect(jsonPath("$.content[0].companyName").value("Test Corp"))
                     .andExpect(jsonPath("$.content[0].reporter.email").value("reporter@example.com"));

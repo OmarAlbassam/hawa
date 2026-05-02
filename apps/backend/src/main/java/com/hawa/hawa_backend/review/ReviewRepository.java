@@ -18,6 +18,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     interface RelevantPostProjection {
         Long getPostId();
+        Long getReviewId();
         String getPostText();
         String getPostUrl();
         String getLanguage();
@@ -100,6 +101,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     @Query(value = """
             SELECT p.post_id        AS postId,
+                   r.review_id      AS reviewId,
                    p.post_text      AS postText,
                    p.post_url       AS postUrl,
                    p.language::text AS language,
@@ -145,6 +147,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     @Query(value = """
             SELECT p.post_id        AS postId,
+                   r.review_id      AS reviewId,
                    p.post_text      AS postText,
                    p.post_url       AS postUrl,
                    p.language::text AS language,

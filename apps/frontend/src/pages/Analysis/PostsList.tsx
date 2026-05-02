@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Download } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download } from "lucide-react";
 import { exportReportCsv, getReportPosts } from "../../services/reportService";
+import InaccurateAnalysisDialog from "../../components/InaccurateAnalysisDialog/InaccurateAnalysisDialog";
 import type {
   AspectEnum,
   EmotionEnum,
@@ -177,6 +178,7 @@ const PostsList = (): React.JSX.Element => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PostListItemResponse | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -661,9 +663,31 @@ const PostsList = (): React.JSX.Element => {
             <p className="posts-list-modal-body">
               {selected.postText || "(empty)"}
             </p>
+            <div className="posts-list-modal-actions">
+              <button
+                type="button"
+                className="posts-list-modal-feedback"
+                onClick={() => setFeedbackOpen(true)}
+                disabled={selected.reviewId == null}
+                title={
+                  selected.reviewId == null
+                    ? "Feedback is only available for analyzed posts"
+                    : "Report that this analysis is inaccurate"
+                }
+              >
+                <AlertTriangle size={16} aria-hidden />
+                Inaccurate Analysis
+              </button>
+            </div>
           </div>
         )}
       </Modal>
+
+      <InaccurateAnalysisDialog
+        open={feedbackOpen}
+        reviewId={selected?.reviewId ?? null}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </div>
   );
 };
