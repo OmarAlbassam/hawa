@@ -105,6 +105,18 @@ export interface ReportExportParams {
   dateTo?: string;
 }
 
+export interface AspectBreakdownItem {
+  aspect: AspectEnum;
+  postCount: number;
+  averageSentiment: number | null;
+  emotionDistribution: Record<EmotionEnum, number>;
+}
+
+export interface AspectBreakdownResponse {
+  reportId: number;
+  aspects: AspectBreakdownItem[];
+}
+
 export interface ReportListParams {
   brandId?: number;
   status?: ReportStatus;

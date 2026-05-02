@@ -6,8 +6,11 @@ import {
   getReportStatus,
   getReports,
   getReportOverview,
+  getAspectBreakdown,
 } from "../../services/reportService";
 import type {
+  AspectBreakdownItem,
+  AspectBreakdownResponse,
   AspectEnum,
   EmotionEnum,
   ReportOverviewResponse,
@@ -73,6 +76,42 @@ interface DistributionProps<K extends string> {
   colorMap: Record<K, string>;
 }
 
+function AspectRow({
+  item,
+}: {
+  item: AspectBreakdownItem;
+}): React.JSX.Element {
+  const emotionEntries = EMOTION_ORDER.map(
+    (k) => [k, item.emotionDistribution[k] ?? 0] as [EmotionEnum, number]
+  );
+  return (
+    <div className="report-status-aspect">
+      <div className="report-status-aspect-head">
+        <span
+          className="report-status-aspect-dot"
+          style={{ backgroundColor: ASPECT_COLORS[item.aspect] }}
+          aria-hidden
+        />
+        <span className="report-status-aspect-name">{toTitle(item.aspect)}</span>
+        <span className="report-status-aspect-stat">
+          <span className="report-status-aspect-stat-label">Posts</span>
+          <span className="report-status-aspect-stat-value">{item.postCount}</span>
+        </span>
+        <span className="report-status-aspect-stat">
+          <span className="report-status-aspect-stat-label">Avg sentiment</span>
+          <span className="report-status-aspect-stat-value">
+            {fmtScore(item.averageSentiment)}
+            <span className="report-status-stat-suffix">/ 5</span>
+          </span>
+        </span>
+      </div>
+      {item.postCount > 0 && (
+        <Distribution entries={emotionEntries} colorMap={EMOTION_COLORS} />
+      )}
+    </div>
+  );
+}
+
 function Distribution<K extends string>({
   entries,
   colorMap,
@@ -120,6 +159,7 @@ const ReportStatus = (): React.JSX.Element => {
   );
   const [overview, setOverview] = useState<ReportOverviewResponse | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [breakdown, setBreakdown] = useState<AspectBreakdownResponse | null>(null);
   const [overviewReportId, setOverviewReportId] = useState<number>(reportId);
   const [showFiltered, setShowFiltered] = useState(false);
   if (overviewReportId !== reportId) {
@@ -127,6 +167,7 @@ const ReportStatus = (): React.JSX.Element => {
     setOverviewReportId(reportId);
     setOverview(null);
     setOverviewError(null);
+    setBreakdown(null);
     setShowFiltered(false);
   }
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +286,25 @@ const ReportStatus = (): React.JSX.Element => {
       cancelled = true;
     };
   }, [currentStatus, overview, overviewError, reportId]);
+
+  useEffect(() => {
+    if (Number.isNaN(reportId)) return;
+    if (overview == null || breakdown != null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getAspectBreakdown(reportId);
+        if (!cancelled && mountedRef.current) {
+          setBreakdown(data);
+        }
+      } catch {
+        // Breakdown is supplementary; fall back to Distribution component.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [overview, breakdown, reportId]);
 
   if (Number.isNaN(reportId)) {
     return <ErrorBanner message="Invalid report id" />;
@@ -370,13 +430,21 @@ const ReportStatus = (): React.JSX.Element => {
 
               <div className="report-status-card">
                 <h2 className="report-status-section">Aspect breakdown</h2>
-                <Distribution
-                  entries={ASPECT_ORDER.map((k) => [
-                    k,
-                    overview.aspectDistribution[k] ?? 0,
-                  ])}
-                  colorMap={ASPECT_COLORS}
-                />
+                {breakdown ? (
+                  <div className="report-status-aspects">
+                    {breakdown.aspects.map((item) => (
+                      <AspectRow key={item.aspect} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <Distribution
+                    entries={ASPECT_ORDER.map((k) => [
+                      k,
+                      overview.aspectDistribution[k] ?? 0,
+                    ])}
+                    colorMap={ASPECT_COLORS}
+                  />
+                )}
               </div>
 
               {overview.filteredOutCount > 0 && (

@@ -11,16 +11,25 @@ import org.junit.jupiter.api.Test;
 class RedditQueryBuilderTest {
 
     @Test
-    void shouldOrJoinKeywords() {
+    void shouldFieldRestrictAndOrJoinKeywords() {
         String query = RedditQueryBuilder.build(List.of("Nike", "jordan", "air max"));
 
-        assertThat(query).isEqualTo("Nike OR jordan OR \"air max\"");
+        assertThat(query).isEqualTo(
+                "(title:\"Nike\" OR selftext:\"Nike\")"
+                        + " OR (title:\"jordan\" OR selftext:\"jordan\")"
+                        + " OR (title:\"air max\" OR selftext:\"air max\")");
     }
 
     @Test
     void shouldQuoteKeywordsContainingSpaces() {
         String query = RedditQueryBuilder.build(List.of("Coca Cola"));
-        assertThat(query).isEqualTo("\"Coca Cola\"");
+        assertThat(query).isEqualTo("(title:\"Coca Cola\" OR selftext:\"Coca Cola\")");
+    }
+
+    @Test
+    void shouldQuoteKeywordsContainingHyphen() {
+        String query = RedditQueryBuilder.build(List.of("e-commerce"));
+        assertThat(query).isEqualTo("(title:\"e-commerce\" OR selftext:\"e-commerce\")");
     }
 
     @Test
@@ -35,13 +44,14 @@ class RedditQueryBuilderTest {
         String query = RedditQueryBuilder.build(keywords);
 
         assertThat(query.length()).isLessThanOrEqualTo(500);
+        assertThat(query).startsWith("(title:\"anchor\" OR selftext:\"anchor\")");
     }
 
     @Test
     void shouldIgnoreBlankKeywords() {
         String query = RedditQueryBuilder.build(List.of("  ", "real"));
 
-        assertThat(query).isEqualTo("real");
+        assertThat(query).isEqualTo("(title:\"real\" OR selftext:\"real\")");
     }
 
     @Test

@@ -42,6 +42,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         Long getCount();
     }
 
+    interface AspectAggregate {
+        AspectEnum getKey();
+        Long getCount();
+        BigDecimal getAverageScore();
+    }
+
+    interface AspectEmotionCount {
+        AspectEnum getAspect();
+        EmotionEnum getEmotion();
+        Long getCount();
+    }
+
     @Query("""
             select avg(r.score) as averageScore,
                    count(r)     as totalCount
@@ -65,6 +77,26 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             group by r.aspect
             """)
     List<AspectCount> countByAspect(@Param("reportId") Long reportId);
+
+    @Query("""
+            select r.aspect    as key,
+                   count(r)    as count,
+                   avg(r.score) as averageScore
+            from Review r
+            where r.post.report.reportId = :reportId
+            group by r.aspect
+            """)
+    List<AspectAggregate> aggregateByAspect(@Param("reportId") Long reportId);
+
+    @Query("""
+            select r.aspect  as aspect,
+                   r.emotion as emotion,
+                   count(r)  as count
+            from Review r
+            where r.post.report.reportId = :reportId and r.emotion is not null
+            group by r.aspect, r.emotion
+            """)
+    List<AspectEmotionCount> countByAspectAndEmotion(@Param("reportId") Long reportId);
 
     @Query(value = """
             SELECT p.post_id        AS postId,
