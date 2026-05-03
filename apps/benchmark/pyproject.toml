@@ -1,0 +1,40 @@
+[project]
+name = "hawa-benchmark"
+version = "0.1.0"
+description = "Hawa LLM benchmarking harness for sentiment/emotion/aspect evaluation"
+requires-python = ">=3.12"
+dependencies = [
+    "hawa-llm",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "pyarrow>=16.0.0",
+    "scikit-learn>=1.4.0",
+    "scipy>=1.12.0",
+    "sentence-transformers>=3.0.0",
+    "pyyaml>=6.0.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "streamlit>=1.36.0",
+    "plotly>=5.22.0",
+]
+
+[tool.uv.sources]
+hawa-llm = { path = "../llm" }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[project.scripts]
+benchmark = "benchmark.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["benchmark*"]

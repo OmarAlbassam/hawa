@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
+.pytest_cache/
+
+# Cached LLM responses (sqlite) and embedding artifacts
+cache.db
+cache.db-*
+*.npz
+
+# Result artifacts (parquet, plots)
+results/*.parquet
+results/*.png
+results/*.csv
+!results/.gitkeep
+
+# Streamlit
+.streamlit/
+
+# Local model downloads (sentence-transformers caches in ~/.cache, but keep
+# this just in case anyone configures HF_HOME inside the app dir)
+hf_models/
