@@ -1,0 +1,41 @@
+# Experiment matrix. List-valued fields (model, temperature, fewshot_k) are
+# cross-producted into individual experiment cells.
+
+experiments:
+  - id: baseline_zero_shot
+    provider: groq
+    prompt: zero_shot
+    model:
+      - llama-3.1-8b-instant
+      - llama-3.3-70b-versatile
+    temperature: 0.0
+    rate_rpm: 28
+    rate_tpm: 5800
+    max_concurrency: 3
+
+  - id: temp_sweep
+    provider: groq
+    prompt: zero_shot
+    model: llama-3.3-70b-versatile
+    temperature: [0.0, 0.3, 0.7]
+    max_concurrency: 3
+
+  - id: retrieved_fewshot
+    provider: groq
+    prompt: few_shot_retrieved
+    model: llama-3.3-70b-versatile
+    temperature: 0.0
+    fewshot_k: [3, 5]
+    embedder_model: BAAI/bge-small-en-v1.5
+    max_concurrency: 3
+
+  # Static-fewshot baseline — fix a small balanced exemplar set, reuse for
+  # every test post. Compare against retrieved to measure the lift retrieval
+  # actually adds beyond "having any examples in the prompt".
+  - id: static_fewshot
+    provider: groq
+    prompt: few_shot_static
+    model: llama-3.3-70b-versatile
+    temperature: 0.0
+    fewshot_static_ids: [1, 2, 3, 4]
+    max_concurrency: 3
