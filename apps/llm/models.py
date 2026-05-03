@@ -1,6 +1,14 @@
+from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _snap_to_half_step(value: float) -> float:
+    """Clamp to [0, 5] and snap to the nearest 0.5 using HALF_UP."""
+    clamped = max(0.0, min(5.0, value))
+    snapped = (Decimal(str(clamped)) * 2).quantize(Decimal("1"), rounding=ROUND_HALF_UP) / 2
+    return float(snapped)
 
 
 class Emotion(str, Enum):
@@ -43,8 +51,8 @@ class SentimentResponse(BaseModel):
 
     @field_validator("score", mode="before")
     @classmethod
-    def clamp_score(cls, v: object) -> float:
-        return max(0.0, min(5.0, float(v)))
+    def clamp_and_snap_score(cls, v: object) -> float:
+        return _snap_to_half_step(float(v))
 
     @field_validator("emotion", mode="before")
     @classmethod
