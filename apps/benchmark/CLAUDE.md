@@ -10,6 +10,7 @@ Research benchmarking harness for evaluating different LLMs, prompts, temperatur
 - **Embed dataset:** `benchmark embed`  (one-time per dataset/model)
 - **Run experiments:** `benchmark run configs/<file>.yaml`
 - **Browse results:** `streamlit run viewer/app.py`
+- **Notebook (error analysis):** `pip install -e ".[notebooks]"` then `jupyter lab notebooks/error_analysis.ipynb`
 - **Test:** `pytest`
 
 ## Architecture
@@ -45,6 +46,8 @@ benchmark/
 │   └── cli.py                     # typer app
 ├── viewer/
 │   └── app.py                     # Streamlit leaderboard + diff browser
+├── notebooks/
+│   └── error_analysis.ipynb       # starter analyses; runs against parquets in results/
 ├── configs/
 │   └── example.yaml               # experiment matrix
 ├── tests/
