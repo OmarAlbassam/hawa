@@ -210,8 +210,12 @@ async def apply_discovered_limits(specs: list[ExperimentSpec]) -> None:
 
     seen: dict[tuple[str, str], DiscoveredLimits] = {}
     for spec in specs:
-        if spec.provider == "ollama":
-            continue  # self-hosted; no upstream rate-limit headers
+        # Self-hosted backends (Ollama, RunPod serverless vLLM) don't publish
+        # x-ratelimit-* headers. The probe wakes a cold RunPod worker for
+        # nothing — skip it. Concurrency on these backends is bounded by
+        # GPU/worker capacity, not provider-side quotas.
+        if spec.provider in ("ollama", "runpod"):
+            continue
         if spec.rate_rpm is not None and spec.rate_tpm is not None:
             continue  # both manually overridden — no probe needed
 
@@ -526,6 +530,33 @@ def _from_cached(
     )
 
 
+def _validate_provider_config(specs: list[ExperimentSpec]) -> None:
+    """Fail fast on misconfiguration that would otherwise silently misroute calls.
+
+    RunPod's base_url is per-user (each endpoint has a unique id), so it has no
+    PROVIDER_DEFAULTS entry. If LLM_BASE_URL isn't set in env, AsyncOpenAI
+    silently defaults to api.openai.com. If env points at Ollama but the YAML
+    selects runpod, every call fails with connection-refused. Catch both here.
+    """
+    needs_runpod = any(s.provider == "runpod" for s in specs)
+    if not needs_runpod:
+        return
+    settings = build_settings_for_experiment(
+        next(s for s in specs if s.provider == "runpod")
+    )
+    base_url = (settings.base_url or "").rstrip("/")
+    if not base_url or "runpod.ai" not in base_url:
+        raise RuntimeError(
+            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint, "
+            "e.g. https://api.runpod.ai/v2/<endpoint-id>/openai/v1. "
+            f"Got base_url={settings.base_url!r}. Set it in apps/benchmark/.env."
+        )
+    if not settings.api_key:
+        raise RuntimeError(
+            "provider=runpod requires LLM_API_KEY to be set in apps/benchmark/.env."
+        )
+
+
 async def run_all(
     config_path: str | Path,
     *,
@@ -538,6 +569,7 @@ async def run_all(
     """Top-level entry point. Returns experiment_id -> output parquet path."""
     config = load_config(config_path)
     specs = expand_matrix(config)
+    _validate_provider_config(specs)
 
     samples = load_dataset(data_path)
     samples = assign_folds(samples, k=k_folds)
