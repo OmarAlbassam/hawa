@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import product
 from pathlib import Path
@@ -23,6 +24,15 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
@@ -178,8 +188,16 @@ async def run_experiment(
     cache: ResultCache,
     store: KNNStore | None,
     embedder: SBERTEmbedder | None,
+    *,
+    on_post_done: Callable[[PerPostResult], None] | None = None,
 ) -> list[PerPostResult]:
-    """Run one experiment over the full sample list."""
+    """Run one experiment over the full sample list.
+
+    `on_post_done` fires inside the results lock as each post finishes, so a
+    progress display in the caller can update with a consistent count. The
+    callback is intentionally untyped beyond the result so the runner has no
+    dependency on rich/streamlit/etc.
+    """
     settings = build_settings_for_experiment(spec)
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
     client = LLMClient(settings, rate_limiter)
@@ -196,14 +214,15 @@ async def run_experiment(
     async def _process(sample: Sample) -> None:
         async with semaphore:
             if deadline is not None and time.monotonic() > deadline:
-                async with results_lock:
-                    results.append(_make_error_result(spec, sample, "wall_clock_exceeded", []))
-                return
-            result = await _process_one(
-                spec, sample, settings, client, cache, store, embedder
-            )
+                result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
+            else:
+                result = await _process_one(
+                    spec, sample, settings, client, cache, store, embedder
+                )
             async with results_lock:
                 results.append(result)
+                if on_post_done is not None:
+                    on_post_done(result)
 
     await asyncio.gather(*(_process(s) for s in samples))
     return results
@@ -464,15 +483,53 @@ async def run_all(
     results_dir.mkdir(parents=True, exist_ok=True)
 
     outputs: dict[str, str] = {}
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.fields[exp_id]}[/bold cyan]"),
+        TextColumn("[dim]{task.fields[model]}[/dim]"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("[green]✓{task.fields[ok]}[/green] [red]✗{task.fields[err]}[/red]"),
+        TimeElapsedColumn(),
+        TextColumn("eta"),
+        TimeRemainingColumn(),
+        transient=False,
+    )
+
     try:
-        for spec in specs:
-            logger.info("running experiment %s (model=%s, prompt=%s)", spec.id, spec.model, spec.prompt)
-            per_post = await run_experiment(spec, samples, cache, store, embedder)
-            df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
-            out_path = results_dir / f"{spec.id}.parquet"
-            df.to_parquet(out_path, index=False)
-            outputs[spec.id] = str(out_path)
-            logger.info("  → %s (%d rows)", out_path, len(df))
+        with progress:
+            for spec in specs:
+                task_id = progress.add_task(
+                    "running",
+                    total=len(samples),
+                    exp_id=spec.id,
+                    model=f"{spec.model} · {spec.prompt}",
+                    ok=0,
+                    err=0,
+                )
+
+                # Capture per-task counters by closure (default-arg trick locks
+                # task_id to the current iteration's value).
+                counters = {"ok": 0, "err": 0}
+
+                def _on_done(r: PerPostResult, _tid=task_id, _c=counters) -> None:
+                    if r.error:
+                        _c["err"] += 1
+                    else:
+                        _c["ok"] += 1
+                    progress.update(_tid, advance=1, ok=_c["ok"], err=_c["err"])
+
+                per_post = await run_experiment(
+                    spec, samples, cache, store, embedder, on_post_done=_on_done
+                )
+                df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
+                out_path = results_dir / f"{spec.id}.parquet"
+                df.to_parquet(out_path, index=False)
+                outputs[spec.id] = str(out_path)
+                progress.console.log(
+                    f"[bold green]done[/bold green] {spec.id} → {out_path} "
+                    f"(ok={counters['ok']}, err={counters['err']})"
+                )
     finally:
         cache.close()
     return outputs

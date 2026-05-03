@@ -11,6 +11,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.table import Table
 
 from benchmark.dataset import assign_folds, dataset_hash, load_dataset
@@ -22,6 +23,27 @@ from benchmark.runner import run_all
 
 app = typer.Typer(add_completion=False, help="Hawa LLM benchmarking harness")
 console = Console()
+
+
+def _setup_logging() -> None:
+    """Route logs through rich so they coexist cleanly with progress bars.
+
+    `show_path=False` strips file:line noise; `markup=True` lets log calls use
+    rich markup if they want; `rich_tracebacks=True` makes exceptions readable.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[
+            RichHandler(
+                console=console,
+                show_path=False,
+                markup=True,
+                rich_tracebacks=True,
+            )
+        ],
+    )
 
 
 @app.command("import-csv")
@@ -37,7 +59,7 @@ def import_csv_cmd(
     skip_invalid: bool = typer.Option(False, help="Drop rows that would fail validation instead of writing them"),
 ) -> None:
     """Convert a labeled CSV to the benchmark's JSONL format."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     columns = ColumnMap(
         text=col_text,
         score=col_score,
@@ -74,7 +96,7 @@ def embed(
     k_folds: int = typer.Option(5, help="Number of folds (used downstream)"),
 ) -> None:
     """Embed every sample in the dataset and write a single .npz file."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     samples = load_dataset(data)
     samples = assign_folds(samples, k=k_folds)
     embedder = SBERTEmbedder(name=model)
@@ -96,7 +118,7 @@ def run(
     k_folds: int = typer.Option(5),
 ) -> None:
     """Run all experiments in the config."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     outputs = asyncio.run(
         run_all(
             config,
@@ -120,7 +142,7 @@ def report(
     plots: bool = typer.Option(True, help="Render confusion-matrix plots"),
 ) -> None:
     """Aggregate per-experiment parquets into a summary table + plots."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     summary = summarize(results)
     if plots:
         plot_all_confusions(results)
