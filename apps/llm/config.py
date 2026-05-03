@@ -35,7 +35,10 @@ class Provider(StrEnum):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="LLM_")
+    # extra="ignore": tolerate non-LLM keys in shared .env files (e.g. when the
+    # benchmark harness runs from apps/benchmark/ with its own env vars in the
+    # same file). Without this pydantic raises on every unknown key.
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="LLM_", extra="ignore")
 
     # Provider
     provider: Provider = Provider.OLLAMA
