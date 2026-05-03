@@ -1,0 +1,5 @@
+{"post_id": 1, "text": "Nike's new Air Max feels amazing, best cushioning I've owned", "gt_score": 4.6, "gt_emotion": "JOY", "gt_aspect": "PRODUCT"}
+{"post_id": 2, "text": "grabbed a coffee at Starbucks before work, service was a bit slow today", "gt_score": 2.0, "gt_emotion": "SADNESS", "gt_aspect": "SERVICE"}
+{"post_id": 3, "text": "Amazon delivered my package two days late, again", "gt_score": 1.4, "gt_emotion": "ANGER", "gt_aspect": "DELIVERY"}
+{"post_id": 4, "text": "iPhone 15 is way overpriced for what you get", "gt_score": 1.2, "gt_emotion": "DISGUST", "gt_aspect": "PRICING"}
+{"post_id": 5, "text": "love my new AirPods, perfect sound", "gt_score": 4.8, "gt_emotion": "JOY", "gt_aspect": "PRODUCT"}
