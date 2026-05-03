@@ -404,7 +404,7 @@ const PostsList = (): React.JSX.Element => {
                     type="number"
                     min="0"
                     max="5"
-                    step="0.1"
+                    step="0.5"
                     placeholder="min"
                     value={draft.sentimentMin}
                     onChange={(e) =>
@@ -416,7 +416,7 @@ const PostsList = (): React.JSX.Element => {
                     type="number"
                     min="0"
                     max="5"
-                    step="0.1"
+                    step="0.5"
                     placeholder="max"
                     value={draft.sentimentMax}
                     onChange={(e) =>
