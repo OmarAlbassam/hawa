@@ -20,7 +20,7 @@ If the post is IRRELEVANT, set is_relevant=false and pick an irrelevance_reason.
 If the post IS relevant, set is_relevant=true and produce:
 - score: how positive or negative the sentiment is (0.0 = extremely negative, 2.5 = neutral, 5.0 = extremely positive). Use one decimal place.
 - emotion: the single dominant emotion expressed in the post. One of JOY, ANGER, SADNESS, FEAR, SURPRISE, DISGUST, or NEUTRAL when no emotion is clearly expressed.
-- aspect: which business aspect the post relates to (e.g. product, service, delivery, pricing). Choose the single most relevant one.
+- aspect: which business aspect the post relates to (e.g. product, service, delivery, pricing, brand). Choose the single most relevant one.
 
 Examples (format: post -> decision):
 1. "Nike's new Air Max feels amazing, best cushioning I've owned" -> RELEVANT, score=4.6, emotion=JOY, aspect=PRODUCT
