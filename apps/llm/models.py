@@ -100,6 +100,9 @@ class BatchAnalyzeResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    llm_reachable: bool
+    # None when the caller didn't request a deep check (default). The shallow
+    # check intentionally doesn't touch the LLM — on RunPod that would
+    # cold-start a worker on every probe.
+    llm_reachable: bool | None
     provider: str
     model: str
