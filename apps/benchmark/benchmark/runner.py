@@ -39,7 +39,7 @@ from openai import AsyncOpenAI
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
 from services.limits_probe import DiscoveredLimits, discover_limits
-from services.llm_client import LLMClient, RateLimitExhaustedError
+from services.llm_client import LLMClient, RateLimitExhaustedError, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
 from utils.preprocessing import clean_text
 
@@ -96,6 +96,9 @@ class PerPostResult:
     error: str | None
     latency_ms: float | None
     fewshot_post_ids: list[int]
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -318,7 +321,7 @@ async def _process_one(
 
     started = time.perf_counter()
     try:
-        response: SentimentResponse = await client.analyze(prompt, cleaned)
+        response, usage = await client.analyze_with_usage(prompt, cleaned)
         latency_ms = (time.perf_counter() - started) * 1000.0
     except RateLimitExhaustedError as e:
         cache.put(key, CachedResult(None, None, None, None, None, f"rate_limited: {e}", None))
@@ -328,7 +331,7 @@ async def _process_one(
         cache.put(key, CachedResult(None, None, None, None, None, str(e), latency_ms))
         return _make_error_result(spec, sample, str(e), fewshot_ids)
 
-    result = _from_response(spec, sample, response, latency_ms, fewshot_ids)
+    result = _from_response(spec, sample, response, latency_ms, fewshot_ids, usage)
     cache.put(
         key,
         CachedResult(
@@ -339,6 +342,9 @@ async def _process_one(
             pred_aspect=response.aspect if response.is_relevant else None,
             error=None,
             latency_ms=latency_ms,
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
+            total_tokens=usage.total_tokens if usage else None,
         ),
     )
     return result
@@ -443,7 +449,11 @@ def _from_response(
     response: SentimentResponse,
     latency_ms: float,
     fewshot_ids: list[int],
+    usage: TokenUsage | None,
 ) -> PerPostResult:
+    pt = usage.prompt_tokens if usage else None
+    ct = usage.completion_tokens if usage else None
+    tt = usage.total_tokens if usage else None
     if not response.is_relevant:
         return PerPostResult(
             experiment_id=spec.id,
@@ -460,6 +470,9 @@ def _from_response(
             error=None,
             latency_ms=latency_ms,
             fewshot_post_ids=fewshot_ids,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+            total_tokens=tt,
         )
     return PerPostResult(
         experiment_id=spec.id,
@@ -476,6 +489,9 @@ def _from_response(
         error=None,
         latency_ms=latency_ms,
         fewshot_post_ids=fewshot_ids,
+        prompt_tokens=pt,
+        completion_tokens=ct,
+        total_tokens=tt,
     )
 
 
@@ -504,6 +520,9 @@ def _from_cached(
         error=None,
         latency_ms=cached.latency_ms,
         fewshot_post_ids=fewshot_ids,
+        prompt_tokens=cached.prompt_tokens,
+        completion_tokens=cached.completion_tokens,
+        total_tokens=cached.total_tokens,
     )
 
 
@@ -618,6 +637,9 @@ def _row(p: PerPostResult, ds_hash: str) -> dict[str, Any]:
         "pred_aspect_normalized": p.pred_aspect_normalized,
         "error": p.error,
         "latency_ms": p.latency_ms,
+        "prompt_tokens": p.prompt_tokens,
+        "completion_tokens": p.completion_tokens,
+        "total_tokens": p.total_tokens,
         "fewshot_post_ids": p.fewshot_post_ids,
         "dataset_hash": ds_hash,
     }

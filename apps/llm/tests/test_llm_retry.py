@@ -54,8 +54,18 @@ def _rate_limit_error(retry_after: str | None = "0.05") -> RateLimitError:
     return RateLimitError("rate limited", response=response, body=None)
 
 
-def _ok_response() -> SentimentResponse:
-    return SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT")
+def _ok_response() -> tuple[SentimentResponse, MagicMock]:
+    """Mock return value for `create_with_completion` — (parsed, completion).
+
+    The completion's `.usage` carries token counts; the retry tests don't
+    assert on usage, but supplying a realistic shape keeps the new
+    `analyze_with_usage` path testable without separate fixtures.
+    """
+    completion = MagicMock()
+    completion.usage.prompt_tokens = 10
+    completion.usage.completion_tokens = 5
+    completion.usage.total_tokens = 15
+    return SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT"), completion
 
 
 def _build_client(
@@ -66,7 +76,7 @@ def _build_client(
     client = LLMClient(settings, limiter)
     create_mock = AsyncMock()
     client.client = MagicMock()
-    client.client.chat.completions.create = create_mock
+    client.client.chat.completions.create_with_completion = create_mock
     return client, create_mock
 
 

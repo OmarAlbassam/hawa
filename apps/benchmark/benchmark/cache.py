@@ -41,12 +41,24 @@ CREATE TABLE IF NOT EXISTS results (
     -- Bookkeeping
     error           TEXT,
     latency_ms      REAL,
+    prompt_tokens       INTEGER,
+    completion_tokens   INTEGER,
+    total_tokens        INTEGER,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (experiment_id, model, prompt_hash, temperature, post_id, fewshot_hash)
 );
 
 CREATE INDEX IF NOT EXISTS results_by_experiment ON results(experiment_id);
 """
+
+# Columns added after the original schema. `__init__` runs ALTER TABLE for
+# any of these missing on existing local cache.db files, so users keep their
+# accumulated cache instead of having to re-run experiments.
+_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("prompt_tokens", "INTEGER"),
+    ("completion_tokens", "INTEGER"),
+    ("total_tokens", "INTEGER"),
+)
 
 
 @dataclass(frozen=True)
@@ -68,6 +80,9 @@ class CachedResult:
     pred_aspect: str | None
     error: str | None
     latency_ms: float | None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 def hash_prompt(prompt: str) -> str:
@@ -97,14 +112,26 @@ class ResultCache:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._lock = threading.Lock()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after a user's cache.db was first created."""
+        existing = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(results)").fetchall()
+        }
+        for col, col_type in _MIGRATIONS:
+            if col not in existing:
+                self._conn.execute(f"ALTER TABLE results ADD COLUMN {col} {col_type}")
+        self._conn.commit()
 
     def get(self, key: CacheKey) -> CachedResult | None:
         with self._lock:
             row = self._conn.execute(
                 """
                 SELECT is_relevant, irrelevance_reason, pred_score, pred_emotion,
-                       pred_aspect, error, latency_ms
+                       pred_aspect, error, latency_ms,
+                       prompt_tokens, completion_tokens, total_tokens
                 FROM results
                 WHERE experiment_id=? AND model=? AND prompt_hash=?
                   AND temperature=? AND post_id=? AND fewshot_hash=?
@@ -124,6 +151,9 @@ class ResultCache:
             pred_aspect=row[4],
             error=row[5],
             latency_ms=row[6],
+            prompt_tokens=row[7],
+            completion_tokens=row[8],
+            total_tokens=row[9],
         )
 
     def put(self, key: CacheKey, result: CachedResult) -> None:
@@ -133,8 +163,9 @@ class ResultCache:
                 INSERT OR REPLACE INTO results (
                     experiment_id, model, prompt_hash, temperature, post_id,
                     fewshot_hash, is_relevant, irrelevance_reason, pred_score,
-                    pred_emotion, pred_aspect, error, latency_ms
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    pred_emotion, pred_aspect, error, latency_ms,
+                    prompt_tokens, completion_tokens, total_tokens
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     key.experiment_id, key.model, key.prompt_hash,
@@ -143,6 +174,7 @@ class ResultCache:
                     result.irrelevance_reason,
                     result.pred_score, result.pred_emotion, result.pred_aspect,
                     result.error, result.latency_ms,
+                    result.prompt_tokens, result.completion_tokens, result.total_tokens,
                 ),
             )
             self._conn.commit()

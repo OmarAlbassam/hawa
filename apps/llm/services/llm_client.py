@@ -1,6 +1,8 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 import instructor
 from instructor.core.exceptions import InstructorRetryException
@@ -30,6 +32,34 @@ class RateLimitExhaustedError(Exception):
         )
         self.attempts = attempts
         self.last_retry_after = last_retry_after
+
+
+@dataclass(frozen=True)
+class TokenUsage:
+    """Server-reported token counts for a single LLM call."""
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+    @classmethod
+    def from_completion(cls, completion: Any) -> "TokenUsage | None":
+        """Extract usage from an OpenAI ChatCompletion response.
+
+        Self-hosted backends or instructor versions that don't surface the raw
+        completion may return None here; callers must tolerate that.
+        """
+        usage = getattr(completion, "usage", None)
+        if usage is None:
+            return None
+        try:
+            return cls(
+                prompt_tokens=int(usage.prompt_tokens),
+                completion_tokens=int(usage.completion_tokens),
+                total_tokens=int(usage.total_tokens),
+            )
+        except (AttributeError, TypeError, ValueError):
+            return None
 
 
 class _Outcome(StrEnum):
@@ -67,9 +97,32 @@ class LLMClient:
     async def analyze(self, system_prompt: str, text: str) -> SentimentResponse:
         """Send text to LLM and return a validated SentimentResponse.
 
-        Every attempt passes through the rate limiter. Failures are classified
-        via the unwrapped cause chain (instructor wraps SDK errors as
-        ``InstructorRetryException``) and handled per class:
+        Wraps `_analyze_inner` and discards the raw completion. Production
+        callers (analyzer.py) use this; the benchmark uses
+        `analyze_with_usage` to also capture server-reported token counts.
+        """
+        response, _ = await self._analyze_inner(system_prompt, text)
+        return response
+
+    async def analyze_with_usage(
+        self, system_prompt: str, text: str
+    ) -> tuple[SentimentResponse, TokenUsage | None]:
+        """Same as `analyze`, but also returns the server's token counts.
+
+        Usage may be None if the provider doesn't return a `.usage` field
+        (e.g. some self-hosted Ollama setups) — callers must tolerate that.
+        """
+        response, completion = await self._analyze_inner(system_prompt, text)
+        return response, TokenUsage.from_completion(completion)
+
+    async def _analyze_inner(
+        self, system_prompt: str, text: str
+    ) -> tuple[SentimentResponse, Any]:
+        """Shared retry loop for `analyze` and `analyze_with_usage`.
+
+        Returns the parsed `SentimentResponse` plus the raw OpenAI
+        `ChatCompletion` object (or None when instructor doesn't surface it).
+        Failure classification matches the original `analyze`:
 
         - 429 → notify the shared pause gate with Retry-After, retry.
         - Transient (5xx / timeout / connection) → local backoff, retry.
@@ -89,7 +142,9 @@ class LLMClient:
                 # max_retries=1 on instructor: a single *validation* retry for
                 # malformed JSON. This is free (no HTTP call) and unrelated to
                 # rate limiting.
-                return await self.client.chat.completions.create(
+                # `create_with_completion` returns (parsed_model, raw_completion);
+                # the raw completion carries `.usage` for token accounting.
+                response, completion = await self.client.chat.completions.create_with_completion(
                     model=self.model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -100,6 +155,7 @@ class LLMClient:
                     response_model=SentimentResponse,
                     max_retries=1,
                 )
+                return response, completion
             except Exception as exc:
                 outcome, underlying = _classify(exc)
                 last_outcome = outcome
