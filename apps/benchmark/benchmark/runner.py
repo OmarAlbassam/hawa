@@ -34,8 +34,11 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from openai import AsyncOpenAI
+
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
+from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient, RateLimitExhaustedError
 from services.rate_limiter import ProviderRateLimiter
 from utils.preprocessing import clean_text
@@ -163,7 +166,11 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     """Build a `Settings` object scoped to one experiment.
 
     Inherits provider defaults, then layers the experiment's overrides.
-    Reads `LLM_API_KEY` from env via `Settings`.
+    Reads `LLM_API_KEY` from env via `Settings`. The rate-limit fields
+    (`rate_rpm`/`rate_tpm`) only flow through when the YAML explicitly sets
+    them — that's the manual escape hatch. The default path is auto-probing
+    in `apply_discovered_limits` (called from `run_all`), which discovers
+    Groq's actual limits via response headers.
     """
     base = Settings()  # picks up env vars
     overrides: dict[str, Any] = {
@@ -180,6 +187,58 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     if spec.rate_tpm is not None:
         overrides["rate_tpm"] = spec.rate_tpm
     return base.model_copy(update=overrides)
+
+
+async def apply_discovered_limits(specs: list[ExperimentSpec]) -> None:
+    """Probe each unique (provider, model) once and apply the result to specs.
+
+    Mutates `spec.rate_rpm` / `spec.rate_tpm` in place when:
+    - they aren't already set in the YAML (explicit YAML wins, always)
+    - the provider supports the probe (skip Ollama; it's self-hosted)
+    - the probe actually returned headers
+
+    On any failure (network, missing headers, daily-rather-than-per-minute
+    bucket reported) the spec values stay None and downstream `Settings()`
+    fall back to env vars / `PROVIDER_DEFAULTS`. So losing the probe never
+    leaves the limiter unconfigured — only un-tightened.
+    """
+    settings = Settings()
+    margin = settings.rate_safety_margin
+
+    seen: dict[tuple[str, str], DiscoveredLimits] = {}
+    for spec in specs:
+        if spec.provider == "ollama":
+            continue  # self-hosted; no upstream rate-limit headers
+        if spec.rate_rpm is not None and spec.rate_tpm is not None:
+            continue  # both manually overridden — no probe needed
+
+        key = (spec.provider, spec.model)
+        discovered = seen.get(key)
+        if discovered is None:
+            discovered = await _probe(spec)
+            seen[key] = discovered
+
+        if discovered.rpm is not None and spec.rate_rpm is None:
+            spec.rate_rpm = int(discovered.rpm * margin)
+        if discovered.tpm is not None and spec.rate_tpm is None:
+            spec.rate_tpm = int(discovered.tpm * margin)
+
+
+async def _probe(spec: ExperimentSpec) -> DiscoveredLimits:
+    """Open a one-shot OpenAI client just for the rate-limit probe."""
+    settings = build_settings_for_experiment(spec)
+    client = AsyncOpenAI(
+        base_url=settings.base_url,
+        api_key=settings.api_key,
+        max_retries=0,
+    )
+    try:
+        return await discover_limits(client, settings.model)
+    except Exception as e:  # pragma: no cover — defensive; probe is best-effort
+        logger.info("rate-limit probe for %s/%s failed: %s", spec.provider, spec.model, e)
+        return DiscoveredLimits()
+    finally:
+        await client.close()
 
 
 async def run_experiment(
@@ -465,6 +524,15 @@ async def run_all(
     samples = assign_folds(samples, k=k_folds)
     ds_hash = dataset_hash(samples)
     logger.info("loaded %d samples (dataset_hash=%s)", len(samples), ds_hash)
+
+    # Probe live rate limits per (provider, model). YAML-set values still win.
+    await apply_discovered_limits(specs)
+    for spec in specs:
+        if spec.rate_rpm is not None or spec.rate_tpm is not None:
+            logger.info(
+                "[%s] effective rate: rpm=%s tpm=%s",
+                spec.id, spec.rate_rpm or "unlimited", spec.rate_tpm or "unlimited",
+            )
 
     embedder: SBERTEmbedder | None = None
     store: KNNStore | None = None
