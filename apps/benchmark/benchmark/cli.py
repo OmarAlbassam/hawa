@@ -35,6 +35,7 @@ def _setup_logging() -> None:
         level=logging.INFO,
         format="%(message)s",
         datefmt="[%X]",
+        force=True,  # override any handlers attached at import time by deps
         handlers=[
             RichHandler(
                 console=console,
