@@ -17,11 +17,11 @@ from services.analyzer import AnalyzerService
 # --- SentimentResponse ---
 
 
-def test_valid_response():
-    r = SentimentResponse(score=4.2, emotion="JOY", aspect="PRODUCT")
+def test_valid_half_step_response_passes_through():
+    r = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
     assert r.is_relevant is True
     assert r.irrelevance_reason is None
-    assert r.score == 4.2
+    assert r.score == 4.0
     assert r.emotion == Emotion.JOY
     assert r.aspect == "PRODUCT"
 
@@ -39,6 +39,27 @@ def test_clamps_negative_score():
 def test_default_score():
     r = SentimentResponse(emotion="SURPRISE", aspect="SERVICE")
     assert r.score == 2.5
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (3.0, 3.0),
+        (3.5, 3.5),
+        (4.2, 4.0),
+        (3.7, 3.5),
+        (3.8, 4.0),
+        (2.74, 2.5),
+        (4.99, 5.0),
+        (0.24, 0.0),
+        (0.25, 0.5),
+    ],
+)
+def test_snaps_score_to_nearest_half_step(raw: float, expected: float):
+    r = SentimentResponse(score=raw, emotion="NEUTRAL", aspect="BRAND")
+    assert r.score == expected
+    assert (r.score * 2).is_integer()
+    assert 0.0 <= r.score <= 5.0
 
 
 def test_uppercase_emotion():
@@ -165,7 +186,7 @@ async def test_llm_irrelevant_without_reason_defaults_to_other():
 async def test_llm_relevant_verdict_populates_analysis_fields():
     analyzer, analyze = _make_analyzer()
     analyze.return_value = SentimentResponse(
-        is_relevant=True, score=4.2, emotion="JOY", aspect="PRODUCT"
+        is_relevant=True, score=4.0, emotion="JOY", aspect="PRODUCT"
     )
 
     result = await analyzer.analyze_post(
@@ -173,8 +194,8 @@ async def test_llm_relevant_verdict_populates_analysis_fields():
     )
 
     assert result.is_relevant is True
-    assert result.score == 4.2
-    assert result.llm_score == 4.2
+    assert result.score == 4.0
+    assert result.llm_score == 4.0
     assert result.emotion == Emotion.JOY
     assert result.aspect == "PRODUCT"
     assert result.irrelevance_reason is None
