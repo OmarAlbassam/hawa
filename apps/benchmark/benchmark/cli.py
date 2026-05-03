@@ -11,9 +11,11 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.table import Table
 
 from benchmark.dataset import assign_folds, dataset_hash, load_dataset
+from benchmark.import_csv import ColumnMap, import_csv_to_jsonl
 from benchmark.report import plot_all_confusions, summarize
 from benchmark.retrieval.embedder import SBERTEmbedder
 from benchmark.retrieval.store import KNNStore
@@ -21,6 +23,70 @@ from benchmark.runner import run_all
 
 app = typer.Typer(add_completion=False, help="Hawa LLM benchmarking harness")
 console = Console()
+
+
+def _setup_logging() -> None:
+    """Route logs through rich so they coexist cleanly with progress bars.
+
+    `show_path=False` strips file:line noise; `markup=True` lets log calls use
+    rich markup if they want; `rich_tracebacks=True` makes exceptions readable.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        datefmt="[%X]",
+        force=True,  # override any handlers attached at import time by deps
+        handlers=[
+            RichHandler(
+                console=console,
+                show_path=False,
+                markup=True,
+                rich_tracebacks=True,
+            )
+        ],
+    )
+
+
+@app.command("import-csv")
+def import_csv_cmd(
+    csv: Path = typer.Argument(..., help="Source CSV with team labels"),
+    out: Path = typer.Option(Path("data/control.jsonl"), help="Output JSONL"),
+    col_text: str = typer.Option("post_text", help="CSV column for the post text"),
+    col_score: str = typer.Option("score", help="CSV column for the sentiment score"),
+    col_emotion: str = typer.Option("emotion", help="CSV column for the emotion label"),
+    col_aspect: str = typer.Option("aspect", help="CSV column for the aspect label"),
+    col_is_relevant: str = typer.Option("", help="Optional CSV column for relevance"),
+    col_post_id: str = typer.Option("", help="Optional CSV column for post_id (defaults to row number)"),
+    skip_invalid: bool = typer.Option(False, help="Drop rows that would fail validation instead of writing them"),
+) -> None:
+    """Convert a labeled CSV to the benchmark's JSONL format."""
+    _setup_logging()
+    columns = ColumnMap(
+        text=col_text,
+        score=col_score,
+        emotion=col_emotion,
+        aspect=col_aspect,
+        is_relevant=col_is_relevant or None,
+        post_id=col_post_id or None,
+    )
+    report = import_csv_to_jsonl(csv, out, columns=columns, skip_invalid=skip_invalid)
+
+    table = Table(title="import summary")
+    table.add_column("metric"); table.add_column("value")
+    table.add_row("rows written", str(report.n_rows))
+    table.add_row("rows skipped (empty text)", str(report.n_skipped_empty))
+    table.add_row("rows with invalid score", str(report.n_invalid_score))
+    table.add_row("rows with invalid emotion", str(report.n_invalid_emotion))
+    table.add_row("rows with invalid aspect", str(report.n_invalid_aspect))
+    table.add_row("output", str(report.out_path))
+    console.print(table)
+
+    if report.invalid_emotion_values:
+        console.print(f"[yellow]invalid emotion values:[/yellow] {dict(report.invalid_emotion_values)}")
+    if report.invalid_aspect_values:
+        console.print(f"[yellow]invalid aspect values:[/yellow] {dict(report.invalid_aspect_values)}")
+    if report.n_invalid_score + report.n_invalid_emotion + report.n_invalid_aspect > 0 and not skip_invalid:
+        console.print("[yellow]invalid rows were written; the loader will reject them with line numbers[/yellow]")
 
 
 @app.command()
@@ -31,7 +97,7 @@ def embed(
     k_folds: int = typer.Option(5, help="Number of folds (used downstream)"),
 ) -> None:
     """Embed every sample in the dataset and write a single .npz file."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     samples = load_dataset(data)
     samples = assign_folds(samples, k=k_folds)
     embedder = SBERTEmbedder(name=model)
@@ -53,7 +119,7 @@ def run(
     k_folds: int = typer.Option(5),
 ) -> None:
     """Run all experiments in the config."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     outputs = asyncio.run(
         run_all(
             config,
@@ -77,7 +143,7 @@ def report(
     plots: bool = typer.Option(True, help="Render confusion-matrix plots"),
 ) -> None:
     """Aggregate per-experiment parquets into a summary table + plots."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _setup_logging()
     summary = summarize(results)
     if plots:
         plot_all_confusions(results)

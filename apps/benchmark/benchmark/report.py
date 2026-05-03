@@ -84,6 +84,21 @@ def _summarize_one(df: pd.DataFrame) -> dict:
         else float("nan")
     )
 
+    # Token usage — server-reported per-request counts. Older parquet files
+    # written before token capture landed won't have these columns; treat as
+    # absent gracefully.
+    if "total_tokens" in df.columns and df["total_tokens"].notna().any():
+        total_tokens = int(df["total_tokens"].sum(skipna=True))
+        mean_tokens = float(df["total_tokens"].mean(skipna=True))
+        tokens_p50 = float(np.nanmedian(df["total_tokens"]))
+        tokens_p95 = float(np.nanpercentile(df["total_tokens"].dropna(), 95))
+        prompt_tokens_total = int(df["prompt_tokens"].sum(skipna=True))
+        completion_tokens_total = int(df["completion_tokens"].sum(skipna=True))
+    else:
+        total_tokens = 0
+        mean_tokens = tokens_p50 = tokens_p95 = float("nan")
+        prompt_tokens_total = completion_tokens_total = 0
+
     return {
         "experiment_id": experiment_id,
         "n": n,
@@ -97,6 +112,12 @@ def _summarize_one(df: pd.DataFrame) -> dict:
         "emotion_macro_f1": emo_macro_f1,
         "aspect_accuracy": asp_acc,
         "aspect_macro_f1": asp_macro_f1,
+        "total_tokens": total_tokens,
+        "prompt_tokens_total": prompt_tokens_total,
+        "completion_tokens_total": completion_tokens_total,
+        "mean_tokens": mean_tokens,
+        "tokens_p50": tokens_p50,
+        "tokens_p95": tokens_p95,
         "latency_ms_p50": latency_p50,
         "latency_ms_p95": latency_p95,
     }

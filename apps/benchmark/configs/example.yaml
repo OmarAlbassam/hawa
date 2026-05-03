@@ -1,5 +1,10 @@
 # Experiment matrix. List-valued fields (model, temperature, fewshot_k) are
 # cross-producted into individual experiment cells.
+#
+# `rate_rpm` and `rate_tpm` are NOT set here — the runner probes Groq's actual
+# limits at startup via `x-ratelimit-*` response headers. Only set them
+# explicitly when you want to throttle BELOW the provider's ceiling (e.g.
+# sharing a key with another process, or an explicit RunPod budget).
 
 experiments:
   - id: baseline_zero_shot
@@ -9,8 +14,6 @@ experiments:
       - llama-3.1-8b-instant
       - llama-3.3-70b-versatile
     temperature: 0.0
-    rate_rpm: 28
-    rate_tpm: 5800
     max_concurrency: 3
 
   - id: temp_sweep

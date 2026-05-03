@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import product
 from pathlib import Path
@@ -23,10 +24,22 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
+from openai import AsyncOpenAI
 
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
-from services.llm_client import LLMClient, RateLimitExhaustedError
+from services.limits_probe import DiscoveredLimits, discover_limits
+from services.llm_client import LLMClient, RateLimitExhaustedError, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
 from utils.preprocessing import clean_text
 
@@ -83,6 +96,9 @@ class PerPostResult:
     error: str | None
     latency_ms: float | None
     fewshot_post_ids: list[int]
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -153,7 +169,11 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     """Build a `Settings` object scoped to one experiment.
 
     Inherits provider defaults, then layers the experiment's overrides.
-    Reads `LLM_API_KEY` from env via `Settings`.
+    Reads `LLM_API_KEY` from env via `Settings`. The rate-limit fields
+    (`rate_rpm`/`rate_tpm`) only flow through when the YAML explicitly sets
+    them — that's the manual escape hatch. The default path is auto-probing
+    in `apply_discovered_limits` (called from `run_all`), which discovers
+    Groq's actual limits via response headers.
     """
     base = Settings()  # picks up env vars
     overrides: dict[str, Any] = {
@@ -172,14 +192,74 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     return base.model_copy(update=overrides)
 
 
+async def apply_discovered_limits(specs: list[ExperimentSpec]) -> None:
+    """Probe each unique (provider, model) once and apply the result to specs.
+
+    Mutates `spec.rate_rpm` / `spec.rate_tpm` in place when:
+    - they aren't already set in the YAML (explicit YAML wins, always)
+    - the provider supports the probe (skip Ollama; it's self-hosted)
+    - the probe actually returned headers
+
+    On any failure (network, missing headers, daily-rather-than-per-minute
+    bucket reported) the spec values stay None and downstream `Settings()`
+    fall back to env vars / `PROVIDER_DEFAULTS`. So losing the probe never
+    leaves the limiter unconfigured — only un-tightened.
+    """
+    settings = Settings()
+    margin = settings.rate_safety_margin
+
+    seen: dict[tuple[str, str], DiscoveredLimits] = {}
+    for spec in specs:
+        if spec.provider == "ollama":
+            continue  # self-hosted; no upstream rate-limit headers
+        if spec.rate_rpm is not None and spec.rate_tpm is not None:
+            continue  # both manually overridden — no probe needed
+
+        key = (spec.provider, spec.model)
+        discovered = seen.get(key)
+        if discovered is None:
+            discovered = await _probe(spec)
+            seen[key] = discovered
+
+        if discovered.rpm is not None and spec.rate_rpm is None:
+            spec.rate_rpm = int(discovered.rpm * margin)
+        if discovered.tpm is not None and spec.rate_tpm is None:
+            spec.rate_tpm = int(discovered.tpm * margin)
+
+
+async def _probe(spec: ExperimentSpec) -> DiscoveredLimits:
+    """Open a one-shot OpenAI client just for the rate-limit probe."""
+    settings = build_settings_for_experiment(spec)
+    client = AsyncOpenAI(
+        base_url=settings.base_url,
+        api_key=settings.api_key,
+        max_retries=0,
+    )
+    try:
+        return await discover_limits(client, settings.model)
+    except Exception as e:  # pragma: no cover — defensive; probe is best-effort
+        logger.info("rate-limit probe for %s/%s failed: %s", spec.provider, spec.model, e)
+        return DiscoveredLimits()
+    finally:
+        await client.close()
+
+
 async def run_experiment(
     spec: ExperimentSpec,
     samples: list[Sample],
     cache: ResultCache,
     store: KNNStore | None,
     embedder: SBERTEmbedder | None,
+    *,
+    on_post_done: Callable[[PerPostResult], None] | None = None,
 ) -> list[PerPostResult]:
-    """Run one experiment over the full sample list."""
+    """Run one experiment over the full sample list.
+
+    `on_post_done` fires inside the results lock as each post finishes, so a
+    progress display in the caller can update with a consistent count. The
+    callback is intentionally untyped beyond the result so the runner has no
+    dependency on rich/streamlit/etc.
+    """
     settings = build_settings_for_experiment(spec)
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
     client = LLMClient(settings, rate_limiter)
@@ -196,14 +276,15 @@ async def run_experiment(
     async def _process(sample: Sample) -> None:
         async with semaphore:
             if deadline is not None and time.monotonic() > deadline:
-                async with results_lock:
-                    results.append(_make_error_result(spec, sample, "wall_clock_exceeded", []))
-                return
-            result = await _process_one(
-                spec, sample, settings, client, cache, store, embedder
-            )
+                result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
+            else:
+                result = await _process_one(
+                    spec, sample, settings, client, cache, store, embedder
+                )
             async with results_lock:
                 results.append(result)
+                if on_post_done is not None:
+                    on_post_done(result)
 
     await asyncio.gather(*(_process(s) for s in samples))
     return results
@@ -240,7 +321,7 @@ async def _process_one(
 
     started = time.perf_counter()
     try:
-        response: SentimentResponse = await client.analyze(prompt, cleaned)
+        response, usage = await client.analyze_with_usage(prompt, cleaned)
         latency_ms = (time.perf_counter() - started) * 1000.0
     except RateLimitExhaustedError as e:
         cache.put(key, CachedResult(None, None, None, None, None, f"rate_limited: {e}", None))
@@ -250,7 +331,7 @@ async def _process_one(
         cache.put(key, CachedResult(None, None, None, None, None, str(e), latency_ms))
         return _make_error_result(spec, sample, str(e), fewshot_ids)
 
-    result = _from_response(spec, sample, response, latency_ms, fewshot_ids)
+    result = _from_response(spec, sample, response, latency_ms, fewshot_ids, usage)
     cache.put(
         key,
         CachedResult(
@@ -261,6 +342,9 @@ async def _process_one(
             pred_aspect=response.aspect if response.is_relevant else None,
             error=None,
             latency_ms=latency_ms,
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
+            total_tokens=usage.total_tokens if usage else None,
         ),
     )
     return result
@@ -365,7 +449,11 @@ def _from_response(
     response: SentimentResponse,
     latency_ms: float,
     fewshot_ids: list[int],
+    usage: TokenUsage | None,
 ) -> PerPostResult:
+    pt = usage.prompt_tokens if usage else None
+    ct = usage.completion_tokens if usage else None
+    tt = usage.total_tokens if usage else None
     if not response.is_relevant:
         return PerPostResult(
             experiment_id=spec.id,
@@ -382,6 +470,9 @@ def _from_response(
             error=None,
             latency_ms=latency_ms,
             fewshot_post_ids=fewshot_ids,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+            total_tokens=tt,
         )
     return PerPostResult(
         experiment_id=spec.id,
@@ -398,6 +489,9 @@ def _from_response(
         error=None,
         latency_ms=latency_ms,
         fewshot_post_ids=fewshot_ids,
+        prompt_tokens=pt,
+        completion_tokens=ct,
+        total_tokens=tt,
     )
 
 
@@ -426,6 +520,9 @@ def _from_cached(
         error=None,
         latency_ms=cached.latency_ms,
         fewshot_post_ids=fewshot_ids,
+        prompt_tokens=cached.prompt_tokens,
+        completion_tokens=cached.completion_tokens,
+        total_tokens=cached.total_tokens,
     )
 
 
@@ -447,6 +544,15 @@ async def run_all(
     ds_hash = dataset_hash(samples)
     logger.info("loaded %d samples (dataset_hash=%s)", len(samples), ds_hash)
 
+    # Probe live rate limits per (provider, model). YAML-set values still win.
+    await apply_discovered_limits(specs)
+    for spec in specs:
+        if spec.rate_rpm is not None or spec.rate_tpm is not None:
+            logger.info(
+                "[%s] effective rate: rpm=%s tpm=%s",
+                spec.id, spec.rate_rpm or "unlimited", spec.rate_tpm or "unlimited",
+            )
+
     embedder: SBERTEmbedder | None = None
     store: KNNStore | None = None
     if any(s.prompt in {"few_shot_static", "few_shot_retrieved"} for s in specs):
@@ -464,15 +570,53 @@ async def run_all(
     results_dir.mkdir(parents=True, exist_ok=True)
 
     outputs: dict[str, str] = {}
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.fields[exp_id]}[/bold cyan]"),
+        TextColumn("[dim]{task.fields[model]}[/dim]"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("[green]✓{task.fields[ok]}[/green] [red]✗{task.fields[err]}[/red]"),
+        TimeElapsedColumn(),
+        TextColumn("eta"),
+        TimeRemainingColumn(),
+        transient=False,
+    )
+
     try:
-        for spec in specs:
-            logger.info("running experiment %s (model=%s, prompt=%s)", spec.id, spec.model, spec.prompt)
-            per_post = await run_experiment(spec, samples, cache, store, embedder)
-            df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
-            out_path = results_dir / f"{spec.id}.parquet"
-            df.to_parquet(out_path, index=False)
-            outputs[spec.id] = str(out_path)
-            logger.info("  → %s (%d rows)", out_path, len(df))
+        with progress:
+            for spec in specs:
+                task_id = progress.add_task(
+                    "running",
+                    total=len(samples),
+                    exp_id=spec.id,
+                    model=f"{spec.model} · {spec.prompt}",
+                    ok=0,
+                    err=0,
+                )
+
+                # Capture per-task counters by closure (default-arg trick locks
+                # task_id to the current iteration's value).
+                counters = {"ok": 0, "err": 0}
+
+                def _on_done(r: PerPostResult, _tid=task_id, _c=counters) -> None:
+                    if r.error:
+                        _c["err"] += 1
+                    else:
+                        _c["ok"] += 1
+                    progress.update(_tid, advance=1, ok=_c["ok"], err=_c["err"])
+
+                per_post = await run_experiment(
+                    spec, samples, cache, store, embedder, on_post_done=_on_done
+                )
+                df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
+                out_path = results_dir / f"{spec.id}.parquet"
+                df.to_parquet(out_path, index=False)
+                outputs[spec.id] = str(out_path)
+                progress.console.log(
+                    f"[bold green]done[/bold green] {spec.id} → {out_path} "
+                    f"(ok={counters['ok']}, err={counters['err']})"
+                )
     finally:
         cache.close()
     return outputs
@@ -493,6 +637,9 @@ def _row(p: PerPostResult, ds_hash: str) -> dict[str, Any]:
         "pred_aspect_normalized": p.pred_aspect_normalized,
         "error": p.error,
         "latency_ms": p.latency_ms,
+        "prompt_tokens": p.prompt_tokens,
+        "completion_tokens": p.completion_tokens,
+        "total_tokens": p.total_tokens,
         "fewshot_post_ids": p.fewshot_post_ids,
         "dataset_hash": ds_hash,
     }

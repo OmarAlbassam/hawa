@@ -31,12 +31,58 @@ def test_cache_hit_returns_stored(tmp_path):
         pred_aspect="PRODUCT",
         error=None,
         latency_ms=120.0,
+        prompt_tokens=120,
+        completion_tokens=42,
+        total_tokens=162,
     )
     cache.put(key, payload)
     got = cache.get(key)
     assert got is not None
     assert got.pred_score == 4.2
     assert got.pred_emotion == "JOY"
+    assert got.prompt_tokens == 120
+    assert got.completion_tokens == 42
+    assert got.total_tokens == 162
+
+
+def test_cache_token_fields_default_none(tmp_path):
+    """Older results without token data round-trip cleanly as None."""
+    cache = ResultCache(tmp_path / "c.db")
+    key = _key()
+    payload = CachedResult(
+        is_relevant=True,
+        irrelevance_reason=None,
+        pred_score=3.0,
+        pred_emotion="NEUTRAL",
+        pred_aspect="PRODUCT",
+        error=None,
+        latency_ms=50.0,
+    )
+    cache.put(key, payload)
+    got = cache.get(key)
+    assert got is not None
+    assert got.prompt_tokens is None
+    assert got.completion_tokens is None
+    assert got.total_tokens is None
+
+
+def test_cache_migration_is_idempotent(tmp_path):
+    """Reopening an existing cache.db must not error or duplicate columns."""
+    path = tmp_path / "c.db"
+    cache1 = ResultCache(path)
+    cache1.put(_key(post_id=1), CachedResult(True, None, 3.0, "JOY", "PRODUCT", None, 10.0))
+    cache1.close()
+
+    # Re-open: ALTER TABLE should be a no-op since columns now exist.
+    cache2 = ResultCache(path)
+    cache2.put(
+        _key(post_id=2),
+        CachedResult(True, None, 4.0, "JOY", "PRODUCT", None, 20.0,
+                     prompt_tokens=50, completion_tokens=20, total_tokens=70),
+    )
+    got = cache2.get(_key(post_id=2))
+    assert got is not None
+    assert got.total_tokens == 70
 
 
 def test_cache_miss_on_different_prompt(tmp_path):
