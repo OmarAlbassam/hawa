@@ -17,5 +17,6 @@
     <include file="db/changelog/db.changelog-10-drop-review-confidence.sql"/>
     <include file="db/changelog/db.changelog-11-add-feedback-user-review-unique.sql"/>
     <include file="db/changelog/db.changelog-12-make-user-company-nullable.sql"/>
+    <include file="db/changelog/db.changelog-13-add-brand-aspect.sql"/>
 
 </databaseChangeLog>
