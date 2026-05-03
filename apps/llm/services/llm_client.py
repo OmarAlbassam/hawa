@@ -93,6 +93,7 @@ class LLMClient:
         self.max_backoff = settings.rate_max_backoff_s
         self.min_pause = settings.rate_min_pause_s
         self.pause_padding = settings.rate_pause_padding
+        self.extra_body = _model_extra_body(self.model)
 
     async def analyze(self, system_prompt: str, text: str) -> SentimentResponse:
         """Send text to LLM and return a validated SentimentResponse.
@@ -144,16 +145,21 @@ class LLMClient:
                 # rate limiting.
                 # `create_with_completion` returns (parsed_model, raw_completion);
                 # the raw completion carries `.usage` for token accounting.
-                response, completion = await self.client.chat.completions.create_with_completion(
-                    model=self.model,
-                    messages=[
+                kwargs: dict[str, Any] = {
+                    "model": self.model,
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": text},
                     ],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    response_model=SentimentResponse,
-                    max_retries=1,
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens,
+                    "response_model": SentimentResponse,
+                    "max_retries": 1,
+                }
+                if self.extra_body is not None:
+                    kwargs["extra_body"] = self.extra_body
+                response, completion = await self.client.chat.completions.create_with_completion(
+                    **kwargs
                 )
                 return response, completion
             except Exception as exc:
@@ -208,6 +214,21 @@ def _estimate_tokens(system_prompt: str, text: str, max_output: int) -> int:
     """Rough estimator: ~4 chars per token, plus the max output budget."""
     chars = len(system_prompt) + len(text)
     return (chars // 4) + max_output
+
+
+def _model_extra_body(model: str) -> dict[str, Any] | None:
+    """Per-model `extra_body` for chat.completions; None when nothing applies.
+
+    Qwen3 emits a ``<think>...</think>`` block by default, which breaks
+    JSON-mode parsing and wastes tokens for our structured-output use case.
+    vLLM exposes a hard switch via ``chat_template_kwargs.enable_thinking``;
+    pass it through `extra_body` so the OpenAI SDK forwards it as-is.
+    Documented at https://qwen.readthedocs.io/en/latest/deployment/vllm.html.
+    Backends that don't recognize the field (e.g. Ollama) ignore it.
+    """
+    if "qwen3" in model.lower():
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    return None
 
 
 _TRANSIENT_SDK_TYPES = (APIConnectionError, APITimeoutError, InternalServerError)
