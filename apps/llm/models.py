@@ -18,6 +18,7 @@ class Aspect(str, Enum):
     SERVICE = "SERVICE"
     DELIVERY = "DELIVERY"
     PRICING = "PRICING"
+    BRAND = "BRAND"
 
 
 class IrrelevanceReason(str, Enum):
