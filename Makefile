@@ -8,6 +8,7 @@
 # make dev-all          - run frontend + backend + llm
 # make benchmark-setup  - create venv + install benchmark (with dev + notebooks)
 # make benchmark-test   - run benchmark tests
+# make benchmark-import - convert team CSV to JSONL (override CSV=path/to.csv)
 # make benchmark-embed  - embed the control dataset
 # make benchmark-run    - run experiments (override CONFIG=path/to.yaml)
 # make benchmark-report - aggregate parquets into summary + plots
@@ -66,6 +67,11 @@ benchmark-setup:
 
 benchmark-test:
 	cd apps/benchmark && . .venv/bin/activate && pytest
+
+CSV ?= data/Apple_dataset_relabeled.csv
+
+benchmark-import:
+	cd apps/benchmark && . .venv/bin/activate && benchmark import-csv $(CSV)
 
 benchmark-embed:
 	cd apps/benchmark && . .venv/bin/activate && benchmark embed
