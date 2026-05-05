@@ -19,5 +19,7 @@
     <include file="db/changelog/db.changelog-12-make-user-company-nullable.sql"/>
     <include file="db/changelog/db.changelog-13-add-brand-aspect.sql"/>
     <include file="db/changelog/db.changelog-14-update-keyword-type-enum.sql"/>
+    <include file="db/changelog/db.changelog-15-keyword-brand-cascade.sql"/>
+    <include file="db/changelog/db.changelog-16-remove-brand-aspect.sql"/>
 
 </databaseChangeLog>
