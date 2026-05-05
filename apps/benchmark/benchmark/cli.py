@@ -128,6 +128,7 @@ def run(
             cache_path=cache,
             results_dir=results,
             k_folds=k_folds,
+            console=console,
         )
     )
     table = Table(title="experiments")

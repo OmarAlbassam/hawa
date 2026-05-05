@@ -9,8 +9,7 @@ venv/
 *.ipynb_meta
 
 # Cached LLM responses (sqlite) and embedding artifacts
-cache.db
-cache.db-*
+cache.db*
 *.npz
 
 # Result artifacts (parquet, plots)

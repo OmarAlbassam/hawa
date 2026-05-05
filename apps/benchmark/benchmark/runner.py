@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -584,6 +585,7 @@ async def run_all(
     cache_path: str | Path = "cache.db",
     results_dir: str | Path = "results",
     k_folds: int = 5,
+    console: Console | None = None,
 ) -> dict[str, str]:
     """Top-level entry point. Returns experiment_id -> output parquet path."""
     config = load_config(config_path)
@@ -631,6 +633,7 @@ async def run_all(
         TimeElapsedColumn(),
         TextColumn("eta"),
         TimeRemainingColumn(),
+        console=console,
         transient=False,
     )
 
@@ -662,6 +665,11 @@ async def run_all(
                 )
                 df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
                 out_path = results_dir / f"{spec.id}.parquet"
+                # spec.id can contain `/` (e.g. "qwen/qwen3-32b" mirrors the
+                # model namespace), so the parquet path may have intermediate
+                # directories that don't exist yet — to_parquet won't create
+                # them and would FileNotFoundError at the end of a long run.
+                out_path.parent.mkdir(parents=True, exist_ok=True)
                 df.to_parquet(out_path, index=False)
                 outputs[spec.id] = str(out_path)
                 progress.console.log(
