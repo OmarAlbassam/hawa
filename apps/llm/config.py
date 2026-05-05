@@ -34,6 +34,25 @@ class Provider(StrEnum):
     GROQ = "groq"
 
 
+# Groq models that support `response_format={"type":"json_schema","strict":true}`.
+# Per Groq docs, only the GPT-OSS family enforces the schema at decoding time.
+# https://console.groq.com/docs/structured-outputs
+GROQ_STRICT_SCHEMA_MODELS: frozenset[str] = frozenset({
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+})
+
+# Groq models that accept `json_schema` with `strict=false` (best-effort).
+# Llama 4 Scout is on the published list. Best-effort gives no guarantee but
+# nudges harder than plain `json_object`; the coercion layer is the safety net.
+GROQ_BEST_EFFORT_SCHEMA_MODELS: frozenset[str] = frozenset({
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-safeguard-20b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+})
+
+
 class Settings(BaseSettings):
     # extra="ignore": tolerate non-LLM keys in shared .env files (e.g. when the
     # benchmark harness runs from apps/benchmark/ with its own env vars in the

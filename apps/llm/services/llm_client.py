@@ -1,11 +1,12 @@
 import asyncio
+import json
 import logging
+import random
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-import instructor
-from instructor.core.exceptions import InstructorRetryException
+import httpx
 from openai import (
     APIConnectionError,
     APIStatusError,
@@ -14,8 +15,14 @@ from openai import (
     InternalServerError,
     RateLimitError,
 )
+from pydantic import ValidationError
 
-from config import Settings
+from config import (
+    GROQ_BEST_EFFORT_SCHEMA_MODELS,
+    GROQ_STRICT_SCHEMA_MODELS,
+    Provider,
+    Settings,
+)
 from models import SentimentResponse
 from services.rate_limiter import ProviderRateLimiter
 
@@ -46,8 +53,7 @@ class TokenUsage:
     def from_completion(cls, completion: Any) -> "TokenUsage | None":
         """Extract usage from an OpenAI ChatCompletion response.
 
-        Self-hosted backends or instructor versions that don't surface the raw
-        completion may return None here; callers must tolerate that.
+        Some self-hosted backends omit `.usage`; callers must tolerate None.
         """
         usage = getattr(completion, "usage", None)
         if usage is None:
@@ -74,15 +80,28 @@ class LLMClient:
     def __init__(
         self, settings: Settings, rate_limiter: ProviderRateLimiter
     ) -> None:
+        # Size the httpx pool to the configured concurrency. The default
+        # max_keepalive_connections=20 silently caps in-flight requests on
+        # RunPod where max_concurrency defaults to 32 — unrelated to our
+        # semaphore but observable as serialization on the wire.
+        limits = httpx.Limits(
+            max_connections=max(settings.max_concurrency * 2, 20),
+            max_keepalive_connections=max(settings.max_concurrency, 20),
+        )
+        self._http_client = httpx.AsyncClient(
+            limits=limits,
+            timeout=httpx.Timeout(
+                settings.request_timeout_s,
+                connect=settings.connect_timeout_s,
+            ),
+        )
         # max_retries=0 disables the SDK's internal exponential-backoff retry
         # loop. We own retry policy here so it doesn't stack with ours.
-        self._raw_client = AsyncOpenAI(
+        self.client = AsyncOpenAI(
             base_url=settings.base_url,
             api_key=settings.api_key,
             max_retries=0,
-        )
-        self.client = instructor.from_openai(
-            self._raw_client, mode=instructor.Mode.JSON
+            http_client=self._http_client,
         )
         self.model = settings.model
         self.temperature = settings.temperature
@@ -93,7 +112,16 @@ class LLMClient:
         self.max_backoff = settings.rate_max_backoff_s
         self.min_pause = settings.rate_min_pause_s
         self.pause_padding = settings.rate_pause_padding
-        self.extra_body = _model_extra_body(self.model)
+        self.extra_body = _build_extra_body(settings.provider, self.model)
+        self.response_format = _build_response_format(settings.provider, self.model)
+
+    async def aclose(self) -> None:
+        """Close the httpx client we own.
+
+        The OpenAI SDK doesn't manage the lifecycle of a user-supplied
+        ``http_client``, so we close it explicitly from the FastAPI lifespan.
+        """
+        await self._http_client.aclose()
 
     async def analyze(self, system_prompt: str, text: str) -> SentimentResponse:
         """Send text to LLM and return a validated SentimentResponse.
@@ -122,14 +150,14 @@ class LLMClient:
         """Shared retry loop for `analyze` and `analyze_with_usage`.
 
         Returns the parsed `SentimentResponse` plus the raw OpenAI
-        `ChatCompletion` object (or None when instructor doesn't surface it).
-        Failure classification matches the original `analyze`:
+        `ChatCompletion` object (which carries `.usage` for token accounting).
+        Failure classification:
 
         - 429 → notify the shared pause gate with Retry-After, retry.
         - Transient (5xx / timeout / connection) → local backoff, retry.
           Does not trip the pause gate — one bad response from any provider
           shouldn't stall every concurrent worker.
-        - 4xx config errors and pure JSON-validation failures → propagate
+        - 4xx config errors and JSON-validation failures → propagate
           immediately; retrying won't change the outcome.
         """
         estimated_tokens = _estimate_tokens(system_prompt, text, self.max_tokens)
@@ -140,11 +168,6 @@ class LLMClient:
         for attempt in range(1, self.max_retries + 1):
             await self.rate_limiter.acquire(estimated_tokens)
             try:
-                # max_retries=1 on instructor: a single *validation* retry for
-                # malformed JSON. This is free (no HTTP call) and unrelated to
-                # rate limiting.
-                # `create_with_completion` returns (parsed_model, raw_completion);
-                # the raw completion carries `.usage` for token accounting.
                 kwargs: dict[str, Any] = {
                     "model": self.model,
                     "messages": [
@@ -153,22 +176,21 @@ class LLMClient:
                     ],
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "response_model": SentimentResponse,
-                    "max_retries": 1,
+                    "response_format": self.response_format,
                 }
                 if self.extra_body is not None:
                     kwargs["extra_body"] = self.extra_body
-                response, completion = await self.client.chat.completions.create_with_completion(
-                    **kwargs
-                )
+                completion = await self.client.chat.completions.create(**kwargs)
+                content = completion.choices[0].message.content or ""
+                response = SentimentResponse.model_validate_json(content)
                 return response, completion
             except Exception as exc:
-                outcome, underlying = _classify(exc)
+                outcome = _classify(exc)
                 last_outcome = outcome
 
                 if outcome is _Outcome.RATE_LIMIT:
                     retry_after = _parse_retry_after(
-                        underlying or exc,
+                        exc,
                         fallback=_backoff(
                             attempt, self.initial_backoff, self.max_backoff
                         ),
@@ -179,7 +201,7 @@ class LLMClient:
                     continue
 
                 if outcome is _Outcome.TRANSIENT:
-                    last_transient = underlying or exc
+                    last_transient = exc
                     await asyncio.sleep(
                         _backoff(attempt, self.initial_backoff, self.max_backoff)
                     )
@@ -204,7 +226,7 @@ class LLMClient:
     async def is_reachable(self) -> bool:
         """Check if the LLM endpoint is reachable."""
         try:
-            await self._raw_client.models.list()
+            await self.client.models.list()
             return True
         except Exception:
             return False
@@ -216,84 +238,146 @@ def _estimate_tokens(system_prompt: str, text: str, max_output: int) -> int:
     return (chars // 4) + max_output
 
 
-def _model_extra_body(model: str) -> dict[str, Any] | None:
-    """Per-model `extra_body` for chat.completions; None when nothing applies.
+# Computed once at import: vLLM's guided-decoding backends parse this JSON
+# schema and constrain token generation to outputs that satisfy it. The schema
+# resolves Emotion / IrrelevanceReason via $defs $refs, which outlines and
+# xgrammar both handle natively.
+_SENTIMENT_SCHEMA = SentimentResponse.model_json_schema()
 
-    Qwen3 emits a ``<think>...</think>`` block by default, which breaks
-    JSON-mode parsing and wastes tokens for our structured-output use case.
-    vLLM exposes a hard switch via ``chat_template_kwargs.enable_thinking``;
-    pass it through `extra_body` so the OpenAI SDK forwards it as-is.
-    Documented at https://qwen.readthedocs.io/en/latest/deployment/vllm.html.
-    Backends that don't recognize the field (e.g. Ollama) ignore it.
+
+def _build_extra_body(provider: Provider, model: str) -> dict[str, Any] | None:
+    """Per-(provider, model) `extra_body` for chat.completions; None when none applies.
+
+    Three concerns share this hook:
+
+    - **Qwen3 thinking.** Qwen3 emits a ``<think>...</think>`` block by
+      default, breaking JSON-mode parsing and wasting tokens for our
+      structured-output use case. vLLM exposes a hard switch via
+      ``chat_template_kwargs.enable_thinking``; Ollama's OpenAI-compatible
+      endpoint passes the field through to the underlying chat template.
+      Groq does NOT accept this property and rejects the request with
+      400 ``property 'chat_template_kwargs' is unsupported`` — so we only
+      emit it for the backends that actually honor it.
+
+    - **vLLM guided JSON (RunPod).** ``response_format={"type":
+      "json_object"}`` only asks for syntactically-valid JSON. vLLM additionally
+      supports ``guided_json``, which constrains decoding to a JSON Schema at
+      the token level. With it, schema mismatches and out-of-enum values become
+      structurally impossible — eliminating an entire class of FATAL_VALIDATION
+      failures that retrying can't fix.
+
+    - **Ollama format schema.** Ollama 0.5+ accepts a ``format`` field carrying
+      a JSON Schema and constrains generation to it (the same guarantee vLLM
+      gives via ``guided_json``). Its OpenAI-compatible endpoint passes
+      ``extra_body`` through to the underlying call, so attaching it here is
+      enough.
+
+    - **Groq qwen3 reasoning_effort.** Groq doesn't honor
+      ``chat_template_kwargs``; instead it exposes ``reasoning_effort`` for
+      reasoning-capable models. ``"none"`` disables the ``<think>`` block so
+      the entire ``max_tokens`` budget goes to the JSON response. Without
+      this, qwen3 spends most of the budget thinking and Groq returns
+      ``json_validate_failed`` because no JSON document was produced.
     """
-    if "qwen3" in model.lower():
-        return {"chat_template_kwargs": {"enable_thinking": False}}
-    return None
+    body: dict[str, Any] = {}
+    if "qwen3" in model.lower() and provider != Provider.GROQ:
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    if provider == Provider.GROQ and "qwen3" in model.lower():
+        body["reasoning_effort"] = "none"
+    if provider == Provider.RUNPOD:
+        body["guided_json"] = _SENTIMENT_SCHEMA
+    elif provider == Provider.OLLAMA:
+        body["format"] = _SENTIMENT_SCHEMA
+    return body or None
+
+
+def _build_response_format(provider: Provider, model: str) -> dict[str, Any]:
+    """Per-(provider, model) `response_format` for chat.completions.
+
+    Returns the strongest constraint the backend supports:
+
+    - **Groq strict** (``GROQ_STRICT_SCHEMA_MODELS``) → ``json_schema`` with
+      ``strict: True``. Constrained decoding, true 100% guarantee.
+    - **Groq best-effort** (``GROQ_BEST_EFFORT_SCHEMA_MODELS``) → ``json_schema``
+      with ``strict: False``. Stronger nudge than ``json_object``; the coercion
+      layer in ``models.py`` is the safety net for the gap.
+    - **Everything else** → ``json_object``. Validates JSON shape only; the
+      coercion layer carries the enum guarantee. RunPod (vLLM) and Ollama
+      enforce the schema via ``extra_body`` instead, so plain ``json_object``
+      here is correct for them.
+    """
+    if provider == Provider.GROQ:
+        if model in GROQ_STRICT_SCHEMA_MODELS:
+            return {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "sentiment_response",
+                    "schema": _strict_schema(_SENTIMENT_SCHEMA),
+                    "strict": True,
+                },
+            }
+        if model in GROQ_BEST_EFFORT_SCHEMA_MODELS:
+            return {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "sentiment_response",
+                    "schema": _SENTIMENT_SCHEMA,
+                    "strict": False,
+                },
+            }
+    return {"type": "json_object"}
+
+
+def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Make a Pydantic-emitted schema satisfy strict-mode rules.
+
+    Strict mode (Groq, OpenAI) requires every property to appear in
+    ``required`` and every object to declare ``additionalProperties: false``.
+    Pydantic's default schema doesn't — fields with defaults are absent from
+    ``required``, and ``additionalProperties`` is unset. Walks the schema
+    tree (including ``$defs``) and patches both rules in place on a copy.
+    """
+    import copy
+
+    out = copy.deepcopy(schema)
+
+    def _patch(node: object) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "object" and "properties" in node:
+                node["additionalProperties"] = False
+                node["required"] = list(node["properties"].keys())
+            for v in node.values():
+                _patch(v)
+        elif isinstance(node, list):
+            for item in node:
+                _patch(item)
+
+    _patch(out)
+    return out
 
 
 _TRANSIENT_SDK_TYPES = (APIConnectionError, APITimeoutError, InternalServerError)
 
 
-def _classify(exc: Exception) -> tuple[_Outcome, Exception | None]:
-    """Classify an outbound-call failure and return (outcome, underlying).
-
-    ``underlying`` is the unwrapped SDK exception when the failure originated
-    from the HTTP layer (possibly via ``InstructorRetryException``), or None
-    for pure validation / unknown failures. Returning it lets the caller read
-    Retry-After headers off the real response object.
-    """
-    sdk_exc = _unwrap_sdk_error(exc)
-
-    if sdk_exc is not None:
-        if _is_rate_limit(sdk_exc):
-            return _Outcome.RATE_LIMIT, sdk_exc
-        if isinstance(sdk_exc, _TRANSIENT_SDK_TYPES):
-            return _Outcome.TRANSIENT, sdk_exc
-        status = _status_code(sdk_exc)
-        if status is not None and status >= 500:
-            return _Outcome.TRANSIENT, sdk_exc
-        if status is not None and 400 <= status < 500:
-            return _Outcome.FATAL_CONFIG, sdk_exc
-        # APIStatusError with no readable status — treat as fatal rather than
-        # loop forever.
-        return _Outcome.FATAL_CONFIG, sdk_exc
-
-    # No SDK error anywhere in the cause chain. Instructor exhausting its own
-    # validation retry (prose in `content`, schema mismatch, truncation) lands
-    # here. Retrying at the HTTP level won't flip a prose-returning model into
-    # a JSON-returning one — propagate.
-    if isinstance(exc, InstructorRetryException):
-        return _Outcome.FATAL_VALIDATION, None
-
-    return _Outcome.UNKNOWN, None
-
-
-def _unwrap_sdk_error(exc: Exception) -> Exception | None:
-    """Walk __cause__/__context__ looking for a known OpenAI SDK exception.
-
-    Instructor uses both ``raise X from Y`` (sets __cause__) and bare ``raise X``
-    inside an ``except`` block (sets __context__), so we check both.
-    """
-    sdk_types = (
-        RateLimitError,
-        APIConnectionError,
-        APITimeoutError,
-        APIStatusError,
-    )
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, sdk_types):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _is_rate_limit(exc: Exception) -> bool:
+def _classify(exc: Exception) -> _Outcome:
+    """Classify an outbound-call failure."""
     if isinstance(exc, RateLimitError):
-        return True
-    return _status_code(exc) == 429
+        return _Outcome.RATE_LIMIT
+    if isinstance(exc, _TRANSIENT_SDK_TYPES):
+        return _Outcome.TRANSIENT
+    if isinstance(exc, APIStatusError):
+        status = _status_code(exc)
+        if status == 429:
+            return _Outcome.RATE_LIMIT
+        if status is not None and status >= 500:
+            return _Outcome.TRANSIENT
+        # 4xx (or unreadable status) — no retry will fix it.
+        return _Outcome.FATAL_CONFIG
+    if isinstance(exc, (ValidationError, json.JSONDecodeError)):
+        # Schema mismatch or malformed JSON. Retrying at the HTTP level won't
+        # flip a prose-returning model into a JSON-returning one — propagate.
+        return _Outcome.FATAL_VALIDATION
+    return _Outcome.UNKNOWN
 
 
 def _status_code(exc: Exception) -> int | None:
@@ -319,4 +403,8 @@ def _parse_retry_after(exc: Exception, fallback: float) -> float:
 
 
 def _backoff(attempt: int, initial: float, maximum: float) -> float:
-    return min(maximum, initial * (2 ** (attempt - 1)))
+    # Jitter prevents N concurrent workers from computing identical sleeps and
+    # slamming the upstream in lockstep on resume. Matters most for transient
+    # 5xx during RunPod worker recycling, where the 429 pause-gate doesn't fire.
+    base = min(maximum, initial * (2 ** (attempt - 1)))
+    return base * random.uniform(0.5, 1.5)
