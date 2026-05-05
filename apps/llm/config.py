@@ -13,17 +13,32 @@ PROVIDER_DEFAULTS: dict[str, dict[str, object]] = {
         "model": "llama3.1:8b",
         "rate_rpm": 0,
         "rate_tpm": 0,
+        # Local generations on a large model on consumer hardware can run
+        # well past 60s; lift the read timeout for self-hosted backends.
+        "request_timeout_s": 300.0,
     },
     "runpod": {
         "model": "meta-llama/Llama-3.1-8B-Instruct",
         "rate_rpm": 0,
         "rate_tpm": 0,
+        # vLLM continuous batching handles tens of in-flight requests per
+        # worker; the global default of 3 leaves throughput on the floor.
+        "max_concurrency": 32,
+        # RunPod serverless cold-starts can spend 30-90s spinning up a worker
+        # before the first token; 60s caused spurious APITimeoutError.
+        "request_timeout_s": 600.0,
     },
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
         "model": "llama-3.1-8b-instant",
         "rate_rpm": 28,
         "rate_tpm": 5800,
+        # Explicit so the benchmark runner's per-experiment override picks it
+        # up via PROVIDER_DEFAULTS rather than relying on the field default.
+        # Without this, `model_copy(update={"provider": "groq"})` from a
+        # base built with `LLM_PROVIDER` unset (i.e. ollama=300s) would carry
+        # ollama's 300s read timeout into groq calls.
+        "request_timeout_s": 60.0,
     },
     # Fireworks does not publish x-ratelimit-* headers; auto-discovery is a
     # no-op there. Caller sets LLM_MODEL explicitly with a namespaced slug
@@ -73,6 +88,13 @@ class Settings(BaseSettings):
 
     # Preprocessing
     max_text_length: int = 2048
+
+    # HTTP timeouts for outbound LLM calls. The OpenAI SDK's default is much
+    # longer than 60s, but we own the httpx client so we set these explicitly.
+    # Self-hosted backends (Ollama, RunPod) override request_timeout_s upward
+    # via PROVIDER_DEFAULTS — see comments there.
+    request_timeout_s: float = 60.0
+    connect_timeout_s: float = 10.0
 
     # Concurrency and rate limiting
     max_concurrency: int = 3
