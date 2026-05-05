@@ -1,7 +1,7 @@
 """Tests for `LLMClient.analyze_with_usage` token capture.
 
-Mocks instructor's `create_with_completion` to return a fake completion with
-known `usage` values; asserts the wrapper extracts them faithfully.
+Mocks the OpenAI SDK's `chat.completions.create` to return a fake completion
+with known `usage` values; asserts the wrapper extracts them faithfully.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from services.llm_client import LLMClient, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
 
 
-def _make_client(create_with_completion_mock: AsyncMock) -> LLMClient:
+def _make_client(create_mock: AsyncMock) -> LLMClient:
     settings = Settings(
         provider="ollama",
         base_url="http://localhost:9999/v1",
@@ -34,36 +34,43 @@ def _make_client(create_with_completion_mock: AsyncMock) -> LLMClient:
     )
     client = LLMClient(settings, ProviderRateLimiter(rpm=0, tpm=0))
     client.client = MagicMock()
-    client.client.chat.completions.create_with_completion = create_with_completion_mock
+    client.client.chat.completions.create = create_mock
     return client
 
 
 def _fake_completion(
-    prompt: int,
-    completion: int,
-    total: int,
+    parsed: SentimentResponse,
     *,
+    prompt: int | None,
+    completion: int | None,
+    total: int | None,
     cached: int | None = None,
 ) -> MagicMock:
     completion_obj = MagicMock()
-    completion_obj.usage.prompt_tokens = prompt
-    completion_obj.usage.completion_tokens = completion
-    completion_obj.usage.total_tokens = total
-    if cached is None:
-        # Default MagicMock attribute access returns a child mock; force the
-        # real path to "no details" so _extract_cached_tokens returns None.
-        completion_obj.usage.prompt_tokens_details = None
+    completion_obj.choices = [MagicMock()]
+    completion_obj.choices[0].message.content = parsed.model_dump_json()
+    if prompt is None and completion is None and total is None:
+        completion_obj.usage = None
     else:
-        completion_obj.usage.prompt_tokens_details = SimpleNamespace(
-            cached_tokens=cached
-        )
+        completion_obj.usage.prompt_tokens = prompt
+        completion_obj.usage.completion_tokens = completion
+        completion_obj.usage.total_tokens = total
+        if cached is None:
+            # Default MagicMock attribute access returns a child mock; force
+            # the real path to "no details" so _extract_cached_tokens
+            # returns None instead of receiving a fabricated count.
+            completion_obj.usage.prompt_tokens_details = None
+        else:
+            completion_obj.usage.prompt_tokens_details = SimpleNamespace(
+                cached_tokens=cached
+            )
     return completion_obj
 
 
 async def test_analyze_with_usage_returns_token_counts():
     parsed = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
-    completion = _fake_completion(prompt=120, completion=42, total=162)
-    mock = AsyncMock(return_value=(parsed, completion))
+    completion = _fake_completion(parsed, prompt=120, completion=42, total=162)
+    mock = AsyncMock(return_value=completion)
     client = _make_client(mock)
 
     response, usage = await client.analyze_with_usage("system", "hello")
@@ -79,9 +86,8 @@ async def test_analyze_with_usage_returns_none_when_completion_lacks_usage():
     # Self-hosted backends (some Ollama configs) don't include a usage field;
     # the wrapper must surface that as None rather than crash.
     parsed = SentimentResponse(score=3.0, emotion="NEUTRAL", aspect="PRODUCT")
-    completion = MagicMock()
-    completion.usage = None
-    mock = AsyncMock(return_value=(parsed, completion))
+    completion = _fake_completion(parsed, prompt=None, completion=None, total=None)
+    mock = AsyncMock(return_value=completion)
     client = _make_client(mock)
 
     response, usage = await client.analyze_with_usage("system", "hello")
@@ -92,8 +98,8 @@ async def test_analyze_with_usage_returns_none_when_completion_lacks_usage():
 
 async def test_analyze_with_usage_captures_cached_tokens():
     parsed = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
-    completion = _fake_completion(prompt=300, completion=20, total=320, cached=270)
-    mock = AsyncMock(return_value=(parsed, completion))
+    completion = _fake_completion(parsed, prompt=300, completion=20, total=320, cached=270)
+    mock = AsyncMock(return_value=completion)
     client = _make_client(mock)
 
     _, usage = await client.analyze_with_usage("system", "hello")
@@ -104,8 +110,8 @@ async def test_analyze_with_usage_captures_cached_tokens():
 
 async def test_analyze_with_usage_cached_tokens_none_when_provider_omits_field():
     parsed = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
-    completion = _fake_completion(prompt=120, completion=42, total=162)
-    mock = AsyncMock(return_value=(parsed, completion))
+    completion = _fake_completion(parsed, prompt=120, completion=42, total=162)
+    mock = AsyncMock(return_value=completion)
     client = _make_client(mock)
 
     _, usage = await client.analyze_with_usage("system", "hello")
@@ -116,7 +122,9 @@ async def test_analyze_with_usage_cached_tokens_none_when_provider_omits_field()
 
 async def test_session_id_forwarded_as_session_affinity_header():
     parsed = SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT")
-    mock = AsyncMock(return_value=(parsed, _fake_completion(10, 5, 15)))
+    mock = AsyncMock(
+        return_value=_fake_completion(parsed, prompt=10, completion=5, total=15)
+    )
     client = _make_client(mock)
 
     await client.analyze("system", "hi", session_id="exp-42")
@@ -127,7 +135,9 @@ async def test_session_id_forwarded_as_session_affinity_header():
 
 async def test_no_session_id_omits_extra_headers():
     parsed = SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT")
-    mock = AsyncMock(return_value=(parsed, _fake_completion(10, 5, 15)))
+    mock = AsyncMock(
+        return_value=_fake_completion(parsed, prompt=10, completion=5, total=15)
+    )
     client = _make_client(mock)
 
     await client.analyze("system", "hi")
@@ -150,13 +160,23 @@ def _make_client_with_settings(**setting_overrides) -> LLMClient:
     return LLMClient(Settings(**base), ProviderRateLimiter(rpm=0, tpm=0))
 
 
-def test_extra_body_is_none_when_no_overrides_apply():
-    client = _make_client_with_settings(model="llama3.1:8b")
+def test_extra_body_is_none_when_no_provider_or_model_extras_apply():
+    """Fireworks + a non-qwen3 model has no auto-additions; with no
+    reasoning_effort set, extra_body should be None."""
+    client = _make_client_with_settings(
+        provider="fireworks",
+        api_key="test",
+        base_url="https://api.fireworks.ai/inference/v1",
+        model="accounts/fireworks/models/llama-v3p3-70b-instruct",
+    )
     assert client.extra_body is None
 
 
 def test_reasoning_effort_flows_into_extra_body():
     client = _make_client_with_settings(
+        provider="fireworks",
+        api_key="test",
+        base_url="https://api.fireworks.ai/inference/v1",
         model="accounts/fireworks/models/gpt-oss-20b",
         reasoning_effort="low",
     )
@@ -164,7 +184,13 @@ def test_reasoning_effort_flows_into_extra_body():
 
 
 def test_qwen3_thinking_and_reasoning_effort_compose():
-    client = _make_client_with_settings(model="qwen3-32b", reasoning_effort="medium")
+    client = _make_client_with_settings(
+        provider="fireworks",
+        api_key="test",
+        base_url="https://api.fireworks.ai/inference/v1",
+        model="qwen3-32b",
+        reasoning_effort="medium",
+    )
     assert client.extra_body == {
         "chat_template_kwargs": {"enable_thinking": False},
         "reasoning_effort": "medium",
@@ -180,7 +206,8 @@ async def test_analyze_still_returns_just_response():
     # The original `analyze()` path must continue returning bare SentimentResponse
     # so production analyzer.py callers don't need to unpack a tuple.
     parsed = SentimentResponse(score=2.5, emotion="NEUTRAL", aspect="SERVICE")
-    mock = AsyncMock(return_value=(parsed, _fake_completion(1, 1, 2)))
+    completion = _fake_completion(parsed, prompt=1, completion=1, total=2)
+    mock = AsyncMock(return_value=completion)
     client = _make_client(mock)
 
     response = await client.analyze("system", "hi")

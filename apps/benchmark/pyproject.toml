@@ -10,7 +10,6 @@ dependencies = [
     # apps/llm/services/* and apps/llm/config.py.
     "pydantic-settings>=2.0.0",
     "openai>=1.0.0",
-    "instructor>=1.0.0",
     "aiolimiter>=1.1.0",
     "httpx>=0.27.0",
     # Benchmark-specific deps

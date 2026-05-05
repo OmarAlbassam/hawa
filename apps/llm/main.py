@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
         Provider.OLLAMA,
         Provider.RUNPOD,
     ):
-        discovered = await discover_limits(llm_client._raw_client, settings.model)
+        discovered = await discover_limits(llm_client.client, settings.model)
         rate_limiter = _apply_discovered(settings, rate_limiter, discovered, logger)
         llm_client.rate_limiter = rate_limiter
 
@@ -55,7 +55,10 @@ async def lifespan(app: FastAPI):
         settings.rate_max_retries,
     )
 
-    yield
+    try:
+        yield
+    finally:
+        await llm_client.aclose()
 
 
 def _apply_discovered(
