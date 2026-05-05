@@ -563,10 +563,11 @@ def _validate_provider_config(specs: list[ExperimentSpec]) -> None:
         next(s for s in specs if s.provider == "runpod")
     )
     base_url = (settings.base_url or "").rstrip("/")
-    if not base_url or "runpod.ai" not in base_url:
+    if not base_url or not any(d in base_url for d in ("runpod.ai", "runpod.net")):
         raise RuntimeError(
-            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint, "
-            "e.g. https://api.runpod.ai/v2/<endpoint-id>/openai/v1. "
+            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint — "
+            "either serverless (https://api.runpod.ai/v2/<endpoint-id>/openai/v1) "
+            "or a pod proxy (https://<pod-id>-8000.proxy.runpod.net/v1). "
             f"Got base_url={settings.base_url!r}. Set it in apps/benchmark/.env."
         )
     if not settings.api_key:

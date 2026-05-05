@@ -146,3 +146,23 @@ class Settings(BaseSettings):
             if current is None or current == "":
                 values[field] = default
         return values
+
+    @model_validator(mode="after")
+    def validate_runpod_config(self) -> "Settings":
+        # RunPod's base_url is per-endpoint (each user has a unique pod id), so
+        # it has no PROVIDER_DEFAULTS entry. If LLM_BASE_URL is unset, the
+        # OpenAI SDK silently routes calls to api.openai.com — fail loud here.
+        if self.provider != Provider.RUNPOD:
+            return self
+        base_url = (self.base_url or "").rstrip("/")
+        if not base_url or not any(d in base_url for d in ("runpod.ai", "runpod.net")):
+            raise ValueError(
+                "provider=runpod requires LLM_BASE_URL to point at a RunPod "
+                "endpoint — either serverless "
+                "(https://api.runpod.ai/v2/<endpoint-id>/openai/v1) or a pod proxy "
+                "(https://<pod-id>-8000.proxy.runpod.net/v1). "
+                f"Got base_url={self.base_url!r}."
+            )
+        if not self.api_key:
+            raise ValueError("provider=runpod requires LLM_API_KEY to be set.")
+        return self
