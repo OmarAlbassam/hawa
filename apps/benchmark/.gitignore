@@ -11,6 +11,7 @@ venv/
 # Cached LLM responses (sqlite) and embedding artifacts
 cache.db
 cache.db-*
+cache.db.bak
 *.npz
 
 # Result artifacts (parquet, plots)
