@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -135,6 +136,16 @@ class Settings(BaseSettings):
     # self-hosted backends don't publish limits, so the probe is a no-op there.
     auto_discover_limits: bool = True
     rate_safety_margin: float = 0.9
+
+    # Enum coercion. The `mode='before'` validators on SentimentResponse.emotion
+    # and .aspect snap free-form LLM output to a valid enum member. "synonyms"
+    # uses a hand-curated table only (no model deps). "embedding" additionally
+    # falls back to SBERT nearest-neighbour for novel words — opt-in because
+    # it pulls sentence-transformers + a one-time model download. "off" reverts
+    # to strict pydantic enum validation (out-of-set output → ValidationError →
+    # FailedResult).
+    enum_coercion_backend: Literal["off", "synonyms", "embedding"] = "synonyms"
+    enum_coercion_embedding_threshold: float = 0.45
 
     @model_validator(mode="before")
     @classmethod

@@ -39,6 +39,7 @@ from openai import AsyncOpenAI
 
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
+from services import enum_coercion
 from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient, RateLimitExhaustedError, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
@@ -301,6 +302,12 @@ async def run_experiment(
     exemplar JSONL/npz pair and replace the eval dataset as the few-shot pool.
     """
     settings = build_settings_for_experiment(spec)
+    # Push the experiment's coercion config into the validator module so per-
+    # experiment overrides (which may differ from process env) take effect.
+    enum_coercion.configure(
+        settings.enum_coercion_backend,
+        settings.enum_coercion_embedding_threshold,
+    )
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
     client = LLMClient(settings, rate_limiter)
 

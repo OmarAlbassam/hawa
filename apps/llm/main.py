@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from config import Provider, Settings
 from routes.analyze import router as analyze_router
+from services import enum_coercion
 from services.analyzer import AnalyzerService
 from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient
@@ -17,6 +18,14 @@ async def lifespan(app: FastAPI):
     settings = Settings()
     logging.basicConfig(level=settings.log_level.upper())
     logger = logging.getLogger(__name__)
+
+    # Push enum-coercion config from Settings into the module that owns the
+    # validators. Without this, values set only in `.env` are ignored, since
+    # pydantic-settings doesn't export them back to os.environ.
+    enum_coercion.configure(
+        settings.enum_coercion_backend,
+        settings.enum_coercion_embedding_threshold,
+    )
 
     logger.info(
         "LLM service starting — provider: %s, model: %s, endpoint: %s",
