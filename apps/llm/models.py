@@ -27,6 +27,10 @@ class Aspect(str, Enum):
     DELIVERY = "DELIVERY"
     PRICING = "PRICING"
     BRAND = "BRAND"
+    # Sentinel for "relevant post, but doesn't fit any of the named aspects."
+    # Also the coercion fallback when the LLM produces a string that can't be
+    # mapped via the synonym table or embedding nearest-neighbour.
+    OTHER = "OTHER"
 
 
 class IrrelevanceReason(str, Enum):
@@ -41,13 +45,22 @@ class IrrelevanceReason(str, Enum):
 
 
 class SentimentResponse(BaseModel):
-    """Schema for what the LLM returns. Used as instructor's response_model."""
+    """Schema for what the LLM returns; parsed from JSON-mode output.
+
+    `emotion` and `aspect` are coerced through `services.enum_coercion`, so
+    any free-form LLM string ("MAD", "store", "customer support") snaps to a
+    valid enum member rather than raising. This is the cross-provider safety
+    net for backends that can't do constrained decoding (Groq Llama-3.x,
+    Qwen3 on Groq). On backends that can (vLLM `guided_json`, Groq strict
+    `json_schema`), the LLM cannot emit a non-enum value and the coercion
+    layer is a no-op.
+    """
 
     is_relevant: bool = True
     irrelevance_reason: IrrelevanceReason | None = None
     score: float = Field(default=2.5)
     emotion: Emotion = Emotion.NEUTRAL
-    aspect: str = ""
+    aspect: Aspect = Aspect.OTHER
 
     @field_validator("score", mode="before")
     @classmethod
@@ -56,8 +69,17 @@ class SentimentResponse(BaseModel):
 
     @field_validator("emotion", mode="before")
     @classmethod
-    def uppercase_emotion(cls, v: object) -> str | object:
-        return v.upper() if isinstance(v, str) else v
+    def coerce_emotion(cls, v: object) -> object:
+        from services.enum_coercion import coerce_emotion
+
+        return coerce_emotion(v)
+
+    @field_validator("aspect", mode="before")
+    @classmethod
+    def coerce_aspect(cls, v: object) -> object:
+        from services.enum_coercion import coerce_aspect
+
+        return coerce_aspect(v)
 
 
 # --- Requests ---
@@ -85,7 +107,7 @@ class AnalyzeResult(BaseModel):
     score: float | None = Field(default=None, ge=0.0, le=5.0)
     llm_score: float | None = None
     emotion: Emotion | None = None
-    aspect: str | None = None
+    aspect: Aspect | None = None
 
 
 class FailedResult(BaseModel):

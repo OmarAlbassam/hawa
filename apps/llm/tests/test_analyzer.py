@@ -1,12 +1,12 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
 
 from config import Settings
 from models import (
     AnalyzeRequest,
     AnalyzeResult,
+    Aspect,
     Emotion,
     IrrelevanceReason,
     SentimentResponse,
@@ -23,7 +23,7 @@ def test_valid_half_step_response_passes_through():
     assert r.irrelevance_reason is None
     assert r.score == 4.0
     assert r.emotion == Emotion.JOY
-    assert r.aspect == "PRODUCT"
+    assert r.aspect == Aspect.PRODUCT
 
 
 def test_clamps_high_score():
@@ -65,16 +65,33 @@ def test_snaps_score_to_nearest_half_step(raw: float, expected: float):
 def test_uppercase_emotion():
     r = SentimentResponse(score=3.0, emotion="joy", aspect="delivery")
     assert r.emotion == Emotion.JOY
+    assert r.aspect == Aspect.DELIVERY
 
 
-def test_invalid_emotion_raises():
-    with pytest.raises(ValidationError):
-        SentimentResponse(score=3.0, emotion="HAPPINESS", aspect="PRODUCT")
+def test_invalid_emotion_coerces_via_synonym():
+    # "MAD" isn't an Emotion member, but the synonym map maps it to ANGER.
+    # With the coercion layer, malformed LLM output produces a usable result
+    # rather than a FailedResult.
+    r = SentimentResponse(score=3.0, emotion="MAD", aspect="PRODUCT")
+    assert r.emotion == Emotion.ANGER
 
 
-def test_freeform_aspect():
+def test_truly_unknown_emotion_falls_back_to_neutral():
+    # No synonym, no exact match → snap to NEUTRAL with a WARNING log.
+    r = SentimentResponse(score=3.0, emotion="zorgblat", aspect="PRODUCT")
+    assert r.emotion == Emotion.NEUTRAL
+
+
+def test_freeform_aspect_snaps_via_synonym():
+    # "customer support" isn't an Aspect member, but the synonym map maps the
+    # normalized key "customersupport" to SERVICE.
     r = SentimentResponse(score=3.0, emotion="JOY", aspect="customer support")
-    assert r.aspect == "customer support"
+    assert r.aspect == Aspect.SERVICE
+
+
+def test_truly_unknown_aspect_falls_back_to_other():
+    r = SentimentResponse(score=3.0, emotion="JOY", aspect="zorgblat")
+    assert r.aspect == Aspect.OTHER
 
 
 def test_irrelevant_response_omits_analysis_fields():
@@ -99,7 +116,7 @@ def test_analyze_result_relevant():
         score=3.0,
         llm_score=3.0,
         emotion=Emotion.JOY,
-        aspect="PRODUCT",
+        aspect=Aspect.PRODUCT,
     )
     assert r.is_relevant is True
     assert r.score == 3.0
@@ -197,5 +214,5 @@ async def test_llm_relevant_verdict_populates_analysis_fields():
     assert result.score == 4.0
     assert result.llm_score == 4.0
     assert result.emotion == Emotion.JOY
-    assert result.aspect == "PRODUCT"
+    assert result.aspect == Aspect.PRODUCT
     assert result.irrelevance_reason is None
