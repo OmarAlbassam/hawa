@@ -30,6 +30,7 @@ class AnalyzerService:
         brand_name: str | None = None,
         brand_industry: str | None = None,
         keywords: list[str] | None = None,
+        prompt: str | None = None,
     ) -> AnalyzeResult:
         """Preprocess, analyze, and validate a single post.
 
@@ -37,6 +38,12 @@ class AnalyzerService:
         result without calling the LLM. Posts that the LLM flags as
         is_relevant=False get their score/emotion/aspect nulled out so a
         buggy model output can't leak into aggregations.
+
+        ``prompt`` is the system prompt to send. When omitted, it's built
+        from the brand-context kwargs — the single-post path. ``analyze_batch``
+        builds it once and passes it through so a 1000-post batch doesn't
+        rebuild the same ~3KB string per post (and so vLLM's prefix cache sees
+        a stable token sequence across the batch).
         """
         cleaned = clean_text(post.text, self.settings.max_text_length)
         if not cleaned:
@@ -46,7 +53,8 @@ class AnalyzerService:
                 irrelevance_reason=IrrelevanceReason.EMPTY,
             )
 
-        prompt = build_system_prompt(brand_name, brand_industry, keywords)
+        if prompt is None:
+            prompt = build_system_prompt(brand_name, brand_industry, keywords)
         response = await self.llm_client.analyze(prompt, cleaned)
 
         if not response.is_relevant:
@@ -82,16 +90,12 @@ class AnalyzerService:
         results: list[AnalyzeResult] = []
         failed: list[FailedResult] = []
         semaphore = asyncio.Semaphore(self.settings.max_concurrency)
+        prompt = build_system_prompt(brand_name, brand_industry, keywords)
 
         async def _run(post: AnalyzeRequest) -> None:
             async with semaphore:
                 try:
-                    result = await self.analyze_post(
-                        post,
-                        brand_name=brand_name,
-                        brand_industry=brand_industry,
-                        keywords=keywords,
-                    )
+                    result = await self.analyze_post(post, prompt=prompt)
                     results.append(result)
                 except APIConnectionError:
                     failed.append(
