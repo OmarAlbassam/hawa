@@ -77,7 +77,7 @@ class BrandControllerTest {
         void shouldReturnPaginatedBrands_forUserCompany() throws Exception {
             Brand brand = createBrand("Nike", company);
             createKeyword(brand, "nike", KeywordTypeEnum.BRAND_NAME);
-            createKeyword(brand, "#justdoit", KeywordTypeEnum.HASHTAG);
+            createKeyword(brand, "nikee", KeywordTypeEnum.MISSPELLING);
 
             mockMvc.perform(get("/api/brands")
                             .header("Authorization", "Bearer " + userToken))
@@ -208,7 +208,7 @@ class BrandControllerTest {
         @Test
         void shouldListKeywords() throws Exception {
             createKeyword(brand, "nike", KeywordTypeEnum.BRAND_NAME);
-            createKeyword(brand, "#justdoit", KeywordTypeEnum.HASHTAG);
+            createKeyword(brand, "nikee", KeywordTypeEnum.MISSPELLING);
 
             mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/keywords")
                             .header("Authorization", "Bearer " + userToken))

@@ -121,7 +121,7 @@ These columns use PostgreSQL custom enum types (`USER-DEFINED` in the dump):
 | Column | Table | Known/Expected Values |
 |--------|-------|----------------------|
 | `role` | `user` | _(e.g., ADMIN, MARKETING_USER)_ |
-| `keyword_type` | `keyword` | _(e.g., BRAND_NAME, PRODUCT, HASHTAG)_ |
+| `keyword_type` | `keyword` | _(e.g., BRAND_NAME, PRODUCT, MISSPELLING, OTHER)_ |
 | `language` | `post` | _(e.g., EN, AR)_ |
 | `data_source` | `report` | _(e.g., REDDIT, CSV_UPLOAD)_ |
 | `status` | `report` | `PENDING`, _(e.g., PROCESSING, COMPLETED, FAILED)_ |

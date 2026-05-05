@@ -17,8 +17,24 @@ export interface BrandDetailResponse {
   updatedAt: string;
 }
 
+export type KeywordType = "BRAND_NAME" | "PRODUCT" | "MISSPELLING" | "OTHER";
+
+export const KEYWORD_TYPES: KeywordType[] = [
+  "BRAND_NAME",
+  "PRODUCT",
+  "MISSPELLING",
+  "OTHER",
+];
+
+export const KEYWORD_TYPE_LABELS: Record<KeywordType, string> = {
+  BRAND_NAME: "Brand Name",
+  PRODUCT: "Product",
+  MISSPELLING: "Misspelling",
+  OTHER: "Other",
+};
+
 export interface KeywordInfo {
   keywordId: number;
   keyword: string;
-  keywordType: "BRAND_NAME" | "PRODUCT" | "HASHTAG";
+  keywordType: KeywordType;
 }

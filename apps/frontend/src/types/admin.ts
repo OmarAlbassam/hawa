@@ -135,7 +135,8 @@ export interface BrandListParams {
 
 // ── Keywords ──
 
-export type KeywordType = "BRAND_NAME" | "PRODUCT" | "HASHTAG";
+export type { KeywordType } from "./brand";
+import type { KeywordType } from "./brand";
 
 export interface KeywordResponse {
   keywordId: number;

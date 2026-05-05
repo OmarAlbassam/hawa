@@ -4,6 +4,7 @@ import type {
   BrandSummaryResponse,
   BrandDetailResponse,
   KeywordInfo,
+  KeywordType,
 } from "../types/brand";
 
 function getAuthHeaders(): HeadersInit {
@@ -44,7 +45,7 @@ export async function getBrand(brandId: number): Promise<BrandDetailResponse> {
 
 export interface KeywordRequest {
   keyword: string;
-  keywordType: "BRAND_NAME" | "PRODUCT" | "HASHTAG";
+  keywordType: KeywordType;
 }
 
 export async function getKeywords(
