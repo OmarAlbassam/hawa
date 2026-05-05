@@ -25,6 +25,14 @@ PROVIDER_DEFAULTS: dict[str, dict[str, object]] = {
         "rate_rpm": 28,
         "rate_tpm": 5800,
     },
+    # Fireworks does not publish x-ratelimit-* headers; auto-discovery is a
+    # no-op there. Caller sets LLM_MODEL explicitly with a namespaced slug
+    # like "accounts/fireworks/models/llama-v3p1-8b-instruct".
+    "fireworks": {
+        "base_url": "https://api.fireworks.ai/inference/v1",
+        "rate_rpm": 0,
+        "rate_tpm": 0,
+    },
 }
 
 
@@ -32,6 +40,7 @@ class Provider(StrEnum):
     OLLAMA = "ollama"
     RUNPOD = "runpod"
     GROQ = "groq"
+    FIREWORKS = "fireworks"
 
 
 class Settings(BaseSettings):

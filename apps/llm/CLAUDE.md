@@ -62,10 +62,10 @@ All env vars are prefixed with `LLM_`. See `.env.example` for the full list.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_PROVIDER` | `ollama` | LLM provider: `ollama` (dev), `runpod` (prod), or `groq` |
-| `LLM_BASE_URL` | per provider | LLM endpoint (ollama: `http://localhost:11434/v1`) |
-| `LLM_API_KEY` | per provider | API key (ollama: `ollama`, runpod/groq: required) |
-| `LLM_MODEL` | per provider | Model name (ollama: `llama3.1:8b`, groq: `llama-3.1-8b-instant`) |
+| `LLM_PROVIDER` | `ollama` | LLM provider: `ollama` (dev), `runpod` (prod), `groq`, or `fireworks` |
+| `LLM_BASE_URL` | per provider | LLM endpoint (ollama: `http://localhost:11434/v1`, fireworks: `https://api.fireworks.ai/inference/v1`) |
+| `LLM_API_KEY` | per provider | API key (ollama: `ollama`, runpod/groq/fireworks: required) |
+| `LLM_MODEL` | per provider | Model name (ollama: `llama3.1:8b`, groq: `llama-3.1-8b-instant`, fireworks: namespaced slug like `accounts/fireworks/models/llama-v3p1-8b-instruct`) |
 | `LLM_PORT` | `8001` | Service port |
 | `LLM_TEMPERATURE` | `0.1` | LLM temperature |
 | `LLM_MAX_TOKENS` | `512` | Max response tokens |
@@ -104,8 +104,10 @@ At startup, `services/limits_probe.py` issues one GET `/models` request and
 inspects `x-ratelimit-limit-requests`, `x-ratelimit-limit-tokens`, and the
 matching `-reset-*` durations to infer the provider's actual per-minute
 caps. Those override the hardcoded `PROVIDER_DEFAULTS` after applying
-`LLM_RATE_SAFETY_MARGIN`. Probe failure (Ollama/RunPod, offline, missing
-headers) silently falls back to the configured values.
+`LLM_RATE_SAFETY_MARGIN`. Probe failure (Ollama/RunPod/Fireworks, offline,
+missing headers) silently falls back to the configured values. Fireworks
+in particular does not publish `x-ratelimit-*` headers, so the probe is
+effectively a no-op there.
 
 When retries are exhausted the wrapper raises `RateLimitExhaustedError`,
 which the analyzer converts into a `FailedResult` with a distinct

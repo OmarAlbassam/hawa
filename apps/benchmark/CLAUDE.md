@@ -71,6 +71,12 @@ The benchmark reuses `ProviderRateLimiter` from `apps/llm/services/rate_limiter.
 - `max_concurrency` — outbound concurrency cap
 - `wall_clock_budget_s` — hard timeout that aborts the experiment cleanly (RunPod safety)
 
+The runner auto-probes per-minute limits via `x-ratelimit-*` response
+headers for `groq` only. `ollama`, `runpod`, and `fireworks` skip the
+probe — the first two are self-hosted and the third doesn't publish
+those headers — so set `rate_rpm` / `rate_tpm` explicitly in the YAML
+when you need a tighter ceiling than the provider's default.
+
 ## Reproducibility Checklist
 
 Every result row must record:

@@ -1,0 +1,22 @@
+# Cross-family open-source comparison via Fireworks. One API key, many
+# model families — the whole point of using this provider for the
+# headline ranking table.
+#
+# Confirm the model slugs against https://fireworks.ai/models before
+# running; Fireworks deprecates and renames models periodically.
+#
+# rate_rpm/rate_tpm are intentionally unset: Fireworks doesn't ship
+# x-ratelimit-* headers, so the runner skips the auto-probe and the
+# limiter runs unbounded — the per-account 6,000 RPM ceiling is well
+# above what max_concurrency=8 can produce.
+
+experiments:
+  - id: fireworks_zero_shot
+    provider: fireworks
+    prompt: zero_shot
+    model:
+      - accounts/fireworks/models/llama-v3p1-8b-instruct
+      - accounts/fireworks/models/qwen2p5-72b-instruct
+      - accounts/fireworks/models/gpt-oss-20b
+    temperature: 0.0
+    max_concurrency: 8

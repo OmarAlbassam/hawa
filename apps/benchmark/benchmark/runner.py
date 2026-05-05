@@ -212,9 +212,11 @@ async def apply_discovered_limits(specs: list[ExperimentSpec]) -> None:
     for spec in specs:
         # Self-hosted backends (Ollama, RunPod serverless vLLM) don't publish
         # x-ratelimit-* headers. The probe wakes a cold RunPod worker for
-        # nothing — skip it. Concurrency on these backends is bounded by
-        # GPU/worker capacity, not provider-side quotas.
-        if spec.provider in ("ollama", "runpod"):
+        # nothing — skip it. Fireworks doesn't publish them either, so the
+        # probe burns a request for no signal. Concurrency on these
+        # backends is bounded by worker capacity or account-wide caps, not
+        # per-minute headers we can read off a response.
+        if spec.provider in ("ollama", "runpod", "fireworks"):
             continue
         if spec.rate_rpm is not None and spec.rate_tpm is not None:
             continue  # both manually overridden — no probe needed
@@ -537,24 +539,35 @@ def _validate_provider_config(specs: list[ExperimentSpec]) -> None:
     PROVIDER_DEFAULTS entry. If LLM_BASE_URL isn't set in env, AsyncOpenAI
     silently defaults to api.openai.com. If env points at Ollama but the YAML
     selects runpod, every call fails with connection-refused. Catch both here.
+
+    Fireworks has a fixed base_url from PROVIDER_DEFAULTS, so we only need to
+    confirm an api key is present — without it, every call returns 401 and
+    burns the experiment budget mid-run.
     """
-    needs_runpod = any(s.provider == "runpod" for s in specs)
-    if not needs_runpod:
-        return
-    settings = build_settings_for_experiment(
-        next(s for s in specs if s.provider == "runpod")
-    )
-    base_url = (settings.base_url or "").rstrip("/")
-    if not base_url or "runpod.ai" not in base_url:
-        raise RuntimeError(
-            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint, "
-            "e.g. https://api.runpod.ai/v2/<endpoint-id>/openai/v1. "
-            f"Got base_url={settings.base_url!r}. Set it in apps/benchmark/.env."
+    if any(s.provider == "runpod" for s in specs):
+        settings = build_settings_for_experiment(
+            next(s for s in specs if s.provider == "runpod")
         )
-    if not settings.api_key:
-        raise RuntimeError(
-            "provider=runpod requires LLM_API_KEY to be set in apps/benchmark/.env."
+        base_url = (settings.base_url or "").rstrip("/")
+        if not base_url or "runpod.ai" not in base_url:
+            raise RuntimeError(
+                "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint, "
+                "e.g. https://api.runpod.ai/v2/<endpoint-id>/openai/v1. "
+                f"Got base_url={settings.base_url!r}. Set it in apps/benchmark/.env."
+            )
+        if not settings.api_key:
+            raise RuntimeError(
+                "provider=runpod requires LLM_API_KEY to be set in apps/benchmark/.env."
+            )
+
+    if any(s.provider == "fireworks" for s in specs):
+        settings = build_settings_for_experiment(
+            next(s for s in specs if s.provider == "fireworks")
         )
+        if not settings.api_key:
+            raise RuntimeError(
+                "provider=fireworks requires LLM_API_KEY to be set in apps/benchmark/.env."
+            )
 
 
 async def run_all(

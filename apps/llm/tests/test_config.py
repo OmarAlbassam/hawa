@@ -7,7 +7,7 @@ behavior: numeric 0 is preserved, empty strings and missing keys still get
 the provider defaults applied.
 """
 
-from config import Settings
+from config import Provider, Settings
 
 
 def test_explicit_rate_rpm_zero_is_honored_for_groq():
@@ -44,3 +44,20 @@ def test_empty_string_base_url_still_gets_provider_default():
     """Preserve the existing `"" means unset` convention for string fields."""
     settings = Settings(provider="groq", api_key="test", base_url="")
     assert settings.base_url == "https://api.groq.com/openai/v1"
+
+
+def test_fireworks_defaults_resolve():
+    """Fireworks ships a fixed base_url and disables the RPM/TPM buckets;
+    the model slug must come from the caller. base_url="" mirrors the
+    `"" means unset` convention so a developer's local .env (which may
+    point at RunPod) doesn't shadow the provider default during tests."""
+    settings = Settings(
+        provider="fireworks",
+        api_key="test",
+        base_url="",
+        model="accounts/fireworks/models/llama-v3p1-8b-instruct",
+    )
+    assert settings.provider == Provider.FIREWORKS
+    assert settings.base_url == "https://api.fireworks.ai/inference/v1"
+    assert settings.rate_rpm == 0
+    assert settings.rate_tpm == 0
