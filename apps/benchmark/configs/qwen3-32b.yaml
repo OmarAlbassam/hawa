@@ -1,0 +1,7 @@
+experiments:
+  - id: qwen3_32b_zero_shot
+    provider: groq
+    prompt: zero_shot
+    model: qwen/qwen3-32b
+    temperature: 0.0
+    max_concurrency: 3
