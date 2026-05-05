@@ -181,6 +181,15 @@ class LLMClient:
                 if self.extra_body is not None:
                     kwargs["extra_body"] = self.extra_body
                 completion = await self.client.chat.completions.create(**kwargs)
+                # Refund the over-reservation: estimate is worst-case
+                # (prompt+text)/4 + max_tokens, actual is usually much lower.
+                # Without this, sustained TPM throughput is bounded by the
+                # estimate, not the real spend.
+                usage = TokenUsage.from_completion(completion)
+                if usage is not None:
+                    refund = estimated_tokens - usage.total_tokens
+                    if refund > 0:
+                        self.rate_limiter.refund_tokens(refund)
                 content = completion.choices[0].message.content or ""
                 response = SentimentResponse.model_validate_json(content)
                 return response, completion
