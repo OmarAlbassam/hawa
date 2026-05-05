@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,17 +14,32 @@ PROVIDER_DEFAULTS: dict[str, dict[str, object]] = {
         "model": "llama3.1:8b",
         "rate_rpm": 0,
         "rate_tpm": 0,
+        # Local generations on a large model on consumer hardware can run
+        # well past 60s; lift the read timeout for self-hosted backends.
+        "request_timeout_s": 300.0,
     },
     "runpod": {
         "model": "meta-llama/Llama-3.1-8B-Instruct",
         "rate_rpm": 0,
         "rate_tpm": 0,
+        # vLLM continuous batching handles tens of in-flight requests per
+        # worker; the global default of 3 leaves throughput on the floor.
+        "max_concurrency": 32,
+        # RunPod serverless cold-starts can spend 30-90s spinning up a worker
+        # before the first token; 60s caused spurious APITimeoutError.
+        "request_timeout_s": 600.0,
     },
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
         "model": "llama-3.1-8b-instant",
         "rate_rpm": 28,
         "rate_tpm": 5800,
+        # Explicit so the benchmark runner's per-experiment override picks it
+        # up via PROVIDER_DEFAULTS rather than relying on the field default.
+        # Without this, `model_copy(update={"provider": "groq"})` from a
+        # base built with `LLM_PROVIDER` unset (i.e. ollama=300s) would carry
+        # ollama's 300s read timeout into groq calls.
+        "request_timeout_s": 60.0,
     },
 }
 
@@ -32,6 +48,25 @@ class Provider(StrEnum):
     OLLAMA = "ollama"
     RUNPOD = "runpod"
     GROQ = "groq"
+
+
+# Groq models that support `response_format={"type":"json_schema","strict":true}`.
+# Per Groq docs, only the GPT-OSS family enforces the schema at decoding time.
+# https://console.groq.com/docs/structured-outputs
+GROQ_STRICT_SCHEMA_MODELS: frozenset[str] = frozenset({
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+})
+
+# Groq models that accept `json_schema` with `strict=false` (best-effort).
+# Llama 4 Scout is on the published list. Best-effort gives no guarantee but
+# nudges harder than plain `json_object`; the coercion layer is the safety net.
+GROQ_BEST_EFFORT_SCHEMA_MODELS: frozenset[str] = frozenset({
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-safeguard-20b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+})
 
 
 class Settings(BaseSettings):
@@ -60,6 +95,13 @@ class Settings(BaseSettings):
     # Preprocessing
     max_text_length: int = 2048
 
+    # HTTP timeouts for outbound LLM calls. The OpenAI SDK's default is much
+    # longer than 60s, but we own the httpx client so we set these explicitly.
+    # Self-hosted backends (Ollama, RunPod) override request_timeout_s upward
+    # via PROVIDER_DEFAULTS — see comments there.
+    request_timeout_s: float = 60.0
+    connect_timeout_s: float = 10.0
+
     # Concurrency and rate limiting
     max_concurrency: int = 3
     rate_rpm: int = 0
@@ -81,6 +123,16 @@ class Settings(BaseSettings):
     auto_discover_limits: bool = True
     rate_safety_margin: float = 0.9
 
+    # Enum coercion. The `mode='before'` validators on SentimentResponse.emotion
+    # and .aspect snap free-form LLM output to a valid enum member. "synonyms"
+    # uses a hand-curated table only (no model deps). "embedding" additionally
+    # falls back to SBERT nearest-neighbour for novel words — opt-in because
+    # it pulls sentence-transformers + a one-time model download. "off" reverts
+    # to strict pydantic enum validation (out-of-set output → ValidationError →
+    # FailedResult).
+    enum_coercion_backend: Literal["off", "synonyms", "embedding"] = "synonyms"
+    enum_coercion_embedding_threshold: float = 0.45
+
     @model_validator(mode="before")
     @classmethod
     def apply_provider_defaults(cls, values: dict) -> dict:
@@ -94,3 +146,23 @@ class Settings(BaseSettings):
             if current is None or current == "":
                 values[field] = default
         return values
+
+    @model_validator(mode="after")
+    def validate_runpod_config(self) -> "Settings":
+        # RunPod's base_url is per-endpoint (each user has a unique pod id), so
+        # it has no PROVIDER_DEFAULTS entry. If LLM_BASE_URL is unset, the
+        # OpenAI SDK silently routes calls to api.openai.com — fail loud here.
+        if self.provider != Provider.RUNPOD:
+            return self
+        base_url = (self.base_url or "").rstrip("/")
+        if not base_url or not any(d in base_url for d in ("runpod.ai", "runpod.net")):
+            raise ValueError(
+                "provider=runpod requires LLM_BASE_URL to point at a RunPod "
+                "endpoint — either serverless "
+                "(https://api.runpod.ai/v2/<endpoint-id>/openai/v1) or a pod proxy "
+                "(https://<pod-id>-8000.proxy.runpod.net/v1). "
+                f"Got base_url={self.base_url!r}."
+            )
+        if not self.api_key:
+            raise ValueError("provider=runpod requires LLM_API_KEY to be set.")
+        return self

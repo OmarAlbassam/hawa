@@ -1,0 +1,7 @@
+experiments:
+  - id: qwen3_8b_zero_shot
+    provider: runpod
+    prompt: zero_shot
+    model: qwen/qwen3-8B
+    temperature: 0.0
+    max_concurrency: 30

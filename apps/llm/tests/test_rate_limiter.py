@@ -78,3 +78,52 @@ async def test_notify_with_various_retry_afters(retry_after):
     limiter = ProviderRateLimiter()
     limiter.notify_rate_limited(retry_after)
     await limiter.acquire()  # should not hang
+
+
+# ---------------------------------------------------------------------------
+# refund_tokens: returns over-reserved TPM budget after actual usage is known.
+# ---------------------------------------------------------------------------
+
+
+async def test_refund_tokens_lowers_bucket_level():
+    limiter = ProviderRateLimiter(tpm=1000)
+    await limiter.acquire(estimated_tokens=800)
+    level_before = limiter._tpm_limiter._level
+    assert level_before >= 800
+
+    limiter.refund_tokens(500)
+    assert limiter._tpm_limiter._level == max(0.0, level_before - 500)
+
+
+async def test_refund_tokens_no_op_when_tpm_disabled():
+    limiter = ProviderRateLimiter(rpm=10, tpm=0)
+    # Should not raise.
+    limiter.refund_tokens(500)
+
+
+async def test_refund_tokens_clamps_at_zero():
+    limiter = ProviderRateLimiter(tpm=1000)
+    await limiter.acquire(estimated_tokens=100)
+    limiter.refund_tokens(99999)
+    assert limiter._tpm_limiter._level == 0.0
+
+
+async def test_refund_lets_subsequent_acquire_proceed_immediately():
+    """The realistic flow: a worker reserves N, the response comes back
+    using only M < N, the worker calls refund(N - M), and the *next* call
+    to acquire() sees the freed headroom without waiting for natural leak.
+    (aiolimiter's already-sleeping waiters keep their original schedule —
+    that's an aiolimiter API limitation, not what we rely on. Workers
+    acquire fresh after releasing their concurrency-semaphore slot.)"""
+    limiter = ProviderRateLimiter(tpm=1000, window_seconds=60.0)
+    # First worker reserves 900, then refunds 800 once response is back.
+    await limiter.acquire(estimated_tokens=900)
+    limiter.refund_tokens(800)
+
+    started = asyncio.get_running_loop().time()
+    await asyncio.wait_for(limiter.acquire(estimated_tokens=500), timeout=0.5)
+    elapsed = asyncio.get_running_loop().time() - started
+    # Without refund, only 100/1000 cap was free; 500 needs 400 more tokens
+    # to leak in, which at 1000/60s = ~24s. Must be near-instant.
+    assert elapsed < 0.1
+

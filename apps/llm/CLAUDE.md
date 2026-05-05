@@ -71,6 +71,8 @@ All env vars are prefixed with `LLM_`. See `.env.example` for the full list.
 | `LLM_MAX_TOKENS` | `512` | Max response tokens |
 | `LLM_MAX_TEXT_LENGTH` | `2048` | Max post text length before truncation |
 | `LLM_MAX_CONCURRENCY` | `3` | Max concurrent outbound LLM calls (safety net on top of the limiter) |
+| `LLM_REQUEST_TIMEOUT_S` | per provider | Read/write/pool timeout for LLM HTTP calls. Defaults: groq `60`, ollama `300`, runpod `600` (covers RunPod serverless cold starts). |
+| `LLM_CONNECT_TIMEOUT_S` | `10` | TCP connect timeout for LLM HTTP calls. |
 | `LLM_RATE_RPM` | per provider | Requests-per-minute budget. `0` disables. Groq default: `28` |
 | `LLM_RATE_TPM` | per provider | Tokens-per-minute budget. `0` disables. Groq default: `5800` |
 | `LLM_RATE_MAX_RETRIES` | `5` | Attempts per request when 429s are encountered |
@@ -91,14 +93,15 @@ gate: when any worker sees a 429, it notifies the limiter with
 other workers block on the same gate until it lifts. The floor exists
 because providers like Groq return a `Retry-After` sized for a single
 request's refill, not a full bucket reset — respecting it literally lets
-queued workers resume in lockstep and re-trigger the limit. This replaces the older stacked retry strategy (OpenAI SDK +
-instructor + `FailedResult`) that produced noisy 429 log spam.
+queued workers resume in lockstep and re-trigger the limit.
 
-The limiter sits in front of `LLMClient.analyze()`. Both the OpenAI SDK's
-internal retry (`max_retries=0`) and instructor's HTTP retry are disabled
-so the wrapper owns retry policy end-to-end. Instructor's validation retry
-(`max_retries=1`) stays on — it handles malformed JSON without costing
-rate budget.
+The limiter sits in front of `LLMClient.analyze()`. The OpenAI SDK's
+internal retry is disabled (`max_retries=0`) so the wrapper owns retry
+policy end-to-end. The wrapper calls native OpenAI JSON mode
+(`response_format={"type": "json_object"}`) and parses the response with
+`SentimentResponse.model_validate_json`; malformed JSON or schema
+mismatches surface as `pydantic.ValidationError` / `json.JSONDecodeError`
+and propagate to the analyzer, which converts them into a `FailedResult`.
 
 At startup, `services/limits_probe.py` issues one GET `/models` request and
 inspects `x-ratelimit-limit-requests`, `x-ratelimit-limit-tokens`, and the

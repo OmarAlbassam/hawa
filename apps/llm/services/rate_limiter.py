@@ -55,6 +55,31 @@ class ProviderRateLimiter:
                 return
             # Gate closed while we were waiting on a bucket — loop and wait.
 
+    def refund_tokens(self, amount: int) -> None:
+        """Return unused tokens to the TPM bucket after a response arrives.
+
+        ``acquire(estimated_tokens)`` reserves a worst-case budget upfront —
+        ``(prompt+text)/4 + max_tokens`` — but actual completions usually
+        spend far less. Without a refund, every over-reservation permanently
+        narrows the bucket, so steady-state throughput collapses to
+        ``tpm / estimated_tokens`` even though the provider only charged
+        ``tpm / actual_tokens``.
+
+        ``aiolimiter.AsyncLimiter`` exposes no public 'give back' API, so
+        we adjust its internal level directly. The level represents tokens
+        currently consumed in the rolling window; clamping at 0 keeps the
+        bucket from dropping below empty.
+        """
+        if self._tpm_limiter is None or amount <= 0:
+            return
+        # Touching aiolimiter internals — this is the supported workaround
+        # since the library has no refund API. Pin the dependency so an
+        # upstream rename is caught at install time, not at runtime.
+        current = getattr(self._tpm_limiter, "_level", None)
+        if current is None:
+            return
+        self._tpm_limiter._level = max(0.0, current - float(amount))
+
     def notify_rate_limited(self, retry_after_seconds: float) -> None:
         """Pause all acquirers for retry_after_seconds.
 

@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -38,6 +39,7 @@ from openai import AsyncOpenAI
 
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
+from services import enum_coercion
 from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient, RateLimitExhaustedError, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
@@ -185,6 +187,12 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     defaults = PROVIDER_DEFAULTS.get(spec.provider, {})
     if "base_url" in defaults:
         overrides["base_url"] = defaults["base_url"]
+    # `model_copy(update=...)` doesn't re-run `apply_provider_defaults`, so
+    # the timeout that the validator picked at `Settings()` time (driven by
+    # env's LLM_PROVIDER) leaks into the experiment's provider unless we
+    # re-apply it here. Same shape as the base_url override above.
+    if "request_timeout_s" in defaults:
+        overrides["request_timeout_s"] = defaults["request_timeout_s"]
     if spec.rate_rpm is not None:
         overrides["rate_rpm"] = spec.rate_rpm
     if spec.rate_tpm is not None:
@@ -265,33 +273,44 @@ async def run_experiment(
     dependency on rich/streamlit/etc.
     """
     settings = build_settings_for_experiment(spec)
+    # Push the experiment's coercion config into the validator module so per-
+    # experiment overrides (which may differ from process env) take effect.
+    enum_coercion.configure(
+        settings.enum_coercion_backend,
+        settings.enum_coercion_embedding_threshold,
+    )
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
     client = LLMClient(settings, rate_limiter)
 
-    semaphore = asyncio.Semaphore(spec.max_concurrency)
-    deadline = (
-        time.monotonic() + spec.wall_clock_budget_s
-        if spec.wall_clock_budget_s
-        else None
-    )
-    results: list[PerPostResult] = []
-    results_lock = asyncio.Lock()
+    try:
+        semaphore = asyncio.Semaphore(spec.max_concurrency)
+        deadline = (
+            time.monotonic() + spec.wall_clock_budget_s
+            if spec.wall_clock_budget_s
+            else None
+        )
+        results: list[PerPostResult] = []
+        results_lock = asyncio.Lock()
 
-    async def _process(sample: Sample) -> None:
-        async with semaphore:
-            if deadline is not None and time.monotonic() > deadline:
-                result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
-            else:
-                result = await _process_one(
-                    spec, sample, settings, client, cache, store, embedder
-                )
-            async with results_lock:
-                results.append(result)
-                if on_post_done is not None:
-                    on_post_done(result)
+        async def _process(sample: Sample) -> None:
+            async with semaphore:
+                if deadline is not None and time.monotonic() > deadline:
+                    result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
+                else:
+                    result = await _process_one(
+                        spec, sample, settings, client, cache, store, embedder
+                    )
+                async with results_lock:
+                    results.append(result)
+                    if on_post_done is not None:
+                        on_post_done(result)
 
-    await asyncio.gather(*(_process(s) for s in samples))
-    return results
+        await asyncio.gather(*(_process(s) for s in samples))
+        return results
+    finally:
+        # LLMClient owns an httpx.AsyncClient; long benchmark runs that skip
+        # this leak connection pools and emit unclosed-client warnings.
+        await client.aclose()
 
 
 async def _process_one(
@@ -545,10 +564,11 @@ def _validate_provider_config(specs: list[ExperimentSpec]) -> None:
         next(s for s in specs if s.provider == "runpod")
     )
     base_url = (settings.base_url or "").rstrip("/")
-    if not base_url or "runpod.ai" not in base_url:
+    if not base_url or not any(d in base_url for d in ("runpod.ai", "runpod.net")):
         raise RuntimeError(
-            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint, "
-            "e.g. https://api.runpod.ai/v2/<endpoint-id>/openai/v1. "
+            "provider=runpod requires LLM_BASE_URL to point at a RunPod endpoint — "
+            "either serverless (https://api.runpod.ai/v2/<endpoint-id>/openai/v1) "
+            "or a pod proxy (https://<pod-id>-8000.proxy.runpod.net/v1). "
             f"Got base_url={settings.base_url!r}. Set it in apps/benchmark/.env."
         )
     if not settings.api_key:
@@ -565,6 +585,7 @@ async def run_all(
     cache_path: str | Path = "cache.db",
     results_dir: str | Path = "results",
     k_folds: int = 5,
+    console: Console | None = None,
 ) -> dict[str, str]:
     """Top-level entry point. Returns experiment_id -> output parquet path."""
     config = load_config(config_path)
@@ -612,6 +633,7 @@ async def run_all(
         TimeElapsedColumn(),
         TextColumn("eta"),
         TimeRemainingColumn(),
+        console=console,
         transient=False,
     )
 
@@ -643,6 +665,11 @@ async def run_all(
                 )
                 df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
                 out_path = results_dir / f"{spec.id}.parquet"
+                # spec.id can contain `/` (e.g. "qwen/qwen3-32b" mirrors the
+                # model namespace), so the parquet path may have intermediate
+                # directories that don't exist yet — to_parquet won't create
+                # them and would FileNotFoundError at the end of a long run.
+                out_path.parent.mkdir(parents=True, exist_ok=True)
                 df.to_parquet(out_path, index=False)
                 outputs[spec.id] = str(out_path)
                 progress.console.log(
