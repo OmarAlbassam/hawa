@@ -9,7 +9,11 @@ import {
 } from "../../services/datasetService";
 import { DatasetValidationFailed } from "../../types/dataset";
 import type { DatasetValidationError } from "../../types/dataset";
-import type { BrandSummaryResponse, KeywordInfo } from "../../types/brand";
+import {
+  KEYWORD_TYPE_LABELS,
+  type BrandSummaryResponse,
+  type KeywordInfo,
+} from "../../types/brand";
 import type { DataSource } from "../../types/dashboard";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
 import "./StartAnalysis.css";
@@ -337,7 +341,7 @@ const StartAnalysis = (): React.JSX.Element => {
                             {kw.keyword}
                           </span>
                           <span className="start-analysis-keyword-type">
-                            {kw.keywordType}
+                            {KEYWORD_TYPE_LABELS[kw.keywordType]}
                           </span>
                         </label>
                       </li>

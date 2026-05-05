@@ -7,26 +7,22 @@ import {
   deleteKeyword,
 } from "../../services/brandService";
 import type { Page } from "../../types/page";
-import type { KeywordInfo } from "../../types/brand";
+import {
+  KEYWORD_TYPES,
+  KEYWORD_TYPE_LABELS,
+  type KeywordInfo,
+  type KeywordType,
+} from "../../types/brand";
 import Badge from "../../components/Badge/Badge";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import "./KeywordPanel.css";
 
-type KeywordType = "BRAND_NAME" | "PRODUCT" | "HASHTAG";
-
-const TYPE_LABELS: Record<KeywordType, string> = {
-  BRAND_NAME: "Brand Name",
-  PRODUCT: "Product",
-  HASHTAG: "Hashtag",
-};
-
-const TYPE_BADGE_VARIANT: Record<KeywordType, "primary" | "info" | "warning"> = {
+const TYPE_BADGE_VARIANT: Record<KeywordType, "primary" | "info" | "warning" | "default"> = {
   BRAND_NAME: "primary",
   PRODUCT: "info",
-  HASHTAG: "warning",
+  MISSPELLING: "warning",
+  OTHER: "default",
 };
-
-const KEYWORD_TYPES: KeywordType[] = ["BRAND_NAME", "PRODUCT", "HASHTAG"];
 
 interface KeywordPanelProps {
   brandId: number;
@@ -170,7 +166,7 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
         >
           {KEYWORD_TYPES.map((t) => (
             <option key={t} value={t}>
-              {TYPE_LABELS[t]}
+              {KEYWORD_TYPE_LABELS[t]}
             </option>
           ))}
         </select>
@@ -231,7 +227,7 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
                       >
                         {KEYWORD_TYPES.map((t) => (
                           <option key={t} value={t}>
-                            {TYPE_LABELS[t]}
+                            {KEYWORD_TYPE_LABELS[t]}
                           </option>
                         ))}
                       </select>
@@ -262,7 +258,7 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
                     <td>{kw.keyword}</td>
                     <td>
                       <Badge variant={TYPE_BADGE_VARIANT[kw.keywordType]}>
-                        {TYPE_LABELS[kw.keywordType]}
+                        {KEYWORD_TYPE_LABELS[kw.keywordType]}
                       </Badge>
                     </td>
                     <td>
