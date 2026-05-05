@@ -12,9 +12,16 @@ router = APIRouter()
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health(request: Request) -> HealthResponse:
+async def health(request: Request, deep: bool = False) -> HealthResponse:
+    """Liveness probe.
+
+    Default (`deep=false`) returns immediately without touching the LLM —
+    appropriate for k8s-style liveness checks. `?deep=true` additionally
+    calls `models.list()` on the configured backend, which on serverless
+    backends like RunPod will cold-start a worker. Use it sparingly.
+    """
     analyzer = request.app.state.analyzer
-    reachable = await analyzer.llm_client.is_reachable()
+    reachable = await analyzer.llm_client.is_reachable() if deep else None
     return HealthResponse(
         status="ok",
         llm_reachable=reachable,

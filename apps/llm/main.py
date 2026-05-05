@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from config import Settings
+from config import Provider, Settings
 from routes.analyze import router as analyze_router
 from services.analyzer import AnalyzerService
 from services.limits_probe import DiscoveredLimits, discover_limits
@@ -31,7 +31,14 @@ async def lifespan(app: FastAPI):
     )
     llm_client = LLMClient(settings, rate_limiter)
 
-    if settings.auto_discover_limits:
+    # Self-hosted backends (Ollama, RunPod serverless vLLM) don't publish
+    # x-ratelimit-* headers. Probing them is wasteful — and on RunPod it
+    # cold-starts a worker just to read absent headers, blocking startup
+    # for 30-90s. Skip the probe for these providers.
+    if settings.auto_discover_limits and settings.provider not in (
+        Provider.OLLAMA,
+        Provider.RUNPOD,
+    ):
         discovered = await discover_limits(llm_client._raw_client, settings.model)
         rate_limiter = _apply_discovered(settings, rate_limiter, discovered, logger)
         llm_client.rate_limiter = rate_limiter
