@@ -3,6 +3,12 @@
 The runner lets each YAML experiment override LLM-parameter defaults
 (`max_tokens`, `reasoning_effort`). These tests pin the path from YAML
 through `expand_matrix` and `build_settings_for_experiment`.
+
+Also covers a `model_copy` quirk: it does not re-run pydantic validators,
+so any field whose value comes from the `apply_provider_defaults` validator
+stays at the *base* provider's value unless the runner re-overrides it
+manually. That bites every PROVIDER_DEFAULTS field — `base_url` already
+had an explicit override; `request_timeout_s` (added later) needed one too.
 """
 
 from __future__ import annotations
@@ -262,3 +268,49 @@ def test_validator_passes_when_files_exist(tmp_path: Path):
         exemplar_embeddings=str(npz),
     )
     _validate_exemplar_config([spec_static, spec_retrieved])  # no raise
+
+
+# ---------------------------------------------------------------------------
+# Per-provider timeout regression — `model_copy(update=...)` does not re-run
+# `apply_provider_defaults`, so the runner must re-apply each PROVIDER_DEFAULTS
+# field manually. These tests pin that for `request_timeout_s`.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def env_provider_unset(monkeypatch):
+    """Simulate the .env.example-recommended groq setup: LLM_PROVIDER unset.
+
+    With provider unset, Settings() defaults to ollama and applies ollama's
+    PROVIDER_DEFAULTS — including a 300s request timeout. A groq experiment
+    must not inherit that.
+    """
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_REQUEST_TIMEOUT_S", raising=False)
+    monkeypatch.setenv("LLM_API_KEY", "gsk_test")
+
+
+def _provider_spec(provider: str, model: str = "llama-3.1-8b-instant") -> ExperimentSpec:
+    return ExperimentSpec(
+        id="test",
+        provider=provider,
+        model=model,
+        temperature=0.0,
+        prompt="zero_shot",
+    )
+
+
+def test_groq_experiment_uses_groq_timeout_even_when_env_provider_is_unset(
+    env_provider_unset,
+):
+    settings = build_settings_for_experiment(_provider_spec("groq"))
+    assert settings.request_timeout_s == 60.0
+    assert settings.base_url == "https://api.groq.com/openai/v1"
+
+
+def test_ollama_experiment_uses_ollama_timeout(env_provider_unset):
+    settings = build_settings_for_experiment(
+        _provider_spec("ollama", model="llama3.1:8b")
+    )
+    assert settings.request_timeout_s == 300.0

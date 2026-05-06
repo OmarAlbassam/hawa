@@ -1,0 +1,25 @@
+# Cross-family open-source comparison via Fireworks. One API key, many
+# model families — the whole point of using this provider for the
+# headline ranking table.
+#
+# Confirm the model slugs against https://fireworks.ai/models before
+# running; Fireworks deprecates and renames models periodically.
+#
+# rate_rpm/rate_tpm are intentionally unset: Fireworks doesn't ship
+# x-ratelimit-* headers, so the runner skips the auto-probe and the
+# limiter runs unbounded — the per-account 6,000 RPM ceiling is well
+# above what max_concurrency=8 can produce.
+
+experiments:
+  - id: qwen3-32b-few-shot-10ex
+    provider: fireworks
+    prompt: few_shot_static
+    fewshot_static_ids: [10014, 10067, 10110, 10097, 10043, 10053, 10055, 10088, 10024, 10118]
+    model:
+      - accounts/fireworks/models/qwen3-32b
+    temperature: 0.0
+    max_concurrency: 8
+    max_tokens: 1024
+    exemplar_dataset: data/exemplars.jsonl
+
+    

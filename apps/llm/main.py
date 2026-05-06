@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from config import Provider, Settings
 from routes.analyze import router as analyze_router
+from services import enum_coercion
 from services.analyzer import AnalyzerService
 from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient
@@ -17,6 +18,14 @@ async def lifespan(app: FastAPI):
     settings = Settings()
     logging.basicConfig(level=settings.log_level.upper())
     logger = logging.getLogger(__name__)
+
+    # Push enum-coercion config from Settings into the module that owns the
+    # validators. Without this, values set only in `.env` are ignored, since
+    # pydantic-settings doesn't export them back to os.environ.
+    enum_coercion.configure(
+        settings.enum_coercion_backend,
+        settings.enum_coercion_embedding_threshold,
+    )
 
     logger.info(
         "LLM service starting — provider: %s, model: %s, endpoint: %s",
@@ -39,7 +48,7 @@ async def lifespan(app: FastAPI):
         Provider.OLLAMA,
         Provider.RUNPOD,
     ):
-        discovered = await discover_limits(llm_client._raw_client, settings.model)
+        discovered = await discover_limits(llm_client.client, settings.model)
         rate_limiter = _apply_discovered(settings, rate_limiter, discovered, logger)
         llm_client.rate_limiter = rate_limiter
 
@@ -55,7 +64,10 @@ async def lifespan(app: FastAPI):
         settings.rate_max_retries,
     )
 
-    yield
+    try:
+        yield
+    finally:
+        await llm_client.aclose()
 
 
 def _apply_discovered(

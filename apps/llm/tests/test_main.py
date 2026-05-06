@@ -14,11 +14,15 @@ from services.rate_limiter import ProviderRateLimiter
 
 
 def _settings() -> Settings:
+    # Pin every value the assertions depend on. Without rate_safety_margin
+    # explicit, a developer's apps/llm/.env (e.g. LLM_RATE_SAFETY_MARGIN=0.95)
+    # silently shifts the expected `tpm * margin` arithmetic.
     return Settings(
         provider="groq",
         api_key="test",
         rate_rpm=28,
         rate_tpm=5800,
+        rate_safety_margin=0.9,
     )
 
 

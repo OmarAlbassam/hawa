@@ -20,7 +20,7 @@ If the post is IRRELEVANT, set is_relevant=false and pick an irrelevance_reason.
 If the post IS relevant, set is_relevant=true and produce:
 - score: how positive or negative the sentiment is. Choose exactly one of: 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5. Anchors: 0 = extremely negative, 1 = negative, 2 = mildly negative, 2.5 = neutral, 3 = mildly positive, 4 = positive, 5 = extremely positive. Use 0.5 increments to express "leaning" (e.g. 3.5 for clearly positive but not strongly so).
 - emotion: the single dominant emotion expressed in the post. One of JOY, ANGER, SADNESS, FEAR, SURPRISE, DISGUST, or NEUTRAL when no emotion is clearly expressed.
-- aspect: which business aspect the post relates to (e.g. product, service, delivery, pricing, brand). Choose the single most relevant one.
+- aspect: which business aspect the post relates to. Choose exactly one of: PRODUCT, SERVICE, DELIVERY, PRICING, BRAND, or OTHER. Use OTHER only if the post is relevant but doesn't fit any of the named aspects.
 
 Examples (format: post -> decision):
 1. "Nike's new Air Max feels amazing, best cushioning I've owned" -> RELEVANT, score=4.5, emotion=JOY, aspect=PRODUCT
@@ -28,7 +28,17 @@ Examples (format: post -> decision):
 3. "wore my Nikes to the gym, still holding up after 2 years" -> RELEVANT (passing positive signal about durability), score=3.5, emotion=JOY, aspect=PRODUCT
 4. "apple pie recipe for Thanksgiving" when monitoring Apple Inc. -> IRRELEVANT, reason=HOMONYM
 5. "🔥 BUY NIKE SHOES NOW 🔥 link in bio" -> IRRELEVANT, reason=SPAM
-6. "lol" -> IRRELEVANT, reason=EMPTY"""
+6. "lol" -> IRRELEVANT, reason=EMPTY
+
+Respond with a single JSON object — no prose, no code fences. Schema:
+{
+  "is_relevant": true | false,
+  "irrelevance_reason": "HOMONYM" | "SPAM" | "EMPTY" | "WRONG_LANGUAGE" | "OTHER" | null,
+  "score": one of 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
+  "emotion": "JOY" | "ANGER" | "SADNESS" | "FEAR" | "SURPRISE" | "DISGUST" | "NEUTRAL",
+  "aspect": "PRODUCT" | "SERVICE" | "DELIVERY" | "PRICING" | "BRAND" | "OTHER"
+}
+If is_relevant is false, set irrelevance_reason and leave score, emotion, and aspect at their defaults (2.5, NEUTRAL, OTHER)."""
 
 
 def build_system_prompt(

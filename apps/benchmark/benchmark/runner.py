@@ -39,6 +39,7 @@ from openai import AsyncOpenAI
 
 from config import PROVIDER_DEFAULTS, Settings
 from models import IrrelevanceReason, SentimentResponse
+from services import enum_coercion
 from services.limits_probe import DiscoveredLimits, discover_limits
 from services.llm_client import LLMClient, RateLimitExhaustedError, TokenUsage
 from services.rate_limiter import ProviderRateLimiter
@@ -204,6 +205,12 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
     defaults = PROVIDER_DEFAULTS.get(spec.provider, {})
     if "base_url" in defaults:
         overrides["base_url"] = defaults["base_url"]
+    # `model_copy(update=...)` doesn't re-run `apply_provider_defaults`, so
+    # the timeout that the validator picked at `Settings()` time (driven by
+    # env's LLM_PROVIDER) leaks into the experiment's provider unless we
+    # re-apply it here. Same shape as the base_url override above.
+    if "request_timeout_s" in defaults:
+        overrides["request_timeout_s"] = defaults["request_timeout_s"]
     if spec.rate_rpm is not None:
         overrides["rate_rpm"] = spec.rate_rpm
     if spec.rate_tpm is not None:
@@ -295,35 +302,46 @@ async def run_experiment(
     exemplar JSONL/npz pair and replace the eval dataset as the few-shot pool.
     """
     settings = build_settings_for_experiment(spec)
+    # Push the experiment's coercion config into the validator module so per-
+    # experiment overrides (which may differ from process env) take effect.
+    enum_coercion.configure(
+        settings.enum_coercion_backend,
+        settings.enum_coercion_embedding_threshold,
+    )
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
     client = LLMClient(settings, rate_limiter)
 
-    semaphore = asyncio.Semaphore(spec.max_concurrency)
-    deadline = (
-        time.monotonic() + spec.wall_clock_budget_s
-        if spec.wall_clock_budget_s
-        else None
-    )
-    results: list[PerPostResult] = []
-    results_lock = asyncio.Lock()
+    try:
+        semaphore = asyncio.Semaphore(spec.max_concurrency)
+        deadline = (
+            time.monotonic() + spec.wall_clock_budget_s
+            if spec.wall_clock_budget_s
+            else None
+        )
+        results: list[PerPostResult] = []
+        results_lock = asyncio.Lock()
 
-    async def _process(sample: Sample) -> None:
-        async with semaphore:
-            if deadline is not None and time.monotonic() > deadline:
-                result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
-            else:
-                result = await _process_one(
-                    spec, sample, settings, client, cache, store, embedder,
-                    exemplar_samples=exemplar_samples,
-                    exemplar_store=exemplar_store,
-                )
-            async with results_lock:
-                results.append(result)
-                if on_post_done is not None:
-                    on_post_done(result)
+        async def _process(sample: Sample) -> None:
+            async with semaphore:
+                if deadline is not None and time.monotonic() > deadline:
+                    result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
+                else:
+                    result = await _process_one(
+                        spec, sample, settings, client, cache, store, embedder,
+                        exemplar_samples=exemplar_samples,
+                        exemplar_store=exemplar_store,
+                    )
+                async with results_lock:
+                    results.append(result)
+                    if on_post_done is not None:
+                        on_post_done(result)
 
-    await asyncio.gather(*(_process(s) for s in samples))
-    return results
+        await asyncio.gather(*(_process(s) for s in samples))
+        return results
+    finally:
+        # LLMClient owns an httpx.AsyncClient; long benchmark runs that skip
+        # this leak connection pools and emit unclosed-client warnings.
+        await client.aclose()
 
 
 async def _process_one(
