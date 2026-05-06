@@ -19,6 +19,7 @@ Research benchmarking harness for evaluating different LLMs, prompts, temperatur
 - **Stateless runner** that reads a YAML experiment matrix, expands it, dedupes via sqlite cache, executes, and writes one parquet per experiment.
 - **Embedding-based few-shot** — `sentence-transformers` produces a (N, dim) numpy array stored in `.npz`. Retrieval is in-memory cosine similarity. No vector DB at this scale (~100s of samples).
 - **k-fold leakage prevention** — when retrieving few-shot exemplars for a test post, the post and any sample sharing its fold are masked out of the index. Without this, few-shot results are inflated and the comparison is meaningless.
+- **Held-out exemplar pool (preferred for headline numbers)** — set `exemplar_dataset` (and `exemplar_embeddings` for retrieved) on a per-experiment basis to draw few-shot exemplars from a separate JSONL. Closes static self-leakage and removes any "training" / "test" overlap. Build the npz with `benchmark embed --data <exemplars>.jsonl --out <exemplars>.npz`. Falls back to the eval dataset when omitted, so existing configs keep working.
 
 ## Project Structure
 

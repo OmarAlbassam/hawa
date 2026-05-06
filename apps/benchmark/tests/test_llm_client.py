@@ -6,6 +6,7 @@ known `usage` values; asserts the wrapper extracts them faithfully.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,11 +38,25 @@ def _make_client(create_with_completion_mock: AsyncMock) -> LLMClient:
     return client
 
 
-def _fake_completion(prompt: int, completion: int, total: int) -> MagicMock:
+def _fake_completion(
+    prompt: int,
+    completion: int,
+    total: int,
+    *,
+    cached: int | None = None,
+) -> MagicMock:
     completion_obj = MagicMock()
     completion_obj.usage.prompt_tokens = prompt
     completion_obj.usage.completion_tokens = completion
     completion_obj.usage.total_tokens = total
+    if cached is None:
+        # Default MagicMock attribute access returns a child mock; force the
+        # real path to "no details" so _extract_cached_tokens returns None.
+        completion_obj.usage.prompt_tokens_details = None
+    else:
+        completion_obj.usage.prompt_tokens_details = SimpleNamespace(
+            cached_tokens=cached
+        )
     return completion_obj
 
 
@@ -73,6 +88,92 @@ async def test_analyze_with_usage_returns_none_when_completion_lacks_usage():
 
     assert response.score == 3.0
     assert usage is None
+
+
+async def test_analyze_with_usage_captures_cached_tokens():
+    parsed = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
+    completion = _fake_completion(prompt=300, completion=20, total=320, cached=270)
+    mock = AsyncMock(return_value=(parsed, completion))
+    client = _make_client(mock)
+
+    _, usage = await client.analyze_with_usage("system", "hello")
+
+    assert usage is not None
+    assert usage.cached_tokens == 270
+
+
+async def test_analyze_with_usage_cached_tokens_none_when_provider_omits_field():
+    parsed = SentimentResponse(score=4.0, emotion="JOY", aspect="PRODUCT")
+    completion = _fake_completion(prompt=120, completion=42, total=162)
+    mock = AsyncMock(return_value=(parsed, completion))
+    client = _make_client(mock)
+
+    _, usage = await client.analyze_with_usage("system", "hello")
+
+    assert usage is not None
+    assert usage.cached_tokens is None
+
+
+async def test_session_id_forwarded_as_session_affinity_header():
+    parsed = SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT")
+    mock = AsyncMock(return_value=(parsed, _fake_completion(10, 5, 15)))
+    client = _make_client(mock)
+
+    await client.analyze("system", "hi", session_id="exp-42")
+
+    kwargs = mock.await_args.kwargs
+    assert kwargs.get("extra_headers") == {"x-session-affinity": "exp-42"}
+
+
+async def test_no_session_id_omits_extra_headers():
+    parsed = SentimentResponse(score=3.0, emotion="JOY", aspect="PRODUCT")
+    mock = AsyncMock(return_value=(parsed, _fake_completion(10, 5, 15)))
+    client = _make_client(mock)
+
+    await client.analyze("system", "hi")
+
+    kwargs = mock.await_args.kwargs
+    assert "extra_headers" not in kwargs
+
+
+def _make_client_with_settings(**setting_overrides) -> LLMClient:
+    base = dict(
+        provider="ollama",
+        base_url="http://localhost:9999/v1",
+        api_key="test",
+        model="test-model",
+        rate_rpm=0,
+        rate_tpm=0,
+        max_concurrency=1,
+    )
+    base.update(setting_overrides)
+    return LLMClient(Settings(**base), ProviderRateLimiter(rpm=0, tpm=0))
+
+
+def test_extra_body_is_none_when_no_overrides_apply():
+    client = _make_client_with_settings(model="llama3.1:8b")
+    assert client.extra_body is None
+
+
+def test_reasoning_effort_flows_into_extra_body():
+    client = _make_client_with_settings(
+        model="accounts/fireworks/models/gpt-oss-20b",
+        reasoning_effort="low",
+    )
+    assert client.extra_body == {"reasoning_effort": "low"}
+
+
+def test_qwen3_thinking_and_reasoning_effort_compose():
+    client = _make_client_with_settings(model="qwen3-32b", reasoning_effort="medium")
+    assert client.extra_body == {
+        "chat_template_kwargs": {"enable_thinking": False},
+        "reasoning_effort": "medium",
+    }
+
+
+def test_max_tokens_setting_is_used_for_request_kwarg():
+    client = _make_client_with_settings(max_tokens=2048)
+    assert client.max_tokens == 2048
 
 
 async def test_analyze_still_returns_just_response():
