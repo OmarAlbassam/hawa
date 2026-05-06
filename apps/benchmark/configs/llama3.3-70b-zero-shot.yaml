@@ -1,0 +1,21 @@
+# Llama 3.3 70B Instruct via Fireworks. Strong dense baseline alongside
+# gpt-oss-20b — text-only instruct model, no thinking/reasoning quirks,
+# default max_tokens=512 fits the structured-output JSON comfortably so
+# no per-experiment overrides are needed.
+#
+# Confirm the model slug at https://fireworks.ai/models — Fireworks
+# deprecates and renames models periodically.
+#
+# rate_rpm/rate_tpm intentionally unset: Fireworks doesn't ship
+# x-ratelimit-* headers, so the runner skips the auto-probe and the
+# limiter runs unbounded — the per-account 6,000 RPM ceiling is well
+# above what max_concurrency=8 can produce.
+
+experiments:
+  - id: llama-3.3-70b-zero-shot
+    provider: fireworks
+    prompt: zero_shot
+    model:
+      - accounts/fireworks/models/llama-v3p3-70b-instruct
+    temperature: 0.0
+    max_concurrency: 8
