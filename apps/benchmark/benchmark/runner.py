@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -78,6 +79,19 @@ class ExperimentSpec:
     brand_name: str | None = None
     brand_industry: str | None = None
     keywords: list[str] | None = None
+    # Per-experiment LLM-parameter overrides. None = inherit Settings default.
+    # Reasoning models (gpt-oss, o-series) need both: a higher token budget so
+    # the JSON answer fits after the chain-of-thought, and `reasoning_effort:
+    # "low"` to keep the chain-of-thought short in the first place.
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    # Optional held-out exemplar pool. When set, few-shot exemplars are drawn
+    # from this JSONL instead of the eval dataset — closes static self-leakage
+    # and the retrieved fold-mate concern. `exemplar_embeddings` is only needed
+    # for `prompt: few_shot_retrieved` (kNN over the pool); static just needs
+    # the JSONL to resolve `fewshot_static_ids`.
+    exemplar_dataset: str | None = None
+    exemplar_embeddings: str | None = None
 
 
 @dataclass
@@ -99,6 +113,7 @@ class PerPostResult:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
+    cached_tokens: int | None = None
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -150,6 +165,10 @@ def expand_matrix(config: dict[str, Any]) -> list[ExperimentSpec]:
                     brand_name=entry.get("brand_name"),
                     brand_industry=entry.get("brand_industry"),
                     keywords=entry.get("keywords"),
+                    max_tokens=entry.get("max_tokens"),
+                    reasoning_effort=entry.get("reasoning_effort"),
+                    exemplar_dataset=entry.get("exemplar_dataset"),
+                    exemplar_embeddings=entry.get("exemplar_embeddings"),
                 )
             )
     return out
@@ -189,6 +208,10 @@ def build_settings_for_experiment(spec: ExperimentSpec) -> Settings:
         overrides["rate_rpm"] = spec.rate_rpm
     if spec.rate_tpm is not None:
         overrides["rate_tpm"] = spec.rate_tpm
+    if spec.max_tokens is not None:
+        overrides["max_tokens"] = spec.max_tokens
+    if spec.reasoning_effort is not None:
+        overrides["reasoning_effort"] = spec.reasoning_effort
     return base.model_copy(update=overrides)
 
 
@@ -257,6 +280,8 @@ async def run_experiment(
     store: KNNStore | None,
     embedder: SBERTEmbedder | None,
     *,
+    exemplar_samples: list[Sample] | None = None,
+    exemplar_store: KNNStore | None = None,
     on_post_done: Callable[[PerPostResult], None] | None = None,
 ) -> list[PerPostResult]:
     """Run one experiment over the full sample list.
@@ -265,6 +290,9 @@ async def run_experiment(
     progress display in the caller can update with a consistent count. The
     callback is intentionally untyped beyond the result so the runner has no
     dependency on rich/streamlit/etc.
+
+    `exemplar_samples` / `exemplar_store` (when set) come from a held-out
+    exemplar JSONL/npz pair and replace the eval dataset as the few-shot pool.
     """
     settings = build_settings_for_experiment(spec)
     rate_limiter = ProviderRateLimiter(rpm=settings.rate_rpm, tpm=settings.rate_tpm)
@@ -285,7 +313,9 @@ async def run_experiment(
                 result = _make_error_result(spec, sample, "wall_clock_exceeded", [])
             else:
                 result = await _process_one(
-                    spec, sample, settings, client, cache, store, embedder
+                    spec, sample, settings, client, cache, store, embedder,
+                    exemplar_samples=exemplar_samples,
+                    exemplar_store=exemplar_store,
                 )
             async with results_lock:
                 results.append(result)
@@ -304,12 +334,19 @@ async def _process_one(
     cache: ResultCache,
     store: KNNStore | None,
     embedder: SBERTEmbedder | None,
+    *,
+    exemplar_samples: list[Sample] | None = None,
+    exemplar_store: KNNStore | None = None,
 ) -> PerPostResult:
     cleaned = clean_text(sample.text, settings.max_text_length)
     if not cleaned:
         return _make_irrelevant_result(spec, sample, IrrelevanceReason.EMPTY, [])
 
-    prompt, fewshot_ids = _build_prompt(spec, sample, store, embedder)
+    prompt, fewshot_ids = _build_prompt(
+        spec, sample, store, embedder,
+        exemplar_samples=exemplar_samples,
+        exemplar_store=exemplar_store,
+    )
     p_hash = hash_prompt(prompt)
     fs_hash = hash_fewshot_ids(fewshot_ids)
     key = CacheKey(
@@ -327,7 +364,12 @@ async def _process_one(
 
     started = time.perf_counter()
     try:
-        response, usage = await client.analyze_with_usage(prompt, cleaned)
+        # spec.id pins every post in this experiment to the same replica via
+        # the x-session-affinity header. On Fireworks/Groq this turns the
+        # static system prompt into a cache hit after the first call.
+        response, usage = await client.analyze_with_usage(
+            prompt, cleaned, session_id=spec.id
+        )
         latency_ms = (time.perf_counter() - started) * 1000.0
     except RateLimitExhaustedError as e:
         cache.put(key, CachedResult(None, None, None, None, None, f"rate_limited: {e}", None))
@@ -351,6 +393,7 @@ async def _process_one(
             prompt_tokens=usage.prompt_tokens if usage else None,
             completion_tokens=usage.completion_tokens if usage else None,
             total_tokens=usage.total_tokens if usage else None,
+            cached_tokens=usage.cached_tokens if usage else None,
         ),
     )
     return result
@@ -361,6 +404,8 @@ def _build_prompt(
     sample: Sample,
     store: KNNStore | None,
     embedder: SBERTEmbedder | None,
+    exemplar_samples: list[Sample] | None = None,
+    exemplar_store: KNNStore | None = None,
 ) -> tuple[str, list[int]]:
     if spec.prompt == "zero_shot":
         return (
@@ -373,11 +418,18 @@ def _build_prompt(
             [],
         )
     if spec.prompt == "few_shot_static":
-        if store is None:
+        # Prefer the held-out exemplar pool when set; this closes static
+        # self-leakage (fewshot_static_ids can never resolve to the test post).
+        if exemplar_samples is not None:
+            pool_samples = exemplar_samples
+        elif store is not None:
+            pool_samples = store.samples
+        else:
             raise RuntimeError(
-                "few_shot_static needs the dataset to resolve exemplar ids"
+                "few_shot_static needs an exemplar pool — either an "
+                "`exemplar_dataset` on the experiment or the eval dataset's KNN store"
             )
-        by_id = {s.post_id: s for s in store.samples}
+        by_id = {s.post_id: s for s in pool_samples}
         exemplars = [by_id[i] for i in spec.fewshot_static_ids if i in by_id]
         return (
             few_shot_static.build(
@@ -390,7 +442,24 @@ def _build_prompt(
             spec.fewshot_static_ids,
         )
     if spec.prompt == "few_shot_retrieved":
-        if store is None or embedder is None:
+        if embedder is None:
+            raise RuntimeError("few_shot_retrieved needs an embedder")
+        # When a held-out exemplar store is provided, query it instead of the
+        # eval store and drop fold masking — folds in the exemplar file are
+        # meaningless relative to the eval k-fold split. `exclude_post_ids`
+        # stays as a defensive no-op against accidental id collisions.
+        if exemplar_store is not None:
+            return few_shot_retrieved.build(
+                sample,
+                store=exemplar_store,
+                embedder=embedder,
+                k=spec.fewshot_k,
+                brand_name=spec.brand_name,
+                brand_industry=spec.brand_industry,
+                keywords=spec.keywords,
+                exclude_folds=set(),
+            )
+        if store is None:
             raise RuntimeError("few_shot_retrieved needs an embedder + KNN store")
         return few_shot_retrieved.build(
             sample,
@@ -460,6 +529,7 @@ def _from_response(
     pt = usage.prompt_tokens if usage else None
     ct = usage.completion_tokens if usage else None
     tt = usage.total_tokens if usage else None
+    cached = usage.cached_tokens if usage else None
     if not response.is_relevant:
         return PerPostResult(
             experiment_id=spec.id,
@@ -479,6 +549,7 @@ def _from_response(
             prompt_tokens=pt,
             completion_tokens=ct,
             total_tokens=tt,
+            cached_tokens=cached,
         )
     return PerPostResult(
         experiment_id=spec.id,
@@ -498,6 +569,7 @@ def _from_response(
         prompt_tokens=pt,
         completion_tokens=ct,
         total_tokens=tt,
+        cached_tokens=cached,
     )
 
 
@@ -529,6 +601,7 @@ def _from_cached(
         prompt_tokens=cached.prompt_tokens,
         completion_tokens=cached.completion_tokens,
         total_tokens=cached.total_tokens,
+        cached_tokens=cached.cached_tokens,
     )
 
 
@@ -570,6 +643,40 @@ def _validate_provider_config(specs: list[ExperimentSpec]) -> None:
             )
 
 
+def _validate_exemplar_config(specs: list[ExperimentSpec]) -> None:
+    """Fail fast on misconfigured exemplar-pool fields.
+
+    Catches three cases that would otherwise crash mid-run:
+    - `exemplar_dataset` set but the file doesn't exist.
+    - `prompt: few_shot_retrieved` with `exemplar_dataset` but no
+      `exemplar_embeddings` (the kNN store needs the npz, no fallback).
+    - `exemplar_embeddings` set but the npz file doesn't exist.
+    """
+    for spec in specs:
+        if spec.exemplar_dataset is None:
+            continue
+        ds_path = Path(spec.exemplar_dataset)
+        if not ds_path.exists():
+            raise RuntimeError(
+                f"[{spec.id}] exemplar_dataset {spec.exemplar_dataset!r} does not exist"
+            )
+        if spec.prompt == "few_shot_retrieved":
+            if spec.exemplar_embeddings is None:
+                raise RuntimeError(
+                    f"[{spec.id}] prompt=few_shot_retrieved with exemplar_dataset "
+                    f"requires exemplar_embeddings (path to a .npz). "
+                    f"Build it with: benchmark embed --data {spec.exemplar_dataset} "
+                    f"--out path/to/exemplars.npz"
+                )
+            emb_path = Path(spec.exemplar_embeddings)
+            if not emb_path.exists():
+                raise RuntimeError(
+                    f"[{spec.id}] exemplar_embeddings {spec.exemplar_embeddings!r} "
+                    f"does not exist — run `benchmark embed --data "
+                    f"{spec.exemplar_dataset} --out {spec.exemplar_embeddings}`"
+                )
+
+
 async def run_all(
     config_path: str | Path,
     *,
@@ -578,11 +685,13 @@ async def run_all(
     cache_path: str | Path = "cache.db",
     results_dir: str | Path = "results",
     k_folds: int = 5,
+    console: Console | None = None,
 ) -> dict[str, str]:
     """Top-level entry point. Returns experiment_id -> output parquet path."""
     config = load_config(config_path)
     specs = expand_matrix(config)
     _validate_provider_config(specs)
+    _validate_exemplar_config(specs)
 
     samples = load_dataset(data_path)
     samples = assign_folds(samples, k=k_folds)
@@ -600,8 +709,15 @@ async def run_all(
 
     embedder: SBERTEmbedder | None = None
     store: KNNStore | None = None
-    if any(s.prompt in {"few_shot_static", "few_shot_retrieved"} for s in specs):
+    needs_eval_pool = any(
+        s.prompt in {"few_shot_static", "few_shot_retrieved"}
+        and s.exemplar_dataset is None
+        for s in specs
+    )
+    needs_retrieved_embedder = any(s.prompt == "few_shot_retrieved" for s in specs)
+    if needs_eval_pool or needs_retrieved_embedder:
         embedder = SBERTEmbedder(name=specs[0].embedder_model)
+    if needs_eval_pool:
         embeddings_file = Path(embeddings_path)
         if embeddings_file.exists():
             store = KNNStore.load(embeddings_file, samples)
@@ -609,6 +725,34 @@ async def run_all(
             logger.info("building embeddings → %s", embeddings_file)
             store = KNNStore.build(samples, embedder)
             store.save(embeddings_file)
+
+    # Held-out exemplar pools, keyed by path so multiple specs sharing a pool
+    # pay one load each. Static-only experiments need just the JSONL; retrieved
+    # also needs a corresponding npz (validated up-front by
+    # `_validate_exemplar_config`).
+    exemplar_samples_by_path: dict[str, list[Sample]] = {}
+    exemplar_stores_by_path: dict[tuple[str, str], KNNStore] = {}
+    for spec in specs:
+        if spec.exemplar_dataset is None:
+            continue
+        if spec.exemplar_dataset not in exemplar_samples_by_path:
+            ex_samples = load_dataset(spec.exemplar_dataset)
+            exemplar_samples_by_path[spec.exemplar_dataset] = ex_samples
+            logger.info(
+                "loaded %d exemplar samples from %s",
+                len(ex_samples), spec.exemplar_dataset,
+            )
+        if spec.prompt == "few_shot_retrieved" and spec.exemplar_embeddings is not None:
+            store_key = (spec.exemplar_dataset, spec.exemplar_embeddings)
+            if store_key not in exemplar_stores_by_path:
+                exemplar_stores_by_path[store_key] = KNNStore.load(
+                    Path(spec.exemplar_embeddings),
+                    exemplar_samples_by_path[spec.exemplar_dataset],
+                )
+                logger.info(
+                    "loaded exemplar KNN store from %s",
+                    spec.exemplar_embeddings,
+                )
 
     cache = ResultCache(cache_path)
     results_dir = Path(results_dir)
@@ -625,6 +769,11 @@ async def run_all(
         TimeElapsedColumn(),
         TextColumn("eta"),
         TimeRemainingColumn(),
+        # Share the CLI's Console so RichHandler logs and the progress bar
+        # render through the same Live context. Without this, logs go to
+        # one stderr handle and the bar to another, so each log scrolls a
+        # fresh copy of the bar instead of redrawing it in place.
+        console=console,
         transient=False,
     )
 
@@ -651,8 +800,23 @@ async def run_all(
                         _c["ok"] += 1
                     progress.update(_tid, advance=1, ok=_c["ok"], err=_c["err"])
 
+                ex_samples = (
+                    exemplar_samples_by_path.get(spec.exemplar_dataset)
+                    if spec.exemplar_dataset
+                    else None
+                )
+                ex_store = (
+                    exemplar_stores_by_path.get(
+                        (spec.exemplar_dataset, spec.exemplar_embeddings)
+                    )
+                    if spec.exemplar_dataset and spec.exemplar_embeddings
+                    else None
+                )
                 per_post = await run_experiment(
-                    spec, samples, cache, store, embedder, on_post_done=_on_done
+                    spec, samples, cache, store, embedder,
+                    exemplar_samples=ex_samples,
+                    exemplar_store=ex_store,
+                    on_post_done=_on_done,
                 )
                 df = pd.DataFrame([_row(p, ds_hash) for p in per_post])
                 out_path = results_dir / f"{spec.id}.parquet"
@@ -685,6 +849,7 @@ def _row(p: PerPostResult, ds_hash: str) -> dict[str, Any]:
         "prompt_tokens": p.prompt_tokens,
         "completion_tokens": p.completion_tokens,
         "total_tokens": p.total_tokens,
+        "cached_tokens": p.cached_tokens,
         "fewshot_post_ids": p.fewshot_post_ids,
         "dataset_hash": ds_hash,
     }

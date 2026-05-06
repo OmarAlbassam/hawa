@@ -46,6 +46,22 @@ def test_empty_string_base_url_still_gets_provider_default():
     assert settings.base_url == "https://api.groq.com/openai/v1"
 
 
+def test_reasoning_effort_unset_by_default():
+    """Reasoning-effort is opt-in; non-reasoning models must not get the field."""
+    settings = Settings(provider="ollama", api_key="test")
+    assert settings.reasoning_effort is None
+
+
+def test_reasoning_effort_round_trips_explicit_value():
+    settings = Settings(
+        provider="fireworks",
+        api_key="test",
+        model="accounts/fireworks/models/gpt-oss-20b",
+        reasoning_effort="low",
+    )
+    assert settings.reasoning_effort == "low"
+
+
 def test_fireworks_defaults_resolve():
     """Fireworks ships a fixed base_url and disables the RPM/TPM buckets;
     the model slug must come from the caller. base_url="" mirrors the

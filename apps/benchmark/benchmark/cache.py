@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS results (
     prompt_tokens       INTEGER,
     completion_tokens   INTEGER,
     total_tokens        INTEGER,
+    cached_tokens       INTEGER,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (experiment_id, model, prompt_hash, temperature, post_id, fewshot_hash)
 );
@@ -58,6 +59,7 @@ _MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("prompt_tokens", "INTEGER"),
     ("completion_tokens", "INTEGER"),
     ("total_tokens", "INTEGER"),
+    ("cached_tokens", "INTEGER"),
 )
 
 
@@ -83,6 +85,7 @@ class CachedResult:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
+    cached_tokens: int | None = None
 
 
 def hash_prompt(prompt: str) -> str:
@@ -131,7 +134,8 @@ class ResultCache:
                 """
                 SELECT is_relevant, irrelevance_reason, pred_score, pred_emotion,
                        pred_aspect, error, latency_ms,
-                       prompt_tokens, completion_tokens, total_tokens
+                       prompt_tokens, completion_tokens, total_tokens,
+                       cached_tokens
                 FROM results
                 WHERE experiment_id=? AND model=? AND prompt_hash=?
                   AND temperature=? AND post_id=? AND fewshot_hash=?
@@ -154,6 +158,7 @@ class ResultCache:
             prompt_tokens=row[7],
             completion_tokens=row[8],
             total_tokens=row[9],
+            cached_tokens=row[10],
         )
 
     def put(self, key: CacheKey, result: CachedResult) -> None:
@@ -164,8 +169,8 @@ class ResultCache:
                     experiment_id, model, prompt_hash, temperature, post_id,
                     fewshot_hash, is_relevant, irrelevance_reason, pred_score,
                     pred_emotion, pred_aspect, error, latency_ms,
-                    prompt_tokens, completion_tokens, total_tokens
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    prompt_tokens, completion_tokens, total_tokens, cached_tokens
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     key.experiment_id, key.model, key.prompt_hash,
@@ -175,6 +180,7 @@ class ResultCache:
                     result.pred_score, result.pred_emotion, result.pred_aspect,
                     result.error, result.latency_ms,
                     result.prompt_tokens, result.completion_tokens, result.total_tokens,
+                    result.cached_tokens,
                 ),
             )
             self._conn.commit()

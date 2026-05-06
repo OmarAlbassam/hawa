@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     # LLM parameters
     temperature: float = 0.1
     max_tokens: int = 512
+    # Reasoning models (gpt-oss, o-series) accept this top-level chat-completions
+    # field to bound how much chain-of-thought they emit before the answer.
+    # Forwarded via `extra_body` so the OpenAI SDK passes it through verbatim;
+    # backends that don't recognise it ignore it. None = leave unset.
+    reasoning_effort: str | None = None
 
     # Preprocessing
     max_text_length: int = 2048

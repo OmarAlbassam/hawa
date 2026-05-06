@@ -35,23 +35,31 @@ def build(
     brand_name: str | None = None,
     brand_industry: str | None = None,
     keywords: list[str] | None = None,
+    exclude_folds: set[int] | None = None,
 ) -> tuple[str, list[int]]:
     """Build the prompt and return the list of exemplar post_ids used.
 
     The exemplar ids are returned so the runner can hash them into the cache
     key — different retrieved sets produce different cache cells.
+
+    ``exclude_folds`` defaults to ``{sample.fold}`` so the retriever respects
+    the eval dataset's k-fold split (the standard CV-leakage guard). Pass an
+    empty set when ``store`` comes from a held-out exemplar dataset — folds
+    in that file are meaningless relative to the eval split.
     """
     base = build_system_prompt(
         brand_name=brand_name,
         brand_industry=brand_industry,
         keywords=keywords,
     )
+    if exclude_folds is None:
+        exclude_folds = {sample.fold}
     retrieved = store.query(
         sample.text,
         embedder,
         k=k,
         exclude_post_ids={sample.post_id},
-        exclude_folds={sample.fold},
+        exclude_folds=exclude_folds,
     )
     if not retrieved:
         return base, []

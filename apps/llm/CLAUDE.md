@@ -69,6 +69,7 @@ All env vars are prefixed with `LLM_`. See `.env.example` for the full list.
 | `LLM_PORT` | `8001` | Service port |
 | `LLM_TEMPERATURE` | `0.1` | LLM temperature |
 | `LLM_MAX_TOKENS` | `512` | Max response tokens |
+| `LLM_REASONING_EFFORT` | unset | For reasoning models (gpt-oss / o-series): `low` / `medium` / `high`. Forwarded as a top-level body field; backends that don't recognise it ignore it. |
 | `LLM_MAX_TEXT_LENGTH` | `2048` | Max post text length before truncation |
 | `LLM_MAX_CONCURRENCY` | `3` | Max concurrent outbound LLM calls (safety net on top of the limiter) |
 | `LLM_RATE_RPM` | per provider | Requests-per-minute budget. `0` disables. Groq default: `28` |

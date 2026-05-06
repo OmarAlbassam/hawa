@@ -41,6 +41,7 @@ class TokenUsage:
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    cached_tokens: int | None = None
 
     @classmethod
     def from_completion(cls, completion: Any) -> "TokenUsage | None":
@@ -48,6 +49,10 @@ class TokenUsage:
 
         Self-hosted backends or instructor versions that don't surface the raw
         completion may return None here; callers must tolerate that.
+
+        ``cached_tokens`` is read from ``usage.prompt_tokens_details.cached_tokens``
+        — the OpenAI-standard surface that Fireworks/Groq/OpenAI all use to report
+        prefix-cache hits. Backends that don't expose it leave the field None.
         """
         usage = getattr(completion, "usage", None)
         if usage is None:
@@ -57,9 +62,26 @@ class TokenUsage:
                 prompt_tokens=int(usage.prompt_tokens),
                 completion_tokens=int(usage.completion_tokens),
                 total_tokens=int(usage.total_tokens),
+                cached_tokens=_extract_cached_tokens(usage),
             )
         except (AttributeError, TypeError, ValueError):
             return None
+
+
+def _extract_cached_tokens(usage: Any) -> int | None:
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details is None:
+        return None
+    if isinstance(details, dict):
+        cached = details.get("cached_tokens")
+    else:
+        cached = getattr(details, "cached_tokens", None)
+    # Strict type check on purpose: MagicMock attribute access returns child
+    # mocks that satisfy duck-typed conversions, which would silently inject
+    # fabricated counts in tests. Only accept real numbers from real responses.
+    if not isinstance(cached, (int, float)) or isinstance(cached, bool):
+        return None
+    return int(cached)
 
 
 class _Outcome(StrEnum):
@@ -93,31 +115,53 @@ class LLMClient:
         self.max_backoff = settings.rate_max_backoff_s
         self.min_pause = settings.rate_min_pause_s
         self.pause_padding = settings.rate_pause_padding
-        self.extra_body = _model_extra_body(self.model)
+        self.extra_body = _compute_extra_body(settings)
 
-    async def analyze(self, system_prompt: str, text: str) -> SentimentResponse:
+    async def analyze(
+        self,
+        system_prompt: str,
+        text: str,
+        *,
+        session_id: str | None = None,
+    ) -> SentimentResponse:
         """Send text to LLM and return a validated SentimentResponse.
 
         Wraps `_analyze_inner` and discards the raw completion. Production
         callers (analyzer.py) use this; the benchmark uses
         `analyze_with_usage` to also capture server-reported token counts.
+
+        ``session_id``, when set, is forwarded as the ``x-session-affinity``
+        header so providers that prefix-cache (Fireworks, Groq) route requests
+        sharing a system prompt to the same replica.
         """
-        response, _ = await self._analyze_inner(system_prompt, text)
+        response, _ = await self._analyze_inner(
+            system_prompt, text, session_id=session_id
+        )
         return response
 
     async def analyze_with_usage(
-        self, system_prompt: str, text: str
+        self,
+        system_prompt: str,
+        text: str,
+        *,
+        session_id: str | None = None,
     ) -> tuple[SentimentResponse, TokenUsage | None]:
         """Same as `analyze`, but also returns the server's token counts.
 
         Usage may be None if the provider doesn't return a `.usage` field
         (e.g. some self-hosted Ollama setups) — callers must tolerate that.
         """
-        response, completion = await self._analyze_inner(system_prompt, text)
+        response, completion = await self._analyze_inner(
+            system_prompt, text, session_id=session_id
+        )
         return response, TokenUsage.from_completion(completion)
 
     async def _analyze_inner(
-        self, system_prompt: str, text: str
+        self,
+        system_prompt: str,
+        text: str,
+        *,
+        session_id: str | None = None,
     ) -> tuple[SentimentResponse, Any]:
         """Shared retry loop for `analyze` and `analyze_with_usage`.
 
@@ -158,6 +202,12 @@ class LLMClient:
                 }
                 if self.extra_body is not None:
                     kwargs["extra_body"] = self.extra_body
+                if session_id is not None:
+                    # Fireworks (and Groq) honor x-session-affinity to pin
+                    # requests sharing a prefix to the same replica, which is
+                    # how their automatic prompt caching pays off across a
+                    # batch. Backends that don't recognize the header ignore it.
+                    kwargs["extra_headers"] = {"x-session-affinity": session_id}
                 response, completion = await self.client.chat.completions.create_with_completion(
                     **kwargs
                 )
@@ -216,19 +266,29 @@ def _estimate_tokens(system_prompt: str, text: str, max_output: int) -> int:
     return (chars // 4) + max_output
 
 
-def _model_extra_body(model: str) -> dict[str, Any] | None:
-    """Per-model `extra_body` for chat.completions; None when nothing applies.
+def _compute_extra_body(settings: Settings) -> dict[str, Any] | None:
+    """Build the request's `extra_body` from settings; None when nothing applies.
 
-    Qwen3 emits a ``<think>...</think>`` block by default, which breaks
-    JSON-mode parsing and wastes tokens for our structured-output use case.
-    vLLM exposes a hard switch via ``chat_template_kwargs.enable_thinking``;
-    pass it through `extra_body` so the OpenAI SDK forwards it as-is.
-    Documented at https://qwen.readthedocs.io/en/latest/deployment/vllm.html.
-    Backends that don't recognize the field (e.g. Ollama) ignore it.
+    Combines two sources:
+
+    - **Model-derived**: Qwen3 emits a ``<think>...</think>`` block by default,
+      which breaks JSON-mode parsing and wastes tokens for our structured-output
+      use case. vLLM exposes a hard switch via
+      ``chat_template_kwargs.enable_thinking`` — pass it through ``extra_body``
+      so the OpenAI SDK forwards it as-is. Documented at
+      https://qwen.readthedocs.io/en/latest/deployment/vllm.html.
+    - **Settings-derived**: ``reasoning_effort`` (when set) is added as a
+      top-level body field; reasoning models like gpt-oss / o-series read it
+      to cap chain-of-thought output.
+
+    Backends that don't recognise either field ignore them.
     """
-    if "qwen3" in model.lower():
-        return {"chat_template_kwargs": {"enable_thinking": False}}
-    return None
+    body: dict[str, Any] = {}
+    if "qwen3" in settings.model.lower():
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    if settings.reasoning_effort is not None:
+        body["reasoning_effort"] = settings.reasoning_effort
+    return body or None
 
 
 _TRANSIENT_SDK_TYPES = (APIConnectionError, APITimeoutError, InternalServerError)

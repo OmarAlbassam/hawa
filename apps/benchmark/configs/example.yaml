@@ -42,3 +42,27 @@ experiments:
     temperature: 0.0
     fewshot_static_ids: [1, 2, 3, 4]
     max_concurrency: 3
+
+  # Held-out exemplar pool — closes self-leakage (a test post can never be its
+  # own exemplar) and keeps "training" / "test" populations disjoint. The pool
+  # JSONL has the same schema as `data/control.jsonl`. For retrieved variants,
+  # build the embeddings once: `benchmark embed --data data/exemplars.jsonl
+  # --out data/exemplars.npz`.
+  - id: static_fewshot_holdout
+    provider: groq
+    prompt: few_shot_static
+    model: llama-3.3-70b-versatile
+    temperature: 0.0
+    fewshot_static_ids: [1, 2, 3, 4]   # ids resolved against exemplar_dataset
+    exemplar_dataset: data/exemplars.jsonl
+    max_concurrency: 3
+
+  - id: retrieved_fewshot_holdout
+    provider: groq
+    prompt: few_shot_retrieved
+    model: llama-3.3-70b-versatile
+    temperature: 0.0
+    fewshot_k: 4
+    exemplar_dataset: data/exemplars.jsonl
+    exemplar_embeddings: data/exemplars.npz
+    max_concurrency: 3
