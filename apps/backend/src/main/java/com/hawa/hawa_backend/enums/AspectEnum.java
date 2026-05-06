@@ -4,6 +4,5 @@ public enum AspectEnum {
     PRODUCT,
     SERVICE,
     DELIVERY,
-    PRICING,
-    BRAND
+    PRICING
 }
