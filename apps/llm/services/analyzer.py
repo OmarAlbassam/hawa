@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 
 from openai import APIConnectionError
 
@@ -30,6 +31,7 @@ class AnalyzerService:
         brand_name: str | None = None,
         brand_industry: str | None = None,
         keywords: list[str] | None = None,
+        session_id: str | None = None,
     ) -> AnalyzeResult:
         """Preprocess, analyze, and validate a single post.
 
@@ -37,6 +39,9 @@ class AnalyzerService:
         result without calling the LLM. Posts that the LLM flags as
         is_relevant=False get their score/emotion/aspect nulled out so a
         buggy model output can't leak into aggregations.
+
+        ``session_id`` is forwarded to the LLM client so prompt-caching
+        providers route this call to the same replica as its sibling posts.
         """
         cleaned = clean_text(post.text, self.settings.max_text_length)
         if not cleaned:
@@ -47,7 +52,9 @@ class AnalyzerService:
             )
 
         prompt = build_system_prompt(brand_name, brand_industry, keywords)
-        response = await self.llm_client.analyze(prompt, cleaned)
+        response = await self.llm_client.analyze(
+            prompt, cleaned, session_id=session_id
+        )
 
         if not response.is_relevant:
             return AnalyzeResult(
@@ -78,10 +85,17 @@ class AnalyzerService:
 
         The rate limiter owned by the LLM client is the primary governor of
         outbound pace; this semaphore is a safety net on top of it.
+
+        Mints one ``session_id`` per batch and shares it across every post.
+        On Fireworks/Groq this pins the batch to a single replica so the
+        cached system-prompt prefix actually hits after the first call.
+        Different batches get different ids so their (potentially different)
+        brand contexts don't collide on a shared cache slot.
         """
         results: list[AnalyzeResult] = []
         failed: list[FailedResult] = []
         semaphore = asyncio.Semaphore(self.settings.max_concurrency)
+        session_id = uuid.uuid4().hex
 
         async def _run(post: AnalyzeRequest) -> None:
             async with semaphore:
@@ -91,6 +105,7 @@ class AnalyzerService:
                         brand_name=brand_name,
                         brand_industry=brand_industry,
                         keywords=keywords,
+                        session_id=session_id,
                     )
                     results.append(result)
                 except APIConnectionError:

@@ -199,3 +199,40 @@ async def test_llm_relevant_verdict_populates_analysis_fields():
     assert result.emotion == Emotion.JOY
     assert result.aspect == "PRODUCT"
     assert result.irrelevance_reason is None
+
+
+# --- session-affinity (prompt-cache routing) ---
+
+
+async def test_analyze_batch_shares_one_session_id_across_posts():
+    analyzer, analyze = _make_analyzer()
+    analyze.return_value = SentimentResponse(
+        is_relevant=True, score=3.0, emotion="JOY", aspect="PRODUCT"
+    )
+
+    await analyzer.analyze_batch(
+        [
+            AnalyzeRequest(post_id=1, text="first post"),
+            AnalyzeRequest(post_id=2, text="second post"),
+            AnalyzeRequest(post_id=3, text="third post"),
+        ],
+    )
+
+    session_ids = {call.kwargs["session_id"] for call in analyze.await_args_list}
+    assert len(session_ids) == 1
+    assert next(iter(session_ids))  # non-empty
+
+
+async def test_separate_batches_get_distinct_session_ids():
+    analyzer, analyze = _make_analyzer()
+    analyze.return_value = SentimentResponse(
+        is_relevant=True, score=3.0, emotion="JOY", aspect="PRODUCT"
+    )
+
+    await analyzer.analyze_batch([AnalyzeRequest(post_id=1, text="a")])
+    first_id = analyze.await_args_list[-1].kwargs["session_id"]
+
+    await analyzer.analyze_batch([AnalyzeRequest(post_id=2, text="b")])
+    second_id = analyze.await_args_list[-1].kwargs["session_id"]
+
+    assert first_id != second_id
