@@ -132,6 +132,37 @@ def test_expand_matrix_picks_up_exemplar_fields():
     assert specs[0].exemplar_embeddings == "data/exemplars.npz"
 
 
+def test_expand_matrix_picks_up_embedder_provider():
+    """A YAML `embedder_provider: fireworks` should land on the spec; default is sbert."""
+    config = {
+        "experiments": [
+            {
+                "id": "fw_retrieved",
+                "provider": "fireworks",
+                "model": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+                "prompt": "few_shot_retrieved",
+                "temperature": 0.0,
+                "fewshot_k": 4,
+                "embedder_provider": "fireworks",
+                "embedder_model": "nomic-ai/nomic-embed-text-v1.5",
+                "exemplar_dataset": "data/exemplars.jsonl",
+                "exemplar_embeddings": "data/exemplars-embeddings-nomic.npz",
+            },
+            {
+                "id": "sbert_default",
+                "provider": "groq",
+                "model": "llama-3.3-70b-versatile",
+                "prompt": "zero_shot",
+                "temperature": 0.0,
+            },
+        ]
+    }
+    specs = expand_matrix(config)
+    assert specs[0].embedder_provider == "fireworks"
+    assert specs[0].embedder_model == "nomic-ai/nomic-embed-text-v1.5"
+    assert specs[1].embedder_provider == "sbert"  # default
+
+
 def test_static_with_exemplar_pool_resolves_against_pool_not_eval():
     """If an exemplar id collides with an eval id, the exemplar pool wins.
 

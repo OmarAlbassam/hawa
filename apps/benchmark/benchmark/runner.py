@@ -55,7 +55,7 @@ from benchmark.cache import (
 from benchmark.dataset import Sample, assign_folds, dataset_hash, load_dataset
 from benchmark.metrics.aspect import normalize_aspect
 from benchmark.prompts import few_shot_retrieved, few_shot_static, zero_shot
-from benchmark.retrieval.embedder import SBERTEmbedder
+from benchmark.retrieval.embedder import Embedder, make_embedder
 from benchmark.retrieval.store import KNNStore
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,7 @@ class ExperimentSpec:
     prompt: str  # "zero_shot" | "few_shot_static" | "few_shot_retrieved"
     fewshot_k: int = 0
     fewshot_static_ids: list[int] = field(default_factory=list)
+    embedder_provider: str = "sbert"  # "sbert" | "fireworks"
     embedder_model: str = "BAAI/bge-small-en-v1.5"
     rate_rpm: int | None = None
     rate_tpm: int | None = None
@@ -158,6 +159,7 @@ def expand_matrix(config: dict[str, Any]) -> list[ExperimentSpec]:
                     prompt=prompt,
                     fewshot_k=int(k),
                     fewshot_static_ids=entry.get("fewshot_static_ids", []) or [],
+                    embedder_provider=entry.get("embedder_provider", "sbert"),
                     embedder_model=entry.get("embedder_model", "BAAI/bge-small-en-v1.5"),
                     rate_rpm=entry.get("rate_rpm"),
                     rate_tpm=entry.get("rate_tpm"),
@@ -285,7 +287,7 @@ async def run_experiment(
     samples: list[Sample],
     cache: ResultCache,
     store: KNNStore | None,
-    embedder: SBERTEmbedder | None,
+    embedder: Embedder | None,
     *,
     exemplar_samples: list[Sample] | None = None,
     exemplar_store: KNNStore | None = None,
@@ -351,7 +353,7 @@ async def _process_one(
     client: LLMClient,
     cache: ResultCache,
     store: KNNStore | None,
-    embedder: SBERTEmbedder | None,
+    embedder: Embedder | None,
     *,
     exemplar_samples: list[Sample] | None = None,
     exemplar_store: KNNStore | None = None,
@@ -421,7 +423,7 @@ def _build_prompt(
     spec: ExperimentSpec,
     sample: Sample,
     store: KNNStore | None,
-    embedder: SBERTEmbedder | None,
+    embedder: Embedder | None,
     exemplar_samples: list[Sample] | None = None,
     exemplar_store: KNNStore | None = None,
 ) -> tuple[str, list[int]]:
@@ -725,7 +727,7 @@ async def run_all(
                 spec.id, spec.rate_rpm or "unlimited", spec.rate_tpm or "unlimited",
             )
 
-    embedder: SBERTEmbedder | None = None
+    embedder: Embedder | None = None
     store: KNNStore | None = None
     needs_eval_pool = any(
         s.prompt in {"few_shot_static", "few_shot_retrieved"}
@@ -734,11 +736,18 @@ async def run_all(
     )
     needs_retrieved_embedder = any(s.prompt == "few_shot_retrieved" for s in specs)
     if needs_eval_pool or needs_retrieved_embedder:
-        embedder = SBERTEmbedder(name=specs[0].embedder_model)
+        # All retrieval-using specs in one run currently share the embedder
+        # picked from the first spec — `_validate_exemplar_config` (or a
+        # follow-up) is the right place to enforce that they agree.
+        embedder = make_embedder(specs[0].embedder_provider, specs[0].embedder_model)
     if needs_eval_pool:
         embeddings_file = Path(embeddings_path)
         if embeddings_file.exists():
-            store = KNNStore.load(embeddings_file, samples)
+            store = KNNStore.load(
+                embeddings_file,
+                samples,
+                expected_embedder_name=embedder.name if embedder is not None else None,
+            )
         else:
             logger.info("building embeddings → %s", embeddings_file)
             store = KNNStore.build(samples, embedder)
@@ -766,6 +775,7 @@ async def run_all(
                 exemplar_stores_by_path[store_key] = KNNStore.load(
                     Path(spec.exemplar_embeddings),
                     exemplar_samples_by_path[spec.exemplar_dataset],
+                    expected_embedder_name=embedder.name if embedder is not None else None,
                 )
                 logger.info(
                     "loaded exemplar KNN store from %s",

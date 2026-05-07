@@ -1,0 +1,22 @@
+# Retrieved few-shot using Fireworks-hosted embeddings over the held-out
+# exemplar pool. Build the npz once with:
+#
+#   benchmark embed --provider fireworks \
+#                   --model nomic-ai/nomic-embed-text-v1.5 \
+#                   --data data/exemplars.jsonl \
+#                   --out data/exemplars-embeddings-nomic.npz
+#
+# Requires `FIREWORKS_API_KEY` in the environment.
+
+experiments:
+  - id: llama-3.3-70b-fireworks-retrieved-fewshot
+    provider: fireworks
+    prompt: few_shot_retrieved
+    model: accounts/fireworks/models/llama-v3p3-70b-instruct
+    temperature: 0.0
+    fewshot_k: 4
+    embedder_provider: fireworks
+    embedder_model: nomic-ai/nomic-embed-text-v1.5
+    exemplar_dataset: data/exemplars.jsonl
+    exemplar_embeddings: data/exemplars-embeddings-nomic.npz
+    max_concurrency: 8

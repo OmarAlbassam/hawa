@@ -68,12 +68,29 @@ class KNNStore:
         )
 
     @classmethod
-    def load(cls, path: str | Path, samples: list[Sample]) -> "KNNStore":
+    def load(
+        cls,
+        path: str | Path,
+        samples: list[Sample],
+        *,
+        expected_embedder_name: str | None = None,
+    ) -> "KNNStore":
         path = Path(path)
         data = np.load(path, allow_pickle=False)
         embeddings = data["embeddings"]
         post_ids = data["post_ids"].tolist()
         embedder_name = str(data["embedder_name"])
+
+        # The npz stores the embedder identity. With multiple providers in
+        # play (SBERT, Fireworks) a mismatched npz silently produces wrong
+        # nearest neighbors — fail loudly when the runtime embedder differs.
+        if expected_embedder_name is not None and embedder_name != expected_embedder_name:
+            raise ValueError(
+                f"saved index was built with embedder {embedder_name!r}, "
+                f"runtime is using {expected_embedder_name!r} — rerun "
+                f"`benchmark embed --model {expected_embedder_name}` "
+                f"(and pass `--provider` if the new embedder is Fireworks)"
+            )
 
         # Re-align samples to the order in the saved index. If a sample is
         # missing from the saved file (dataset grew), fail loudly — the user

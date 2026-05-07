@@ -8,6 +8,9 @@ Research benchmarking harness for evaluating different LLMs, prompts, temperatur
 - **Install:** `pip install -e .` (depends on `../llm` as a local source dep)
 - **Configure:** copy `.env.example` to `.env`. The benchmark imports the LLM service's `Settings` / `LLMClient` / `AnalyzerService` directly, so it reads the same `LLM_*` env vars.
 - **Embed dataset:** `benchmark embed`  (one-time per dataset/model)
+  - Local default: `benchmark embed --provider sbert --model BAAI/bge-small-en-v1.5`
+  - Fireworks: `benchmark embed --provider fireworks --model nomic-ai/nomic-embed-text-v1.5 --data data/exemplars.jsonl --out data/exemplars-embeddings-nomic.npz`. Requires `FIREWORKS_API_KEY` (falls back to `LLM_API_KEY` only when `LLM_PROVIDER=fireworks`).
+  - When more than one embedder is in play, name the npz after the embedder (e.g. `exemplars-embeddings-nomic.npz`) so the SBERT and Fireworks indices coexist on disk. The runner verifies the npz's stored `embedder_name` matches the spec's `embedder_provider`/`embedder_model` and refuses to silently retrieve with the wrong index.
 - **Run experiments:** `benchmark run configs/<file>.yaml`
 - **Browse results:** `streamlit run viewer/app.py`
 - **Notebook (error analysis):** `pip install -e ".[notebooks]"` then `jupyter lab notebooks/error_analysis.ipynb`
