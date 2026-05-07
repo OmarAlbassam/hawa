@@ -17,7 +17,11 @@ from rich.table import Table
 from benchmark.dataset import assign_folds, dataset_hash, load_dataset
 from benchmark.import_csv import ColumnMap, import_csv_to_jsonl
 from benchmark.report import plot_all_confusions, summarize
-from benchmark.retrieval.embedder import SBERTEmbedder
+from benchmark.retrieval.embedder import (
+    FIREWORKS_DEFAULT_MODEL,
+    SBERT_DEFAULT_MODEL,
+    make_embedder,
+)
 from benchmark.retrieval.store import KNNStore
 from benchmark.runner import run_all
 
@@ -93,19 +97,29 @@ def import_csv_cmd(
 def embed(
     data: Path = typer.Option(Path("data/control.jsonl"), help="JSONL dataset"),
     out: Path = typer.Option(Path("data/embeddings.npz"), help="Output .npz"),
-    model: str = typer.Option("BAAI/bge-small-en-v1.5", help="Sentence-transformers model"),
+    provider: str = typer.Option(
+        "sbert",
+        help="Embedder provider: 'sbert' (local sentence-transformers) or "
+             "'fireworks' (Fireworks AI /v1/embeddings).",
+    ),
+    model: str = typer.Option(
+        "",
+        help="Embedding model slug. Defaults: sbert → "
+             f"{SBERT_DEFAULT_MODEL}, fireworks → {FIREWORKS_DEFAULT_MODEL}.",
+    ),
     k_folds: int = typer.Option(5, help="Number of folds (used downstream)"),
 ) -> None:
     """Embed every sample in the dataset and write a single .npz file."""
     _setup_logging()
     samples = load_dataset(data)
     samples = assign_folds(samples, k=k_folds)
-    embedder = SBERTEmbedder(name=model)
+    embedder = make_embedder(provider, model or None)
     store = KNNStore.build(samples, embedder)
     store.save(out)
     console.print(
         f"[green]embedded[/green] {len(samples)} samples → {out} "
-        f"(dim={store.embeddings.shape[1]}, dataset_hash={dataset_hash(samples)})"
+        f"(provider={provider}, model={embedder.name}, "
+        f"dim={store.embeddings.shape[1]}, dataset_hash={dataset_hash(samples)})"
     )
 
 

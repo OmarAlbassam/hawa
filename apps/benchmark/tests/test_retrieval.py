@@ -104,3 +104,17 @@ def test_load_detects_dataset_drift(tmp_path):
     new_samples = _samples(["a", "b"], post_ids=[1, 2])  # one missing
     with pytest.raises(ValueError, match="out of sync"):
         KNNStore.load(path, new_samples)
+
+
+def test_load_rejects_embedder_mismatch(tmp_path):
+    """A mismatched embedder name silently breaks retrieval — must fail loud."""
+    samples = _samples(["a", "b"], post_ids=[1, 2])
+    store = KNNStore.build(samples, FakeEmbedder(name="sbert-fake"))
+    path = tmp_path / "emb.npz"
+    store.save(path)
+
+    with pytest.raises(ValueError, match="built with embedder"):
+        KNNStore.load(path, samples, expected_embedder_name="fireworks-other")
+
+    # Same name → no error.
+    KNNStore.load(path, samples, expected_embedder_name="sbert-fake")
