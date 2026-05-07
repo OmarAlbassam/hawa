@@ -44,7 +44,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            JwtService.JwtClaims claims = jwtService.parseClaims(token);
+            JwtService.JwtClaims claims;
+            try {
+                claims = jwtService.parseClaims(token);
+            } catch (IllegalArgumentException ex) {
+                log.warn("JWT claims rejected for {} {}: {}",
+                        request.getMethod(), request.getRequestURI(), ex.getMessage());
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (claims.userId() == null || claims.role() == null) {
                 log.warn("JWT missing required claims for {} {}", request.getMethod(), request.getRequestURI());
                 filterChain.doFilter(request, response);

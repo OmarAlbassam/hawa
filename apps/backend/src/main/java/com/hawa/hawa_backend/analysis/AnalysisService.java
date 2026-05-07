@@ -45,8 +45,11 @@ public class AnalysisService {
 
     @Transactional
     public ReportResponse startAnalysis(Long brandId, StartAnalysisRequest request) {
+        // Hibernate proxy — only safe to use as an FK target. Do NOT dereference
+        // non-id fields (e.g. user.getEmail()) — that triggers an extra SELECT.
         User user = authenticatedUserService.getAuthenticatedUser();
         Long companyId = authenticatedUserService.getCompanyId();
+        String userEmail = authenticatedUserService.getPrincipal().getUsername();
 
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new ResourceNotFoundException("Brand not found with id: " + brandId));
@@ -69,7 +72,7 @@ public class AnalysisService {
 
         report = reportRepository.save(report);
         log.info("Analysis started: reportId={} for brand={} by user={}",
-                report.getReportId(), brand.getBrandName(), user.getEmail());
+                report.getReportId(), brand.getBrandName(), userEmail);
 
         final Long reportId = report.getReportId();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -89,8 +92,10 @@ public class AnalysisService {
             throw new BadRequestException("Dataset contains no posts");
         }
 
+        // See note in startAnalysis — proxy is FK-only, do not dereference.
         User user = authenticatedUserService.getAuthenticatedUser();
         Long companyId = authenticatedUserService.getCompanyId();
+        String userEmail = authenticatedUserService.getPrincipal().getUsername();
 
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new ResourceNotFoundException("Brand not found with id: " + brandId));
@@ -121,7 +126,7 @@ public class AnalysisService {
         postRepository.saveAll(posts);
 
         log.info("CSV analysis started: reportId={} brand={} postCount={} by user={}",
-                report.getReportId(), brand.getBrandName(), posts.size(), user.getEmail());
+                report.getReportId(), brand.getBrandName(), posts.size(), userEmail);
 
         final Long reportId = report.getReportId();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
