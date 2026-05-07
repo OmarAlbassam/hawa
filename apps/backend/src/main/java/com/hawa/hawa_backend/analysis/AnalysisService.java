@@ -46,7 +46,7 @@ public class AnalysisService {
     @Transactional
     public ReportResponse startAnalysis(Long brandId, StartAnalysisRequest request) {
         User user = authenticatedUserService.getAuthenticatedUser();
-        Long companyId = user.getCompany().getCompanyId();
+        Long companyId = authenticatedUserService.getCompanyId();
 
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new ResourceNotFoundException("Brand not found with id: " + brandId));
@@ -90,7 +90,7 @@ public class AnalysisService {
         }
 
         User user = authenticatedUserService.getAuthenticatedUser();
-        Long companyId = user.getCompany().getCompanyId();
+        Long companyId = authenticatedUserService.getCompanyId();
 
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new ResourceNotFoundException("Brand not found with id: " + brandId));

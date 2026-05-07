@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.databind.ObjectMapper;
 import com.hawa.hawa_backend.admin.dto.AdminUserResponse;
 import com.hawa.hawa_backend.admin.dto.BrandResponse;
 import com.hawa.hawa_backend.admin.dto.CompanyResponse;
@@ -65,6 +66,7 @@ public class AdminService {
     private final BrandRepository brandRepository;
     private final KeywordRepository keywordRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public AdminUserResponse createUser(CreateUserRequest request) {
@@ -201,19 +203,27 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public SystemAnalyticsResponse getAnalytics() {
-        long totalUsers = userRepository.count();
-        long totalCompanies = companyRepository.count();
-        long totalReports = reportRepository.count();
-        long totalPostsAnalyzed = postRepository.count();
+        ReportRepository.AnalyticsProjection a = reportRepository.loadAnalytics();
 
         Map<ReportStatusEnum, Long> reportsByStatus = new EnumMap<>(ReportStatusEnum.class);
         for (ReportStatusEnum status : ReportStatusEnum.values()) {
-            reportsByStatus.put(status, reportRepository.countByStatus(status));
+            reportsByStatus.put(status, 0L);
+        }
+        if (a.getStatusCountsJson() != null) {
+            Map<String, Long> raw = objectMapper.readValue(
+                    a.getStatusCountsJson(),
+                    new tools.jackson.core.type.TypeReference<Map<String, Long>>() {});
+            for (Map.Entry<String, Long> entry : raw.entrySet()) {
+                reportsByStatus.put(ReportStatusEnum.valueOf(entry.getKey()), entry.getValue());
+            }
         }
 
         return new SystemAnalyticsResponse(
-                totalUsers, totalCompanies, totalReports,
-                reportsByStatus, totalPostsAnalyzed);
+                a.getUsersCount(),
+                a.getCompaniesCount(),
+                a.getReportsCount(),
+                reportsByStatus,
+                a.getPostsCount());
     }
 
     @Transactional(readOnly = true)
@@ -506,6 +516,6 @@ public class AdminService {
     private Long getCurrentUserId() {
         CustomUserDetails userDetails = (CustomUserDetails) SecurityContextHolder
                 .getContext().getAuthentication().getPrincipal();
-        return userDetails.getUser().getUserId();
+        return userDetails.getUserId();
     }
 }
