@@ -56,7 +56,7 @@ export interface ReportOverviewResponse {
   filteredOutCount: number;
   averageSentiment: number | null;
   emotionDistribution: Record<EmotionEnum, number>;
-  aspectDistribution: Record<AspectEnum, number>;
+  aspects: AspectBreakdownItem[];
 }
 
 export type RelevanceStatus = "RELEVANT" | "IRRELEVANT";
@@ -111,11 +111,6 @@ export interface AspectBreakdownItem {
   postCount: number;
   averageSentiment: number | null;
   emotionDistribution: Record<EmotionEnum, number>;
-}
-
-export interface AspectBreakdownResponse {
-  reportId: number;
-  aspects: AspectBreakdownItem[];
 }
 
 export interface ReportListParams {

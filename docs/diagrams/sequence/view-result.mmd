@@ -1,0 +1,36 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as ReportStatus<br/>«view»
+    participant RC as ReportController<br/>«controller»
+    participant RS as ReportService<br/>«service»
+    participant RR as ReportRepository<br/>«repository»
+
+    U->>FE: open /reports/{reportId}
+    FE->>RC: GET /api/reports/{reportId}/status
+    RC-->>FE: ReportStatusResponse(status, failureReason?)
+
+    opt status non-terminal (QUEUED or PROCESSING)
+        FE-->>U: spinner "analysis in progress" — page auto-refreshes
+        loop poll every 2s until status is terminal
+            FE->>RC: GET /api/reports/{reportId}/status
+            RC-->>FE: ReportStatusResponse
+        end
+    end
+
+    alt status = COMPLETED
+        FE->>RC: GET /api/reports/{reportId}
+        RC->>RS: getReportOverview(reportId)
+        RS->>RR: loadOverview(reportId, companyId)
+        RR-->>RS: ReportOverviewProjection
+        RS-->>RC: ReportOverviewResponse<br/>(brandName, dataSource, dates,<br/>score, analyzedPosts, filteredOutCount,<br/>emotionDistribution, aspects[])
+        RC-->>FE: 200 OK
+        FE-->>U: render header + overview + emotion distribution + aspect breakdown
+
+        opt user expands "filtered-out posts" (lazy)
+            FE->>RC: GET /api/reports/{reportId}/posts?relevance=IRRELEVANT
+            RC-->>FE: page of irrelevant posts
+            FE-->>U: list of filtered-out posts (see view-posts.mmd)
+        end
+    else status = FAILED
+        FE-->>U: error banner with failureReason
+    end

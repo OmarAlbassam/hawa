@@ -1,0 +1,34 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as StartAnalysis<br/>«view»
+    participant AC as AnalysisController<br/>«controller»
+    participant AS as AnalysisService<br/>«service»
+    participant JR as AnalysisJobRunner<br/>«async worker»
+    participant PC as PostCollector<br/>«service»
+    participant LC as LlmClient<br/>«client»
+    participant LLM as LLM Service<br/>«external»
+
+    U->>FE: select brand, keywords, date range
+    FE->>AC: POST /api/brands/{brandId}/reports
+    AC->>AS: startAnalysis(brandId, request)
+    AS->>AS: validate brand and keywords (companyId scope)
+    AS-->>AC: Report (status=QUEUED)
+    AC-->>FE: 200 OK ReportResponse
+    FE-->>U: navigate to /reports/{id}
+    Note over FE: ReportStatus page now polls GET /api/reports/{id}/status every 2s<br/>(see view-result.mmd) — UI advances QUEUED → PROCESSING → COMPLETED/FAILED
+
+    Note over JR: @Async, fires after Tx commit
+    JR->>JR: markProcessing(reportId) (status=PROCESSING)
+    JR->>PC: collect(brand, keywords, dateRange)
+    PC-->>JR: posts from Reddit (PRAW)
+    loop per batch
+        JR->>LC: analyzeBatch(posts, brand, keywords)
+        LC->>LLM: POST /analyze/batch
+        LLM-->>LC: BatchAnalyzeResponse(results, failed)
+        LC-->>JR: results + failed
+    end
+    alt all batches succeed
+        JR->>JR: persistReviews + finalizeCompleted (status=COMPLETED)
+    else exception during job
+        JR->>JR: mark FAILED with failureReason
+    end

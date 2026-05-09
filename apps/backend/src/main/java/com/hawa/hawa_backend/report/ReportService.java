@@ -29,12 +29,10 @@ import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
-import com.hawa.hawa_backend.report.ReportRepository.AspectBreakdownProjection;
 import com.hawa.hawa_backend.report.ReportRepository.ReportListItem;
 import com.hawa.hawa_backend.report.ReportRepository.ReportOverviewProjection;
 import com.hawa.hawa_backend.report.ReportRepository.StatusIndicatorProjection;
-import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
-import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse.AspectBreakdownItem;
+import com.hawa.hawa_backend.report.dto.AspectBreakdownItem;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
@@ -96,12 +94,6 @@ public class ReportService {
             emotionDistribution.put(EmotionEnum.valueOf(entry.getKey()), entry.getValue());
         }
 
-        Map<AspectEnum, Long> aspectDistribution = new EnumMap<>(AspectEnum.class);
-        for (AspectEnum a : AspectEnum.values()) aspectDistribution.put(a, 0L);
-        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getAspectCountsJson()).entrySet()) {
-            aspectDistribution.put(AspectEnum.valueOf(entry.getKey()), entry.getValue());
-        }
-
         return new ReportOverviewResponse(
                 p.getReportId(),
                 p.getBrandName(),
@@ -117,7 +109,44 @@ public class ReportService {
                 p.getIrrelevantCount(),
                 p.getAvgScore(),
                 emotionDistribution,
-                aspectDistribution);
+                buildAspectBreakdown(p.getBreakdownJson()));
+    }
+
+    private List<AspectBreakdownItem> buildAspectBreakdown(String breakdownJson) {
+        Map<AspectEnum, Long> counts = new EnumMap<>(AspectEnum.class);
+        Map<AspectEnum, BigDecimal> totals = new EnumMap<>(AspectEnum.class);
+        Map<AspectEnum, Map<EmotionEnum, Long>> emotionByAspect = new EnumMap<>(AspectEnum.class);
+        for (AspectEnum a : AspectEnum.values()) {
+            Map<EmotionEnum, Long> zeroed = new EnumMap<>(EmotionEnum.class);
+            for (EmotionEnum e : EmotionEnum.values()) zeroed.put(e, 0L);
+            emotionByAspect.put(a, zeroed);
+            counts.put(a, 0L);
+        }
+
+        for (AspectBreakdownRow row : parseBreakdown(breakdownJson)) {
+            AspectEnum aspect = AspectEnum.valueOf(row.aspect);
+            counts.merge(aspect, row.count, Long::sum);
+            BigDecimal weighted = row.avgScore == null
+                    ? BigDecimal.ZERO
+                    : row.avgScore.multiply(BigDecimal.valueOf(row.count));
+            totals.merge(aspect, weighted, BigDecimal::add);
+            if (row.emotion != null) {
+                emotionByAspect.get(aspect).merge(EmotionEnum.valueOf(row.emotion), row.count, Long::sum);
+            }
+        }
+
+        List<AspectBreakdownItem> items = new ArrayList<>();
+        for (AspectEnum a : AspectEnum.values()) {
+            long count = counts.getOrDefault(a, 0L);
+            BigDecimal avg = count > 0
+                    ? totals.get(a).divide(BigDecimal.valueOf(count), 4, java.math.RoundingMode.HALF_UP)
+                    : null;
+            items.add(new AspectBreakdownItem(a, count, avg, emotionByAspect.get(a)));
+        }
+        items.sort(Comparator
+                .comparingLong(AspectBreakdownItem::postCount).reversed()
+                .thenComparing(AspectBreakdownItem::aspect));
+        return items;
     }
 
     @Transactional(readOnly = true)
@@ -160,60 +189,6 @@ public class ReportService {
                 topEmotions,
                 topAspects,
                 p.getSummary());
-    }
-
-    @Transactional(readOnly = true)
-    public AspectBreakdownResponse getAspectBreakdown(Long reportId, AspectEnum aspectFilter) {
-        Long companyId = authenticatedUserService.getCompanyId();
-        log.debug("Computing aspect breakdown reportId={} companyId={} filter={}",
-                reportId, companyId, aspectFilter);
-
-        AspectBreakdownProjection projection = reportRepository.loadAspectBreakdown(reportId, companyId);
-        if (projection == null) {
-            throw new ResourceNotFoundException("Report not found: " + reportId);
-        }
-
-        ReportStatusEnum status = ReportStatusEnum.valueOf(projection.getStatus());
-        if (status != ReportStatusEnum.COMPLETED) {
-            throw new BadRequestException("Report is not ready (status: " + status + ")");
-        }
-
-        Map<AspectEnum, Long> counts = new EnumMap<>(AspectEnum.class);
-        Map<AspectEnum, BigDecimal> totals = new EnumMap<>(AspectEnum.class);
-        Map<AspectEnum, Map<EmotionEnum, Long>> emotionByAspect = new EnumMap<>(AspectEnum.class);
-        for (AspectEnum a : AspectEnum.values()) {
-            Map<EmotionEnum, Long> zeroed = new EnumMap<>(EmotionEnum.class);
-            for (EmotionEnum e : EmotionEnum.values()) zeroed.put(e, 0L);
-            emotionByAspect.put(a, zeroed);
-            counts.put(a, 0L);
-        }
-
-        for (AspectBreakdownRow row : parseBreakdown(projection.getBreakdownJson())) {
-            AspectEnum aspect = AspectEnum.valueOf(row.aspect);
-            counts.merge(aspect, row.count, Long::sum);
-            BigDecimal weighted = row.avgScore == null
-                    ? BigDecimal.ZERO
-                    : row.avgScore.multiply(BigDecimal.valueOf(row.count));
-            totals.merge(aspect, weighted, BigDecimal::add);
-            if (row.emotion != null) {
-                emotionByAspect.get(aspect).merge(EmotionEnum.valueOf(row.emotion), row.count, Long::sum);
-            }
-        }
-
-        List<AspectBreakdownItem> items = new ArrayList<>();
-        for (AspectEnum a : AspectEnum.values()) {
-            if (aspectFilter != null && a != aspectFilter) continue;
-            long count = counts.getOrDefault(a, 0L);
-            BigDecimal avg = count > 0
-                    ? totals.get(a).divide(BigDecimal.valueOf(count), 4, java.math.RoundingMode.HALF_UP)
-                    : null;
-            items.add(new AspectBreakdownItem(a, count, avg, emotionByAspect.get(a)));
-        }
-        items.sort(Comparator
-                .comparingLong(AspectBreakdownItem::postCount).reversed()
-                .thenComparing(AspectBreakdownItem::aspect));
-
-        return new AspectBreakdownResponse(projection.getReportId(), items);
     }
 
     @Transactional(readOnly = true)

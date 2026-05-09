@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as Dashboard<br/>«view»
+    participant SI as StatusIndicator<br/>«component»
+    participant BC as BrandController<br/>«controller»
+    participant BS as BrandService<br/>«service»
+    participant RR as ReportRepository<br/>«repository»
+
+    U->>FE: open /dashboard, select a brand
+    FE->>SI: mount with source={brand, brandId}
+    SI->>BC: GET /api/brands/{brandId}/status-indicator
+    BC->>BS: getBrandStatusIndicator(brandId)
+    BS->>RR: aggregate latest completed reports for brand (companyId scope)
+    RR-->>BS: avg score, sentiment buckets, top emotions, top aspects
+    BS-->>BC: BrandStatusIndicatorResponse
+    BC-->>SI: 200 OK
+    SI-->>U: score dial + dominant emotion + top aspects
+
+    Note over BC,RR: Endpoint also exists at /api/reports/{reportId}/status-indicator<br/>(report-scoped variant) — not currently mounted in any page.

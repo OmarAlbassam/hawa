@@ -1,8 +1,6 @@
 import { API_BASE_URL } from "../config/api";
 import type { Page } from "../types/page";
 import type {
-  AspectBreakdownResponse,
-  AspectEnum,
   PostListItemResponse,
   ReportExportParams,
   ReportPostsParams,
@@ -194,17 +192,3 @@ export async function getStatusIndicator(
   return response.json();
 }
 
-export async function getAspectBreakdown(
-  reportId: number,
-  aspect?: AspectEnum
-): Promise<AspectBreakdownResponse> {
-  const url = aspect
-    ? `${API_BASE_URL}/api/reports/${reportId}/aspects?aspect=${aspect}`
-    : `${API_BASE_URL}/api/reports/${reportId}/aspects`;
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(error?.message || "Failed to fetch aspect breakdown");
-  }
-  return response.json();
-}

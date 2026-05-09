@@ -6,11 +6,9 @@ import {
   getReportStatus,
   getReports,
   getReportOverview,
-  getAspectBreakdown,
 } from "../../services/reportService";
 import type {
   AspectBreakdownItem,
-  AspectBreakdownResponse,
   AspectEnum,
   EmotionEnum,
   ReportOverviewResponse,
@@ -50,13 +48,6 @@ const EMOTION_COLORS: Record<EmotionEnum, string> = {
   DISGUST: "#84CC16",
   NEUTRAL: "#9CA3AF",
 };
-
-const ASPECT_ORDER: AspectEnum[] = [
-  "PRODUCT",
-  "SERVICE",
-  "DELIVERY",
-  "PRICING",
-];
 
 const ASPECT_COLORS: Record<AspectEnum, string> = {
   PRODUCT: "#0284C7",
@@ -159,7 +150,6 @@ const ReportStatus = (): React.JSX.Element => {
   );
   const [overview, setOverview] = useState<ReportOverviewResponse | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
-  const [breakdown, setBreakdown] = useState<AspectBreakdownResponse | null>(null);
   const [overviewReportId, setOverviewReportId] = useState<number>(reportId);
   const [showFiltered, setShowFiltered] = useState(false);
   if (overviewReportId !== reportId) {
@@ -167,7 +157,6 @@ const ReportStatus = (): React.JSX.Element => {
     setOverviewReportId(reportId);
     setOverview(null);
     setOverviewError(null);
-    setBreakdown(null);
     setShowFiltered(false);
   }
   const [error, setError] = useState<string | null>(null);
@@ -221,9 +210,9 @@ const ReportStatus = (): React.JSX.Element => {
       const first = await fetchStatus();
       if (cancelled || !mountedRef.current) return;
       setInitialLoading(false);
-      if (!seed) await hydrateReportFromList();
-      if (first && isTerminalStatus(first.status) && !seed) {
-        // ensure report details (score/summary) are loaded for terminal cold load
+      // Header info only needs the list when overview won't provide it —
+      // i.e. cold-load of a non-terminal report (no seed, overview won't load).
+      if (!seed && first && !isTerminalStatus(first.status)) {
         await hydrateReportFromList();
       }
     })();
@@ -234,14 +223,9 @@ const ReportStatus = (): React.JSX.Element => {
 
   useEffect(() => {
     if (!status || isTerminalStatus(status.status)) return;
-    const id = window.setInterval(async () => {
-      const next = await fetchStatus();
-      if (next && isTerminalStatus(next.status)) {
-        await hydrateReportFromList();
-      }
-    }, POLL_INTERVAL_MS);
+    const id = window.setInterval(fetchStatus, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [status, fetchStatus, hydrateReportFromList]);
+  }, [status, fetchStatus]);
 
   const currentStatus = status?.status ?? report?.status ?? "PENDING";
 
@@ -287,25 +271,6 @@ const ReportStatus = (): React.JSX.Element => {
     };
   }, [currentStatus, overview, overviewError, reportId]);
 
-  useEffect(() => {
-    if (Number.isNaN(reportId)) return;
-    if (overview == null || breakdown != null) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getAspectBreakdown(reportId);
-        if (!cancelled && mountedRef.current) {
-          setBreakdown(data);
-        }
-      } catch {
-        // Breakdown is supplementary; fall back to Distribution component.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [overview, breakdown, reportId]);
-
   if (Number.isNaN(reportId)) {
     return <ErrorBanner message="Invalid report id" />;
   }
@@ -314,8 +279,11 @@ const ReportStatus = (): React.JSX.Element => {
     return <div className="report-status-loading">Loading report...</div>;
   }
 
-  const brandName = report?.brandName;
-  const source = report?.dataSource;
+  // Once overview loads it carries every header field; otherwise fall back to
+  // seed/list-hydrated `report` (running cold-loads, pre-overview transitions).
+  const headerInfo = overview ?? report;
+  const brandName = headerInfo?.brandName;
+  const source = headerInfo?.dataSource;
 
   return (
     <div className="report-status">
@@ -331,9 +299,9 @@ const ReportStatus = (): React.JSX.Element => {
           </h1>
           <div className="report-status-meta">
             {source && <span>Source: {sourceLabel(source)}</span>}
-            {report?.dateFrom && report?.dateTo && (
+            {headerInfo?.dateFrom && headerInfo?.dateTo && (
               <span>
-                {formatDate(report.dateFrom)} – {formatDate(report.dateTo)}
+                {formatDate(headerInfo.dateFrom)} – {formatDate(headerInfo.dateTo)}
               </span>
             )}
             {status?.createdAt && (
@@ -430,21 +398,11 @@ const ReportStatus = (): React.JSX.Element => {
 
               <div className="report-status-card">
                 <h2 className="report-status-section">Aspect breakdown</h2>
-                {breakdown ? (
-                  <div className="report-status-aspects">
-                    {breakdown.aspects.map((item) => (
-                      <AspectRow key={item.aspect} item={item} />
-                    ))}
-                  </div>
-                ) : (
-                  <Distribution
-                    entries={ASPECT_ORDER.map((k) => [
-                      k,
-                      overview.aspectDistribution[k] ?? 0,
-                    ])}
-                    colorMap={ASPECT_COLORS}
-                  />
-                )}
+                <div className="report-status-aspects">
+                  {overview.aspects.map((item) => (
+                    <AspectRow key={item.aspect} item={item} />
+                  ))}
+                </div>
               </div>
 
               {overview.filteredOutCount > 0 && (
