@@ -6,6 +6,8 @@ import type { DashboardResponse } from "../../types/dashboard";
 import StatCard from "../../components/StatCard/StatCard";
 import Badge from "../../components/Badge/Badge";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import StatusIndicator from "../../components/StatusIndicator/StatusIndicator";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import { formatDate } from "../../utils/formatDate";
 import "./Dashboard.css";
 
@@ -37,6 +39,8 @@ const Dashboard = (): React.JSX.Element => {
     loadData();
   }, [loadData]);
 
+  const { selectedBrand } = useBrandSelection();
+
   if (loading) {
     return <div className="dashboard-loading">Loading dashboard...</div>;
   }
@@ -56,6 +60,15 @@ const Dashboard = (): React.JSX.Element => {
           Start Analysis
         </Link>
       </div>
+
+      {selectedBrand && (
+        <div className="dashboard-status-indicator">
+          <StatusIndicator
+            source={{ kind: "brand", brandId: selectedBrand.brandId }}
+            title={`${selectedBrand.brandName} — Brand health`}
+          />
+        </div>
+      )}
 
       <div className="dashboard-stats">
         <StatCard label="Total Brands" value={data.stats.totalBrands} icon={Tag} variant="info" />

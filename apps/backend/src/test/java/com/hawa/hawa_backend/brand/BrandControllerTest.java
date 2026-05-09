@@ -11,12 +11,25 @@ import com.hawa.hawa_backend.TestcontainersConfiguration;
 import com.hawa.hawa_backend.auth.JwtService;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
+import com.hawa.hawa_backend.enums.AspectEnum;
+import com.hawa.hawa_backend.enums.DataSourceEnum;
+import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.KeywordTypeEnum;
+import com.hawa.hawa_backend.enums.LanguageEnum;
+import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
 import com.hawa.hawa_backend.keyword.Keyword;
 import com.hawa.hawa_backend.keyword.KeywordRepository;
+import com.hawa.hawa_backend.post.Post;
+import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.report.Report;
+import com.hawa.hawa_backend.report.ReportRepository;
+import com.hawa.hawa_backend.review.Review;
+import com.hawa.hawa_backend.review.ReviewRepository;
 import com.hawa.hawa_backend.user.User;
 import com.hawa.hawa_backend.user.UserRepository;
+
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -42,6 +55,9 @@ class BrandControllerTest {
     @Autowired private UserRepository userRepository;
     @Autowired private BrandRepository brandRepository;
     @Autowired private KeywordRepository keywordRepository;
+    @Autowired private ReportRepository reportRepository;
+    @Autowired private PostRepository postRepository;
+    @Autowired private ReviewRepository reviewRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -164,6 +180,138 @@ class BrandControllerTest {
             mockMvc.perform(get("/api/brands/" + otherBrand.getBrandId())
                             .header("Authorization", "Bearer " + userToken))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    // ==================== Brand Status Indicator ====================
+
+    @Nested
+    class GetStatusIndicator {
+
+        @Test
+        void shouldAggregateAcrossAllCompletedReportsForBrand() throws Exception {
+            Brand brand = createBrand("Nike", company);
+
+            // First completed report: 2 reviews
+            Report r1 = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(r1, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(r1, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+
+            // Second completed report: 3 reviews
+            Report r2 = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(r2, new BigDecimal("5.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(r2, new BigDecimal("3.0"), EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+            createReview(r2, new BigDecimal("2.5"), EmotionEnum.NEUTRAL, AspectEnum.DELIVERY);
+
+            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.brandId").value(brand.getBrandId()))
+                    .andExpect(jsonPath("$.brandName").value("Nike"))
+                    .andExpect(jsonPath("$.completedReportCount").value(2))
+                    .andExpect(jsonPath("$.analyzedPostCount").value(5))
+                    .andExpect(jsonPath("$.averageSentiment").value(3.1))
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(1))
+                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(2))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(2))
+                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"))
+                    .andExpect(jsonPath("$.topEmotions[0].emotion").value("JOY"))
+                    .andExpect(jsonPath("$.topEmotions[0].count").value(2))
+                    .andExpect(jsonPath("$.topEmotions[1].emotion").value("NEUTRAL"))
+                    .andExpect(jsonPath("$.topEmotions[1].count").value(2))
+                    .andExpect(jsonPath("$.topEmotions[2].emotion").value("ANGER"))
+                    .andExpect(jsonPath("$.topAspects[0].aspect").value("PRODUCT"))
+                    .andExpect(jsonPath("$.topAspects[0].count").value(3))
+                    .andExpect(jsonPath("$.topAspects[1].aspect").value("SERVICE"))
+                    .andExpect(jsonPath("$.topAspects[2].aspect").value("DELIVERY"));
+        }
+
+        @Test
+        void shouldExcludeNonCompletedReports() throws Exception {
+            Brand brand = createBrand("Nike", company);
+            Report completed = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(completed, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+
+            // These should not contribute to aggregation
+            Report processing = createReport(brand, ReportStatusEnum.PROCESSING);
+            createReview(processing, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            Report failed = createReport(brand, ReportStatusEnum.FAILED);
+            createReview(failed, new BigDecimal("1.5"), EmotionEnum.SADNESS, AspectEnum.DELIVERY);
+
+            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.completedReportCount").value(1))
+                    .andExpect(jsonPath("$.analyzedPostCount").value(1))
+                    .andExpect(jsonPath("$.averageSentiment").value(4.0))
+                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"));
+        }
+
+        @Test
+        void shouldNotMixDataAcrossBrandsInSameCompany() throws Exception {
+            Brand nike = createBrand("Nike", company);
+            Brand adidas = createBrand("Adidas", company);
+
+            Report nikeReport = createReport(nike, ReportStatusEnum.COMPLETED);
+            createReview(nikeReport, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+
+            Report adidasReport = createReport(adidas, ReportStatusEnum.COMPLETED);
+            createReview(adidasReport, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            createReview(adidasReport, new BigDecimal("2.0"), EmotionEnum.SADNESS, AspectEnum.SERVICE);
+
+            mockMvc.perform(get("/api/brands/" + nike.getBrandId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.analyzedPostCount").value(1))
+                    .andExpect(jsonPath("$.averageSentiment").value(4.0))
+                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"));
+        }
+
+        @Test
+        void shouldReturnZerosAndNulls_whenBrandHasNoCompletedReports() throws Exception {
+            Brand brand = createBrand("Nike", company);
+
+            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.brandId").value(brand.getBrandId()))
+                    .andExpect(jsonPath("$.brandName").value("Nike"))
+                    .andExpect(jsonPath("$.completedReportCount").value(0))
+                    .andExpect(jsonPath("$.analyzedPostCount").value(0))
+                    .andExpect(jsonPath("$.averageSentiment").doesNotExist())
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(0))
+                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(0))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(0))
+                    .andExpect(jsonPath("$.dominantEmotion").doesNotExist())
+                    .andExpect(jsonPath("$.topEmotions.length()").value(0))
+                    .andExpect(jsonPath("$.topAspects.length()").value(0));
+        }
+
+        @Test
+        void shouldReturn404_whenBrandDoesNotExist() throws Exception {
+            mockMvc.perform(get("/api/brands/99999/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn404_whenBrandBelongsToDifferentCompany() throws Exception {
+            Company otherCompany = new Company();
+            otherCompany.setCompanyName("Other Corp");
+            otherCompany = companyRepository.save(otherCompany);
+            Brand otherBrand = createBrand("Adidas", otherCompany);
+
+            mockMvc.perform(get("/api/brands/" + otherBrand.getBrandId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn401_whenUnauthenticated() throws Exception {
+            Brand brand = createBrand("Nike", company);
+
+            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator"))
+                    .andExpect(status().isUnauthorized());
         }
     }
 
@@ -299,5 +447,33 @@ class BrandControllerTest {
                 .keywordType(type)
                 .build();
         return keywordRepository.save(kw);
+    }
+
+    private Report createReport(Brand brand, ReportStatusEnum status) {
+        Report report = Report.builder()
+                .brand(brand)
+                .user(marketingUser)
+                .dataSource(DataSourceEnum.REDDIT)
+                .status(status)
+                .build();
+        return reportRepository.save(report);
+    }
+
+    private Review createReview(Report report, BigDecimal score,
+                                EmotionEnum emotion, AspectEnum aspect) {
+        Post post = Post.builder()
+                .report(report)
+                .postText("sample text")
+                .language(LanguageEnum.EN)
+                .build();
+        post = postRepository.save(post);
+
+        Review review = Review.builder()
+                .post(post)
+                .score(score)
+                .emotion(emotion)
+                .aspect(aspect)
+                .build();
+        return reviewRepository.save(review);
     }
 }

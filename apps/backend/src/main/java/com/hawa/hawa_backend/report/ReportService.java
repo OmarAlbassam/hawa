@@ -32,11 +32,15 @@ import com.hawa.hawa_backend.post.PostRepository;
 import com.hawa.hawa_backend.report.ReportRepository.AspectBreakdownProjection;
 import com.hawa.hawa_backend.report.ReportRepository.ReportListItem;
 import com.hawa.hawa_backend.report.ReportRepository.ReportOverviewProjection;
+import com.hawa.hawa_backend.report.ReportRepository.StatusIndicatorProjection;
 import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
 import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse.AspectBreakdownItem;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse.AspectShare;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse.EmotionShare;
 import com.hawa.hawa_backend.review.ReviewRepository;
 import com.hawa.hawa_backend.util.NativeSortUtil;
 
@@ -114,6 +118,48 @@ public class ReportService {
                 p.getAvgScore(),
                 emotionDistribution,
                 aspectDistribution);
+    }
+
+    @Transactional(readOnly = true)
+    public StatusIndicatorResponse getStatusIndicator(Long reportId) {
+        Long companyId = authenticatedUserService.getCompanyId();
+        log.debug("Fetching status indicator reportId={} companyId={}", reportId, companyId);
+
+        StatusIndicatorProjection p = reportRepository.loadStatusIndicator(reportId, companyId);
+        if (p == null) {
+            throw new ResourceNotFoundException("Report not found: " + reportId);
+        }
+
+        ReportStatusEnum status = ReportStatusEnum.valueOf(p.getStatus());
+        if (status != ReportStatusEnum.COMPLETED) {
+            throw new BadRequestException("Report is not ready (status: " + status + ")");
+        }
+
+        long analyzed = p.getAnalyzedCount();
+
+        Map<EmotionEnum, Long> emotionCounts = new EnumMap<>(EmotionEnum.class);
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getEmotionCountsJson()).entrySet()) {
+            emotionCounts.put(EmotionEnum.valueOf(entry.getKey()), entry.getValue());
+        }
+        List<EmotionShare> topEmotions = StatusIndicatorResponse.topEmotions(emotionCounts, 3);
+        EmotionEnum dominantEmotion = topEmotions.isEmpty() ? null : topEmotions.get(0).emotion();
+
+        Map<AspectEnum, Long> aspectCounts = new EnumMap<>(AspectEnum.class);
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getAspectCountsJson()).entrySet()) {
+            aspectCounts.put(AspectEnum.valueOf(entry.getKey()), entry.getValue());
+        }
+        List<AspectShare> topAspects = StatusIndicatorResponse.topAspects(aspectCounts, analyzed, 3);
+
+        return new StatusIndicatorResponse(
+                p.getReportId(),
+                p.getAvgScore(),
+                analyzed,
+                StatusIndicatorResponse.breakdownOf(
+                        p.getNegativeCount(), p.getNeutralCount(), p.getPositiveCount(), analyzed),
+                dominantEmotion,
+                topEmotions,
+                topAspects,
+                p.getSummary());
     }
 
     @Transactional(readOnly = true)

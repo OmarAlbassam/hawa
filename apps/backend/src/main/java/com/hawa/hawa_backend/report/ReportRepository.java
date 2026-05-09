@@ -175,6 +175,56 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
         String getBreakdownJson();
     }
 
+    interface StatusIndicatorProjection {
+        Long getReportId();
+        String getStatus();
+        String getSummary();
+        BigDecimal getAvgScore();
+        long getAnalyzedCount();
+        long getNegativeCount();
+        long getNeutralCount();
+        long getPositiveCount();
+        String getEmotionCountsJson();
+        String getAspectCountsJson();
+    }
+
+    @Query(value = """
+            SELECT
+              r.report_id        AS reportId,
+              r.status::text     AS status,
+              r.summary          AS summary,
+              (SELECT AVG(rv.score) FROM review rv
+                 JOIN post p ON p.post_id = rv.post_id
+               WHERE p.report_id = r.report_id) AS avgScore,
+              COALESCE((SELECT COUNT(*) FROM review rv
+                          JOIN post p ON p.post_id = rv.post_id
+                        WHERE p.report_id = r.report_id), 0) AS analyzedCount,
+              COALESCE((SELECT COUNT(*) FROM review rv
+                          JOIN post p ON p.post_id = rv.post_id
+                        WHERE p.report_id = r.report_id AND rv.score < 2.0), 0) AS negativeCount,
+              COALESCE((SELECT COUNT(*) FROM review rv
+                          JOIN post p ON p.post_id = rv.post_id
+                        WHERE p.report_id = r.report_id
+                          AND rv.score >= 2.0 AND rv.score <= 3.0), 0) AS neutralCount,
+              COALESCE((SELECT COUNT(*) FROM review rv
+                          JOIN post p ON p.post_id = rv.post_id
+                        WHERE p.report_id = r.report_id AND rv.score > 3.0), 0) AS positiveCount,
+              (SELECT jsonb_object_agg(emotion, c)::text FROM (
+                 SELECT rv.emotion::text AS emotion, COUNT(*) AS c
+                 FROM review rv JOIN post p ON p.post_id = rv.post_id
+                 WHERE p.report_id = r.report_id AND rv.emotion IS NOT NULL
+                 GROUP BY rv.emotion) e) AS emotionCountsJson,
+              (SELECT jsonb_object_agg(aspect, c)::text FROM (
+                 SELECT rv.aspect::text AS aspect, COUNT(*) AS c
+                 FROM review rv JOIN post p ON p.post_id = rv.post_id
+                 WHERE p.report_id = r.report_id
+                 GROUP BY rv.aspect) a) AS aspectCountsJson
+            FROM report r JOIN brand b ON b.brand_id = r.brand_id
+            WHERE r.report_id = :reportId AND b.company_id = :companyId
+            """, nativeQuery = true)
+    StatusIndicatorProjection loadStatusIndicator(@Param("reportId") Long reportId,
+                                                  @Param("companyId") Long companyId);
+
     @Query(value = """
             SELECT
               (SELECT COUNT(*) FROM "user")  AS usersCount,

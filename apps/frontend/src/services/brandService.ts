@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../config/api";
 import type { Page } from "../types/page";
 import type {
+  BrandStatusIndicatorResponse,
   BrandSummaryResponse,
   BrandDetailResponse,
   KeywordInfo,
@@ -37,6 +38,20 @@ export async function getBrand(brandId: number): Promise<BrandDetailResponse> {
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || "Failed to fetch brand");
+  }
+  return response.json();
+}
+
+export async function getBrandStatusIndicator(
+  brandId: number
+): Promise<BrandStatusIndicatorResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/brands/${brandId}/status-indicator`,
+    { headers: getAuthHeaders() }
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "Failed to fetch brand status indicator");
   }
   return response.json();
 }

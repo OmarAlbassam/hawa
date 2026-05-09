@@ -27,6 +27,7 @@ import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -104,5 +105,10 @@ public class ReportController {
             @PathVariable Long reportId,
             @RequestParam(required = false) AspectEnum aspect) {
         return ResponseEntity.ok(reportService.getAspectBreakdown(reportId, aspect));
+    }
+
+    @GetMapping("/{reportId}/status-indicator")
+    public ResponseEntity<StatusIndicatorResponse> getStatusIndicator(@PathVariable Long reportId) {
+        return ResponseEntity.ok(reportService.getStatusIndicator(reportId));
     }
 }

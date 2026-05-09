@@ -1,18 +1,41 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { getBrand } from "../../services/brandService";
 import type { BrandDetailResponse } from "../../types/brand";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
 import KeywordPanel from "./KeywordPanel";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import { formatDate } from "../../utils/formatDate";
 import "./BrandDetail.css";
 
 const BrandDetail = (): React.JSX.Element => {
   const { brandId } = useParams<{ brandId: string }>();
+  const navigate = useNavigate();
+  const { selectedBrandId, setSelectedBrandId } = useBrandSelection();
   const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const urlBrandId = brandId ? Number(brandId) : null;
+
+  // Keep navbar selection in sync with the URL when the route changes.
+  useEffect(() => {
+    if (urlBrandId != null && urlBrandId !== selectedBrandId) {
+      setSelectedBrandId(urlBrandId);
+    }
+  }, [urlBrandId, selectedBrandId, setSelectedBrandId]);
+
+  // Navigate to the matching detail page when the navbar selection changes.
+  useEffect(() => {
+    if (
+      selectedBrandId != null &&
+      urlBrandId != null &&
+      selectedBrandId !== urlBrandId
+    ) {
+      navigate(`/brands/${selectedBrandId}`, { replace: true });
+    }
+  }, [selectedBrandId, urlBrandId, navigate]);
 
   const loadData = useCallback(async () => {
     if (!brandId) return;
@@ -32,7 +55,7 @@ const BrandDetail = (): React.JSX.Element => {
   }, [loadData]);
 
   if (loading) {
-    return <div className="brand-detail-loading">Loading brand...</div>;
+    return <div className="brand-detail-loading">Loading brand…</div>;
   }
 
   if (error) {
@@ -83,10 +106,7 @@ const BrandDetail = (): React.JSX.Element => {
         >
           Start Analysis
         </Link>
-        <Link
-          to={`/reports?brandId=${brand.brandId}`}
-          className="brand-detail-reports-btn"
-        >
+        <Link to="/reports" className="brand-detail-reports-btn">
           View Reports
         </Link>
       </div>

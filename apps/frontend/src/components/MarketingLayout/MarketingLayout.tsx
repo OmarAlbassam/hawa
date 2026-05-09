@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Tag, FileBarChart, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import { logout } from "../../services/authService";
+import BrandSelector from "../BrandSelector/BrandSelector";
 import hawaLogo from "../../assets/hawa-logo-cropped.png";
 import "./MarketingLayout.css";
 
@@ -50,11 +51,14 @@ const MarketingLayout = (): React.JSX.Element => {
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <img src={hawaLogo} alt="Hawa" width="768" height="450" className="marketing-topbar-logo" />
-        <div className="marketing-topbar-user">
-          <span className="marketing-topbar-name">
-            {user?.firstName} {user?.lastName}
-          </span>
-          <span className="marketing-topbar-role">Marketing</span>
+        <div className="marketing-topbar-actions">
+          <BrandSelector />
+          <div className="marketing-topbar-user">
+            <span className="marketing-topbar-name">
+              {user?.firstName} {user?.lastName}
+            </span>
+            <span className="marketing-topbar-role">Marketing</span>
+          </div>
         </div>
       </header>
 

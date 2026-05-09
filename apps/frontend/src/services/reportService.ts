@@ -11,6 +11,7 @@ import type {
   ReportListParams,
   ReportOverviewResponse,
   StartAnalysisRequest,
+  StatusIndicatorResponse,
 } from "../types/report";
 
 function getAuthHeaders(): HeadersInit {
@@ -175,6 +176,20 @@ export async function getReportOverview(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || "Failed to fetch report overview");
+  }
+  return response.json();
+}
+
+export async function getStatusIndicator(
+  reportId: number
+): Promise<StatusIndicatorResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/reports/${reportId}/status-indicator`,
+    { headers: getAuthHeaders() }
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "Failed to fetch status indicator");
   }
   return response.json();
 }

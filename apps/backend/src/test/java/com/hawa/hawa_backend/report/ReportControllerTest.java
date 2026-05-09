@@ -668,6 +668,170 @@ class ReportControllerTest {
     }
 
     @Nested
+    class GetStatusIndicator {
+
+        @Test
+        void shouldReturnAggregatedIndicators_whenReportCompleted() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            // 5 reviews: 1 negative (<2), 2 neutral (2-3), 2 positive (>3)
+            createReview(report, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            createReview(report, new BigDecimal("2.5"), EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("3.0"), EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("5.0"), EmotionEnum.JOY, AspectEnum.DELIVERY);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.reportId").value(report.getReportId()))
+                    .andExpect(jsonPath("$.analyzedPostCount").value(5))
+                    .andExpect(jsonPath("$.averageSentiment").value(3.1))
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(1))
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.percentage").value(0.2))
+                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(2))
+                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.percentage").value(0.4))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(2))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.percentage").value(0.4))
+                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"))
+                    .andExpect(jsonPath("$.topEmotions.length()").value(3))
+                    .andExpect(jsonPath("$.topEmotions[0].emotion").value("JOY"))
+                    .andExpect(jsonPath("$.topEmotions[0].count").value(2))
+                    .andExpect(jsonPath("$.topEmotions[0].percentage").value(0.4))
+                    .andExpect(jsonPath("$.topEmotions[1].emotion").value("NEUTRAL"))
+                    .andExpect(jsonPath("$.topEmotions[1].count").value(2))
+                    .andExpect(jsonPath("$.topEmotions[2].emotion").value("ANGER"))
+                    .andExpect(jsonPath("$.topEmotions[2].count").value(1))
+                    .andExpect(jsonPath("$.topAspects.length()").value(3))
+                    .andExpect(jsonPath("$.topAspects[0].aspect").value("PRODUCT"))
+                    .andExpect(jsonPath("$.topAspects[0].count").value(3))
+                    .andExpect(jsonPath("$.topAspects[0].percentage").value(0.6))
+                    .andExpect(jsonPath("$.topAspects[1].aspect").value("SERVICE"))
+                    .andExpect(jsonPath("$.topAspects[1].count").value(1))
+                    .andExpect(jsonPath("$.topAspects[2].aspect").value("DELIVERY"))
+                    .andExpect(jsonPath("$.topAspects[2].count").value(1));
+        }
+
+        @Test
+        void shouldLimitTopEmotionsAndAspectsToThree() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("3.5"), EmotionEnum.SADNESS, AspectEnum.SERVICE);
+            createReview(report, new BigDecimal("3.0"), EmotionEnum.ANGER, AspectEnum.DELIVERY);
+            createReview(report, new BigDecimal("2.0"), EmotionEnum.FEAR, AspectEnum.PRICING);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.topEmotions.length()").value(3))
+                    .andExpect(jsonPath("$.topEmotions[0].emotion").value("JOY"))
+                    .andExpect(jsonPath("$.topAspects.length()").value(3))
+                    .andExpect(jsonPath("$.topAspects[0].aspect").value("PRODUCT"));
+        }
+
+        @Test
+        void shouldReturnEmptyAggregates_whenCompletedReportHasNoReviews() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.analyzedPostCount").value(0))
+                    .andExpect(jsonPath("$.averageSentiment").doesNotExist())
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(0))
+                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(0))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(0))
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.percentage").value(0.0))
+                    .andExpect(jsonPath("$.dominantEmotion").doesNotExist())
+                    .andExpect(jsonPath("$.topEmotions").isArray())
+                    .andExpect(jsonPath("$.topEmotions.length()").value(0))
+                    .andExpect(jsonPath("$.topAspects").isArray())
+                    .andExpect(jsonPath("$.topAspects.length()").value(0));
+        }
+
+        @Test
+        void shouldExcludeIrrelevantPostsFromAggregations() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+            createReview(report, new BigDecimal("1.5"), EmotionEnum.ANGER, AspectEnum.SERVICE);
+            createIrrelevantPost(report, "spam", IrrelevanceReasonEnum.SPAM);
+            createIrrelevantPost(report, "off-topic", IrrelevanceReasonEnum.HOMONYM);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.analyzedPostCount").value(2))
+                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(1))
+                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(1));
+        }
+
+        @Test
+        void shouldIncludeSummary_whenPresent() throws Exception {
+            Report report = Report.builder()
+                    .brand(brand)
+                    .user(marketingUser)
+                    .dataSource(DataSourceEnum.REDDIT)
+                    .status(ReportStatusEnum.COMPLETED)
+                    .summary("Brand sentiment is broadly positive with concerns around delivery.")
+                    .build();
+            report = reportRepository.save(report);
+            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.summary")
+                            .value("Brand sentiment is broadly positive with concerns around delivery."));
+        }
+
+        @Test
+        void shouldReturn400_whenReportNotCompleted() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.PROCESSING);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("PROCESSING")));
+        }
+
+        @Test
+        void shouldReturn404_whenReportDoesNotExist() throws Exception {
+            mockMvc.perform(get("/api/reports/999999/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
+            Company otherCompany = new Company();
+            otherCompany.setCompanyName("Other Corp");
+            otherCompany = companyRepository.save(otherCompany);
+            Brand otherBrand = Brand.builder().brandName("Adidas").company(otherCompany).build();
+            otherBrand = brandRepository.save(otherBrand);
+            User otherUser = createUser("other@example.com", UserRoleEnum.MARKETING_USER, otherCompany);
+            Report report = Report.builder()
+                    .brand(otherBrand)
+                    .user(otherUser)
+                    .dataSource(DataSourceEnum.REDDIT)
+                    .status(ReportStatusEnum.COMPLETED)
+                    .build();
+            report = reportRepository.save(report);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturn401_whenUnauthenticated() throws Exception {
+            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
+
+            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/status-indicator"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
     class ExportReportCsv {
 
         @Test

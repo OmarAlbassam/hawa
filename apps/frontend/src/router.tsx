@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { BrandSelectionProvider } from "./context/BrandSelectionContext";
 import AdminRoute from "./components/AdminRoute/AdminRoute";
 import MarketingRoute from "./components/MarketingRoute/MarketingRoute";
 import AdminLayout from "./components/AdminLayout/AdminLayout";
@@ -46,7 +47,9 @@ const AppRouter = () => (
           <Route
             element={
               <MarketingRoute>
-                <MarketingLayout />
+                <BrandSelectionProvider>
+                  <MarketingLayout />
+                </BrandSelectionProvider>
               </MarketingRoute>
             }
           >
