@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -23,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final CustomUserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -45,12 +43,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String email = jwtService.extractEmail(token);
-
-        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+        if (SecurityContextHolder.getContext().getAuthentication() == null) {
+            JwtService.JwtClaims claims;
+            try {
+                claims = jwtService.parseClaims(token);
+            } catch (IllegalArgumentException ex) {
+                log.warn("JWT claims rejected for {} {}: {}",
+                        request.getMethod(), request.getRequestURI(), ex.getMessage());
+                filterChain.doFilter(request, response);
+                return;
+            }
+            if (claims.userId() == null || claims.role() == null) {
+                log.warn("JWT missing required claims for {} {}", request.getMethod(), request.getRequestURI());
+                filterChain.doFilter(request, response);
+                return;
+            }
+            CustomUserDetails userDetails = CustomUserDetails.fromClaims(claims);
             log.debug("Authenticated user: {} with authorities: {} for {} {}",
-                    email, userDetails.getAuthorities(), request.getMethod(), request.getRequestURI());
+                    claims.email(), userDetails.getAuthorities(), request.getMethod(), request.getRequestURI());
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

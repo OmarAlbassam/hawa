@@ -3,11 +3,11 @@ package com.hawa.hawa_backend.report;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,10 +16,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.hawa.hawa_backend.auth.AuthenticatedUserService;
-import com.hawa.hawa_backend.brand.Brand;
-import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.enums.AspectEnum;
+import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
@@ -28,6 +29,9 @@ import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.report.ReportRepository.AspectBreakdownProjection;
+import com.hawa.hawa_backend.report.ReportRepository.ReportListItem;
+import com.hawa.hawa_backend.report.ReportRepository.ReportOverviewProjection;
 import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
 import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse.AspectBreakdownItem;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
@@ -44,11 +48,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReportService {
 
+    private static final TypeReference<Map<String, Long>> STRING_LONG_MAP = new TypeReference<>() {};
+    private static final TypeReference<List<AspectBreakdownRow>> BREAKDOWN_LIST = new TypeReference<>() {};
+
     private final AuthenticatedUserService authenticatedUserService;
     private final ReportRepository reportRepository;
-    private final BrandRepository brandRepository;
     private final ReviewRepository reviewRepository;
     private final PostRepository postRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public Page<ReportResponse> listReports(Long brandId, ReportStatusEnum status,
@@ -58,14 +65,10 @@ public class ReportService {
         log.debug("Listing reports for companyId={} with filters brandId={}, status={}, dateFrom={}, dateTo={}",
                 companyId, brandId, status, dateFrom, dateTo);
 
-        // Pre-fetch all brands for this company to avoid N+1 on report.getBrand()
-        Map<Long, String> brandNames = brandRepository.findAllByCompanyCompanyId(companyId).stream()
-                .collect(Collectors.toMap(Brand::getBrandId, Brand::getBrandName));
-
         String statusStr = status != null ? status.name() : null;
         Pageable nativePageable = NativeSortUtil.toNativeSortPageable(pageable);
         return reportRepository.findByCompanyIdWithFilters(companyId, brandId, statusStr, dateFrom, dateTo, nativePageable)
-                .map(report -> toReportResponse(report, brandNames));
+                .map(ReportService::toReportResponse);
     }
 
     @Transactional(readOnly = true)
@@ -73,48 +76,42 @@ public class ReportService {
         Long companyId = authenticatedUserService.getCompanyId();
         log.debug("Fetching report overview reportId={} companyId={}", reportId, companyId);
 
-        Report report = reportRepository.findById(reportId)
-                .filter(r -> r.getBrand().getCompany().getCompanyId().equals(companyId))
-                .orElseThrow(() -> new ResourceNotFoundException("Report not found: " + reportId));
-
-        if (report.getStatus() != ReportStatusEnum.COMPLETED) {
-            throw new BadRequestException(
-                    "Report is not ready (status: " + report.getStatus() + ")");
+        ReportOverviewProjection p = reportRepository.loadOverview(reportId, companyId);
+        if (p == null) {
+            throw new ResourceNotFoundException("Report not found: " + reportId);
         }
 
-        ReviewRepository.ReviewAggregate aggregate = reviewRepository.aggregateByReportId(reportId);
-        long analyzedPosts = aggregate != null && aggregate.getTotalCount() != null ? aggregate.getTotalCount() : 0L;
-        BigDecimal averageSentiment = aggregate != null ? aggregate.getAverageScore() : null;
+        ReportStatusEnum status = ReportStatusEnum.valueOf(p.getStatus());
+        if (status != ReportStatusEnum.COMPLETED) {
+            throw new BadRequestException("Report is not ready (status: " + status + ")");
+        }
 
         Map<EmotionEnum, Long> emotionDistribution = new EnumMap<>(EmotionEnum.class);
         for (EmotionEnum e : EmotionEnum.values()) emotionDistribution.put(e, 0L);
-        for (ReviewRepository.EmotionCount ec : reviewRepository.countByEmotion(reportId)) {
-            emotionDistribution.put(ec.getKey(), ec.getCount());
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getEmotionCountsJson()).entrySet()) {
+            emotionDistribution.put(EmotionEnum.valueOf(entry.getKey()), entry.getValue());
         }
 
         Map<AspectEnum, Long> aspectDistribution = new EnumMap<>(AspectEnum.class);
         for (AspectEnum a : AspectEnum.values()) aspectDistribution.put(a, 0L);
-        for (ReviewRepository.AspectCount ac : reviewRepository.countByAspect(reportId)) {
-            aspectDistribution.put(ac.getKey(), ac.getCount());
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getAspectCountsJson()).entrySet()) {
+            aspectDistribution.put(AspectEnum.valueOf(entry.getKey()), entry.getValue());
         }
 
-        long filteredOutCount = postRepository.countByReportReportIdAndRelevanceStatus(
-                reportId, RelevanceStatusEnum.IRRELEVANT);
-
         return new ReportOverviewResponse(
-                report.getReportId(),
-                report.getBrand().getBrandName(),
-                report.getStatus(),
-                report.getDataSource(),
-                report.getDateFrom(),
-                report.getDateTo(),
-                report.getCreatedAt(),
-                report.getFinishedAt(),
-                report.getSummary(),
-                report.getScore(),
-                analyzedPosts,
-                filteredOutCount,
-                averageSentiment,
+                p.getReportId(),
+                p.getBrandName(),
+                status,
+                DataSourceEnum.valueOf(p.getDataSource()),
+                p.getDateFrom(),
+                p.getDateTo(),
+                p.getCreatedAt(),
+                p.getFinishedAt(),
+                p.getSummary(),
+                p.getScore(),
+                p.getAnalyzedCount(),
+                p.getIrrelevantCount(),
+                p.getAvgScore(),
                 emotionDistribution,
                 aspectDistribution);
     }
@@ -125,44 +122,52 @@ public class ReportService {
         log.debug("Computing aspect breakdown reportId={} companyId={} filter={}",
                 reportId, companyId, aspectFilter);
 
-        Report report = reportRepository.findById(reportId)
-                .filter(r -> r.getBrand().getCompany().getCompanyId().equals(companyId))
-                .orElseThrow(() -> new ResourceNotFoundException("Report not found: " + reportId));
+        AspectBreakdownProjection projection = reportRepository.loadAspectBreakdown(reportId, companyId);
+        if (projection == null) {
+            throw new ResourceNotFoundException("Report not found: " + reportId);
+        }
 
-        if (report.getStatus() != ReportStatusEnum.COMPLETED) {
-            throw new BadRequestException(
-                    "Report is not ready (status: " + report.getStatus() + ")");
+        ReportStatusEnum status = ReportStatusEnum.valueOf(projection.getStatus());
+        if (status != ReportStatusEnum.COMPLETED) {
+            throw new BadRequestException("Report is not ready (status: " + status + ")");
         }
 
         Map<AspectEnum, Long> counts = new EnumMap<>(AspectEnum.class);
-        Map<AspectEnum, BigDecimal> averages = new EnumMap<>(AspectEnum.class);
-        for (ReviewRepository.AspectAggregate row : reviewRepository.aggregateByAspect(reportId)) {
-            counts.put(row.getKey(), row.getCount());
-            averages.put(row.getKey(), row.getAverageScore());
-        }
-
+        Map<AspectEnum, BigDecimal> totals = new EnumMap<>(AspectEnum.class);
         Map<AspectEnum, Map<EmotionEnum, Long>> emotionByAspect = new EnumMap<>(AspectEnum.class);
         for (AspectEnum a : AspectEnum.values()) {
             Map<EmotionEnum, Long> zeroed = new EnumMap<>(EmotionEnum.class);
             for (EmotionEnum e : EmotionEnum.values()) zeroed.put(e, 0L);
             emotionByAspect.put(a, zeroed);
+            counts.put(a, 0L);
         }
-        for (ReviewRepository.AspectEmotionCount row : reviewRepository.countByAspectAndEmotion(reportId)) {
-            emotionByAspect.get(row.getAspect()).put(row.getEmotion(), row.getCount());
+
+        for (AspectBreakdownRow row : parseBreakdown(projection.getBreakdownJson())) {
+            AspectEnum aspect = AspectEnum.valueOf(row.aspect);
+            counts.merge(aspect, row.count, Long::sum);
+            BigDecimal weighted = row.avgScore == null
+                    ? BigDecimal.ZERO
+                    : row.avgScore.multiply(BigDecimal.valueOf(row.count));
+            totals.merge(aspect, weighted, BigDecimal::add);
+            if (row.emotion != null) {
+                emotionByAspect.get(aspect).merge(EmotionEnum.valueOf(row.emotion), row.count, Long::sum);
+            }
         }
 
         List<AspectBreakdownItem> items = new ArrayList<>();
         for (AspectEnum a : AspectEnum.values()) {
             if (aspectFilter != null && a != aspectFilter) continue;
             long count = counts.getOrDefault(a, 0L);
-            BigDecimal avg = count > 0 ? averages.get(a) : null;
+            BigDecimal avg = count > 0
+                    ? totals.get(a).divide(BigDecimal.valueOf(count), 4, java.math.RoundingMode.HALF_UP)
+                    : null;
             items.add(new AspectBreakdownItem(a, count, avg, emotionByAspect.get(a)));
         }
         items.sort(Comparator
                 .comparingLong(AspectBreakdownItem::postCount).reversed()
                 .thenComparing(AspectBreakdownItem::aspect));
 
-        return new AspectBreakdownResponse(report.getReportId(), items);
+        return new AspectBreakdownResponse(projection.getReportId(), items);
     }
 
     @Transactional(readOnly = true)
@@ -205,18 +210,10 @@ public class ReportService {
                 .map(ReportService::toRelevantItem);
     }
 
-    /**
-     * Map sort properties to table-prefixed column names for the listPosts native
-     * queries. The relevant-posts query joins review r and post p, so Spring Data
-     * cannot infer which table a bare column belongs to.
-     */
     private static Pageable toPostsPageable(Pageable pageable, boolean hasReviewJoin) {
         if (pageable.getSort().isUnsorted()) {
             return pageable;
         }
-        // Relevant branch selects projection aliases (AS createdAt, AS score) so sort refers
-        // to those aliases. Irrelevant branch uses SELECT p.* so the sort target is the raw
-        // snake_case column name.
         var orders = pageable.getSort().stream()
                 .map(o -> {
                     String property = o.getProperty();
@@ -266,17 +263,34 @@ public class ReportService {
                 post.getCreatedAt());
     }
 
-    private ReportResponse toReportResponse(Report report, Map<Long, String> brandNames) {
+    private static ReportResponse toReportResponse(ReportListItem r) {
         return new ReportResponse(
-                report.getReportId(),
-                brandNames.getOrDefault(report.getBrand().getBrandId(), "Unknown"),
-                report.getStatus(),
-                report.getDataSource(),
-                report.getScore(),
-                report.getSummary(),
-                report.getDateFrom(),
-                report.getDateTo(),
-                report.getCreatedAt(),
-                report.getFinishedAt());
+                r.getReportId(),
+                r.getBrandName(),
+                ReportStatusEnum.valueOf(r.getStatus()),
+                DataSourceEnum.valueOf(r.getDataSource()),
+                r.getScore(),
+                r.getSummary(),
+                r.getDateFrom(),
+                r.getDateTo(),
+                r.getCreatedAt(),
+                r.getFinishedAt());
+    }
+
+    private Map<String, Long> parseStringLongMap(String json) {
+        if (json == null) return Collections.emptyMap();
+        return objectMapper.readValue(json, STRING_LONG_MAP);
+    }
+
+    private List<AspectBreakdownRow> parseBreakdown(String json) {
+        if (json == null) return List.of();
+        return objectMapper.readValue(json, BREAKDOWN_LIST);
+    }
+
+    private static final class AspectBreakdownRow {
+        public String aspect;
+        public String emotion;
+        public long count;
+        public BigDecimal avgScore;
     }
 }

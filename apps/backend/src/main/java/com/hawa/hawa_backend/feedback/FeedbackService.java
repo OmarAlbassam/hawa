@@ -27,7 +27,7 @@ public class FeedbackService {
 
     public FeedbackResponse submitFeedback(Long reviewId, CreateFeedbackRequest request) {
         User currentUser = authenticatedUserService.getAuthenticatedUser();
-        Long companyId = currentUser.getCompany().getCompanyId();
+        Long companyId = authenticatedUserService.getCompanyId();
 
         try {
             return transactionTemplate.execute(s -> doUpsert(currentUser, companyId, reviewId, request));

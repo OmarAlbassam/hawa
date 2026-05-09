@@ -7,6 +7,7 @@ import javax.crypto.SecretKey;
 import org.springframework.stereotype.Service;
 
 import com.hawa.hawa_backend.config.JwtProperties;
+import com.hawa.hawa_backend.enums.UserRoleEnum;
 import com.hawa.hawa_backend.user.User;
 
 import io.jsonwebtoken.Claims;
@@ -25,6 +26,8 @@ public class JwtService {
         this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.secret()));
         this.accessExpirationMs = jwtProperties.accessExpirationMs();
     }
+
+    public record JwtClaims(Long userId, String email, Long companyId, UserRoleEnum role) {}
 
     public String generateAccessToken(User user) {
         Date now = new Date();
@@ -53,6 +56,18 @@ public class JwtService {
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    public JwtClaims parseClaims(String token) {
+        Claims claims = extractClaims(token);
+        Number userIdNum = claims.get("userId", Number.class);
+        Number companyIdNum = claims.get("companyId", Number.class);
+        String roleStr = claims.get("role", String.class);
+        return new JwtClaims(
+                userIdNum == null ? null : userIdNum.longValue(),
+                claims.getSubject(),
+                companyIdNum == null ? null : companyIdNum.longValue(),
+                roleStr == null ? null : UserRoleEnum.valueOf(roleStr));
     }
 
     private Claims extractClaims(String token) {
