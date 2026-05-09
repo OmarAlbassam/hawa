@@ -27,7 +27,13 @@ Present a summary of your understanding and get confirmation before proceeding.
 
 ## Step 2: Build the Feature
 
-Before writing any UI code, invoke the `ui-ux-pro-max` skill and read `DESIGN_SYSTEM.md` to ensure consistency with the approved design system.
+Before writing any UI code, invoke these skills in order:
+
+1. `ui-ux-pro-max` — and read `DESIGN_SYSTEM.md` to ensure colors, typography, spacing, and component patterns match the approved design system.
+2. `vercel-composition-patterns` — apply React composition patterns (compound components, render props, context providers) when designing the component API. Avoid boolean prop proliferation.
+3. `vercel-react-best-practices` — follow Vercel's React/Next.js performance guidelines while writing components (memoization, data fetching, bundle considerations, hooks usage).
+
+Keep the guidance from all three skills in mind throughout this step — design system first, then composition, then performance.
 
 Once confirmed, generate the feature files under `apps/frontend/src/` following these conventions:
 
@@ -295,9 +301,10 @@ After generating all files:
 1. Check the code compiles: `cd apps/frontend && npm run build`
 2. Run the linter: `cd apps/frontend && npm run lint`
 3. Run React Doctor: `cd apps/frontend && npx react-doctor`
-4. Report the results (build, lint, health score) and list all created files with a brief summary of each.
+4. Invoke the `web-design-guidelines` skill to audit the new UI for accessibility, UX, and Web Interface Guidelines compliance. Fix any critical findings before completing.
+5. Report the results (build, lint, health score, design audit summary) and list all created files with a brief summary of each.
 
-If type-checking, linting, or React Doctor flags critical issues, fix them before reporting completion.
+If type-checking, linting, React Doctor, or the design audit flags critical issues, fix them before reporting completion.
 
 ### React Doctor
 
