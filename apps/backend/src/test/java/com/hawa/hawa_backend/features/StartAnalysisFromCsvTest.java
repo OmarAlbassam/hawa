@@ -146,7 +146,7 @@ class StartAnalysisFromCsvTest {
                         .param("dateTo", "2026-03-01")
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.dataSource").value("CSV_UPLOAD"))
                 .andExpect(jsonPath("$.brandName").value("Nike"));
 

@@ -149,7 +149,7 @@ class StartAnalysisFlowTest {
                                 "{\"dataSource\": \"REDDIT\", \"selectedKeywordIds\": [%d, %d]}",
                                 jordanId, nikeId)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -174,7 +174,7 @@ class StartAnalysisFlowTest {
         assertThat(sent.brandName()).isEqualTo("Nike");
         assertThat(sent.brandIndustry()).isEqualTo("Sportswear");
         assertThat(sent.keywords()).containsExactlyInAnyOrder("jordan", "nike");
-        assertThat(reportId).contains("PENDING");
+        assertThat(reportId).contains("QUEUED");
         // unselected keyword not sent to LLM
         assertThat(sent.keywords()).doesNotContain("airmax");
         assertThat(ignoredId).isNotNull();
