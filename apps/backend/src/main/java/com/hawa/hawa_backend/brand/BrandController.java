@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hawa.hawa_backend.brand.dto.BrandDetailResponse;
+import com.hawa.hawa_backend.brand.dto.BrandStatusIndicatorResponse;
 import com.hawa.hawa_backend.brand.dto.BrandSummaryResponse;
 import com.hawa.hawa_backend.brand.dto.CreateKeywordRequest;
 import com.hawa.hawa_backend.brand.dto.KeywordResponse;
@@ -37,6 +38,11 @@ public class BrandController {
     @GetMapping("/{brandId}")
     public ResponseEntity<BrandDetailResponse> getBrand(@PathVariable Long brandId) {
         return ResponseEntity.ok(brandService.getBrand(brandId));
+    }
+
+    @GetMapping("/{brandId}/status-indicator")
+    public ResponseEntity<BrandStatusIndicatorResponse> getStatusIndicator(@PathVariable Long brandId) {
+        return ResponseEntity.ok(brandService.getStatusIndicator(brandId));
     }
 
     // ---- Keyword Management ----

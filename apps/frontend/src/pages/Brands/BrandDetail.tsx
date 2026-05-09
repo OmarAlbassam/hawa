@@ -5,14 +5,26 @@ import { getBrand } from "../../services/brandService";
 import type { BrandDetailResponse } from "../../types/brand";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
 import KeywordPanel from "./KeywordPanel";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import { formatDate } from "../../utils/formatDate";
 import "./BrandDetail.css";
 
 const BrandDetail = (): React.JSX.Element => {
   const { brandId } = useParams<{ brandId: string }>();
+  const { setSelectedBrandId } = useBrandSelection();
   const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const urlBrandId = brandId ? Number(brandId) : null;
+
+  // URL is the source of truth on this page: when the route param changes
+  // (deep link, back/forward, BrandSelector navigation), push it to the navbar.
+  // The navbar -> URL direction is owned by BrandSelector itself, so there's
+  // no echo back here.
+  useEffect(() => {
+    if (urlBrandId != null) setSelectedBrandId(urlBrandId);
+  }, [urlBrandId, setSelectedBrandId]);
 
   const loadData = useCallback(async () => {
     if (!brandId) return;
@@ -32,7 +44,7 @@ const BrandDetail = (): React.JSX.Element => {
   }, [loadData]);
 
   if (loading) {
-    return <div className="brand-detail-loading">Loading brand...</div>;
+    return <div className="brand-detail-loading">Loading brand…</div>;
   }
 
   if (error) {
@@ -83,10 +95,7 @@ const BrandDetail = (): React.JSX.Element => {
         >
           Start Analysis
         </Link>
-        <Link
-          to={`/reports?brandId=${brand.brandId}`}
-          className="brand-detail-reports-btn"
-        >
+        <Link to="/reports" className="brand-detail-reports-btn">
           View Reports
         </Link>
       </div>

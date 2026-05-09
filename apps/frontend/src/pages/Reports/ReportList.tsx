@@ -1,24 +1,30 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { getReports } from "../../services/reportService";
 import type { Page } from "../../types/page";
 import type { ReportResponse } from "../../types/report";
 import type { ReportStatus } from "../../types/dashboard";
 import Badge from "../../components/Badge/Badge";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import { formatDate } from "../../utils/formatDate";
 import { statusBadgeVariant } from "../../utils/reportStatus";
 import "./ReportList.css";
 
 const ReportList = (): React.JSX.Element => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { selectedBrand, selectedBrandId } = useBrandSelection();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page<ReportResponse> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ReportStatus | "">("");
+  const [prevBrandId, setPrevBrandId] = useState(selectedBrandId);
 
-  const brandIdParam = searchParams.get("brandId");
+  // Reset to first page when the selected brand changes (derived state).
+  if (prevBrandId !== selectedBrandId) {
+    setPrevBrandId(selectedBrandId);
+    setPage(0);
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -26,7 +32,7 @@ const ReportList = (): React.JSX.Element => {
     try {
       setData(
         await getReports({
-          brandId: brandIdParam ? Number(brandIdParam) : undefined,
+          brandId: selectedBrandId ?? undefined,
           status: statusFilter || undefined,
           page,
         })
@@ -36,7 +42,7 @@ const ReportList = (): React.JSX.Element => {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, brandIdParam]);
+  }, [page, statusFilter, selectedBrandId]);
 
   useEffect(() => {
     loadData();
@@ -47,15 +53,11 @@ const ReportList = (): React.JSX.Element => {
     setPage(0);
   };
 
-  const clearBrandFilter = () => {
-    searchParams.delete("brandId");
-    setSearchParams(searchParams);
-    setPage(0);
-  };
-
   return (
     <div className="report-list">
-      <h1 className="report-list-title">Reports</h1>
+      <h1 className="report-list-title">
+        Reports{selectedBrand ? ` — ${selectedBrand.brandName}` : ""}
+      </h1>
 
       <div className="report-list-filters">
         <select
@@ -69,20 +71,19 @@ const ReportList = (): React.JSX.Element => {
           <option value="COMPLETED">Completed</option>
           <option value="FAILED">Failed</option>
         </select>
-        {brandIdParam && (
-          <button className="report-list-clear-btn" onClick={clearBrandFilter}>
-            Clear brand filter
-          </button>
-        )}
       </div>
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
       {loading ? (
-        <div className="report-list-loading">Loading reports...</div>
+        <div className="report-list-loading">Loading reports…</div>
       ) : data && data.content.length === 0 ? (
         <div className="report-list-empty">
-          <p>No reports found.</p>
+          <p>
+            {selectedBrand
+              ? `No reports yet for ${selectedBrand.brandName}.`
+              : "No reports found."}
+          </p>
         </div>
       ) : data && (
         <>

@@ -127,3 +127,37 @@ export interface ReportListParams {
   size?: number;
   sort?: string;
 }
+
+export interface SentimentBucket {
+  count: number;
+  percentage: number;
+}
+
+export interface SentimentBreakdown {
+  negative: SentimentBucket;
+  neutral: SentimentBucket;
+  positive: SentimentBucket;
+}
+
+export interface EmotionShare {
+  emotion: EmotionEnum;
+  count: number;
+  percentage: number;
+}
+
+export interface AspectShare {
+  aspect: AspectEnum;
+  count: number;
+  percentage: number;
+}
+
+export interface StatusIndicatorResponse {
+  reportId: number;
+  averageSentiment: number | null;
+  analyzedPostCount: number;
+  sentimentBreakdown: SentimentBreakdown;
+  dominantEmotion: EmotionEnum | null;
+  topEmotions: EmotionShare[];
+  topAspects: AspectShare[];
+  summary: string | null;
+}

@@ -4,10 +4,12 @@ import { getBrands } from "../../services/brandService";
 import type { Page } from "../../types/page";
 import type { BrandSummaryResponse } from "../../types/brand";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import { formatDate } from "../../utils/formatDate";
 import "./BrandList.css";
 
 const BrandList = (): React.JSX.Element => {
+  const { selectedBrandId, setSelectedBrandId } = useBrandSelection();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page<BrandSummaryResponse> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ const BrandList = (): React.JSX.Element => {
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
       {loading ? (
-        <div className="brand-list-loading">Loading brands...</div>
+        <div className="brand-list-loading">Loading brands…</div>
       ) : data && data.content.length === 0 ? (
         <div className="brand-list-empty">
           <p>No brands found.</p>
@@ -48,7 +50,13 @@ const BrandList = (): React.JSX.Element => {
               <Link
                 key={brand.brandId}
                 to={`/brands/${brand.brandId}`}
-                className="brand-card"
+                onClick={() => setSelectedBrandId(brand.brandId)}
+                className={`brand-card ${
+                  brand.brandId === selectedBrandId ? "brand-card--active" : ""
+                }`}
+                aria-current={
+                  brand.brandId === selectedBrandId ? "true" : undefined
+                }
               >
                 <div className="brand-card-header">
                   <h3 className="brand-card-name">{brand.brandName}</h3>

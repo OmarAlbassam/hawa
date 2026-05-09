@@ -42,6 +42,12 @@
   border-color: var(--color-primary);
 }
 
+.brand-card--active {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
 .brand-card-header {
   display: flex;
   align-items: center;

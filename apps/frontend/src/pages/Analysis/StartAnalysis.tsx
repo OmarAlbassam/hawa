@@ -16,6 +16,7 @@ import {
 } from "../../types/brand";
 import type { DataSource } from "../../types/dashboard";
 import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { useBrandSelection } from "../../context/useBrandSelection";
 import "./StartAnalysis.css";
 
 interface LocationState {
@@ -27,6 +28,8 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const StartAnalysis = (): React.JSX.Element => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { selectedBrandId: navbarBrandId, setSelectedBrandId: setNavbarBrandId } =
+    useBrandSelection();
   const preselectedBrandId = (location.state as LocationState | null)
     ?.preselectedBrandId;
 
@@ -35,7 +38,7 @@ const StartAnalysis = (): React.JSX.Element => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | "">(
-    preselectedBrandId ?? ""
+    preselectedBrandId ?? navbarBrandId ?? ""
   );
   const [dataSource, setDataSource] = useState<DataSource>("REDDIT");
   const [dateFrom, setDateFrom] = useState("");
@@ -260,11 +263,12 @@ const StartAnalysis = (): React.JSX.Element => {
               <select
                 className="start-analysis-input"
                 value={selectedBrandId}
-                onChange={(e) =>
-                  setSelectedBrandId(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
+                onChange={(e) => {
+                  const next =
+                    e.target.value === "" ? "" : Number(e.target.value);
+                  setSelectedBrandId(next);
+                  if (next !== "") setNavbarBrandId(next);
+                }}
                 required
               >
                 <option value="" disabled>

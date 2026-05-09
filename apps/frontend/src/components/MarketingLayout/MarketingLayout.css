@@ -39,11 +39,26 @@
   object-fit: contain;
 }
 
-.marketing-topbar-user {
+.marketing-topbar-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: var(--space-4);
+}
+
+.marketing-topbar-user {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .marketing-topbar-actions {
+    gap: var(--space-2);
+  }
+  .marketing-topbar-user {
+    display: none;
+  }
 }
 
 .marketing-topbar-name {

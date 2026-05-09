@@ -1,5 +1,7 @@
 package com.hawa.hawa_backend.brand;
 
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -9,17 +11,26 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.hawa.hawa_backend.auth.AuthenticatedUserService;
+import com.hawa.hawa_backend.brand.BrandRepository.BrandStatusIndicatorProjection;
 import com.hawa.hawa_backend.brand.dto.BrandDetailResponse;
 import com.hawa.hawa_backend.brand.dto.BrandDetailResponse.KeywordInfo;
+import com.hawa.hawa_backend.brand.dto.BrandStatusIndicatorResponse;
 import com.hawa.hawa_backend.brand.dto.BrandSummaryResponse;
 import com.hawa.hawa_backend.brand.dto.CreateKeywordRequest;
 import com.hawa.hawa_backend.brand.dto.KeywordResponse;
 import com.hawa.hawa_backend.brand.dto.UpdateKeywordRequest;
+import com.hawa.hawa_backend.enums.AspectEnum;
+import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.exception.BadRequestException;
 import com.hawa.hawa_backend.exception.ResourceNotFoundException;
 import com.hawa.hawa_backend.keyword.Keyword;
 import com.hawa.hawa_backend.keyword.KeywordRepository;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse.AspectShare;
+import com.hawa.hawa_backend.report.dto.StatusIndicatorResponse.EmotionShare;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +40,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class BrandService {
 
+    private static final TypeReference<Map<String, Long>> STRING_LONG_MAP = new TypeReference<>() {};
+
     private final AuthenticatedUserService authenticatedUserService;
     private final BrandRepository brandRepository;
     private final KeywordRepository keywordRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public Page<BrandSummaryResponse> listBrands(Pageable pageable) {
@@ -77,6 +91,49 @@ public class BrandService {
                 keywords,
                 brand.getCreatedAt(),
                 brand.getUpdatedAt());
+    }
+
+    @Transactional(readOnly = true)
+    public BrandStatusIndicatorResponse getStatusIndicator(Long brandId) {
+        Long companyId = authenticatedUserService.getCompanyId();
+        log.debug("Fetching brand status indicator brandId={} companyId={}", brandId, companyId);
+
+        BrandStatusIndicatorProjection p = brandRepository.loadStatusIndicator(brandId, companyId);
+        if (p == null) {
+            throw new ResourceNotFoundException("Brand not found with id: " + brandId);
+        }
+
+        long analyzed = p.getAnalyzedCount();
+
+        Map<EmotionEnum, Long> emotionCounts = new EnumMap<>(EmotionEnum.class);
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getEmotionCountsJson()).entrySet()) {
+            emotionCounts.put(EmotionEnum.valueOf(entry.getKey()), entry.getValue());
+        }
+        List<EmotionShare> topEmotions = StatusIndicatorResponse.topEmotions(emotionCounts, 3);
+        EmotionEnum dominantEmotion = topEmotions.isEmpty() ? null : topEmotions.get(0).emotion();
+
+        Map<AspectEnum, Long> aspectCounts = new EnumMap<>(AspectEnum.class);
+        for (Map.Entry<String, Long> entry : parseStringLongMap(p.getAspectCountsJson()).entrySet()) {
+            aspectCounts.put(AspectEnum.valueOf(entry.getKey()), entry.getValue());
+        }
+        List<AspectShare> topAspects = StatusIndicatorResponse.topAspects(aspectCounts, analyzed, 3);
+
+        return new BrandStatusIndicatorResponse(
+                p.getBrandId(),
+                p.getBrandName(),
+                p.getCompletedReportCount(),
+                p.getAvgScore(),
+                analyzed,
+                StatusIndicatorResponse.breakdownOf(
+                        p.getNegativeCount(), p.getNeutralCount(), p.getPositiveCount(), analyzed),
+                dominantEmotion,
+                topEmotions,
+                topAspects);
+    }
+
+    private Map<String, Long> parseStringLongMap(String json) {
+        if (json == null) return Collections.emptyMap();
+        return objectMapper.readValue(json, STRING_LONG_MAP);
     }
 
     // ---- Keyword CRUD ----

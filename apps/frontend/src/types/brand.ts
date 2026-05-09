@@ -1,3 +1,10 @@
+import type {
+  AspectShare,
+  EmotionEnum,
+  EmotionShare,
+  SentimentBreakdown,
+} from "./report";
+
 export interface BrandSummaryResponse {
   brandId: number;
   brandName: string;
@@ -37,4 +44,16 @@ export interface KeywordInfo {
   keywordId: number;
   keyword: string;
   keywordType: KeywordType;
+}
+
+export interface BrandStatusIndicatorResponse {
+  brandId: number;
+  brandName: string;
+  completedReportCount: number;
+  averageSentiment: number | null;
+  analyzedPostCount: number;
+  sentimentBreakdown: SentimentBreakdown;
+  dominantEmotion: EmotionEnum | null;
+  topEmotions: EmotionShare[];
+  topAspects: AspectShare[];
 }
