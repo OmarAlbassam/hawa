@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { Check, ChevronDown, Tag } from "lucide-react";
 import { useBrandSelection } from "../../context/useBrandSelection";
 import "./BrandSelector.css";
@@ -6,6 +7,8 @@ import "./BrandSelector.css";
 const BrandSelector = (): React.JSX.Element | null => {
   const { brands, selectedBrand, setSelectedBrandId, loading } =
     useBrandSelection();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +56,10 @@ const BrandSelector = (): React.JSX.Element | null => {
   const handleSelect = (brandId: number) => {
     setSelectedBrandId(brandId);
     setOpen(false);
+    // Keep the URL in sync when the user is on a brand-scoped route.
+    if (matchPath("/brands/:brandId", location.pathname)) {
+      navigate(`/brands/${brandId}`, { replace: true });
+    }
   };
 
   return (

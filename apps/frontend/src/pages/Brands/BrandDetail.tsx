@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { getBrand } from "../../services/brandService";
 import type { BrandDetailResponse } from "../../types/brand";
@@ -11,31 +11,20 @@ import "./BrandDetail.css";
 
 const BrandDetail = (): React.JSX.Element => {
   const { brandId } = useParams<{ brandId: string }>();
-  const navigate = useNavigate();
-  const { selectedBrandId, setSelectedBrandId } = useBrandSelection();
+  const { setSelectedBrandId } = useBrandSelection();
   const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const urlBrandId = brandId ? Number(brandId) : null;
 
-  // Keep navbar selection in sync with the URL when the route changes.
+  // URL is the source of truth on this page: when the route param changes
+  // (deep link, back/forward, BrandSelector navigation), push it to the navbar.
+  // The navbar -> URL direction is owned by BrandSelector itself, so there's
+  // no echo back here.
   useEffect(() => {
-    if (urlBrandId != null && urlBrandId !== selectedBrandId) {
-      setSelectedBrandId(urlBrandId);
-    }
-  }, [urlBrandId, selectedBrandId, setSelectedBrandId]);
-
-  // Navigate to the matching detail page when the navbar selection changes.
-  useEffect(() => {
-    if (
-      selectedBrandId != null &&
-      urlBrandId != null &&
-      selectedBrandId !== urlBrandId
-    ) {
-      navigate(`/brands/${selectedBrandId}`, { replace: true });
-    }
-  }, [selectedBrandId, urlBrandId, navigate]);
+    if (urlBrandId != null) setSelectedBrandId(urlBrandId);
+  }, [urlBrandId, setSelectedBrandId]);
 
   const loadData = useCallback(async () => {
     if (!brandId) return;
