@@ -95,7 +95,7 @@ class AnalysisControllerTest {
     class StartAnalysis {
 
         @Test
-        void shouldCreateReport_withPendingStatus() throws Exception {
+        void shouldCreateReport_withQueuedStatus() throws Exception {
             mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -104,7 +104,7 @@ class AnalysisControllerTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.reportId").isNumber())
                     .andExpect(jsonPath("$.brandName").value("Nike"))
-                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.status").value("QUEUED"))
                     .andExpect(jsonPath("$.dataSource").value("REDDIT"))
                     .andExpect(jsonPath("$.createdAt").isNotEmpty());
         }

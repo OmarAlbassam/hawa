@@ -3,10 +3,12 @@ package com.hawa.hawa_backend.report;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,6 +56,14 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     }
 
     long countByStatus(ReportStatusEnum status);
+
+    @Modifying
+    @Query("UPDATE Report r SET r.status = :failed, r.failureReason = :reason, r.finishedAt = :now " +
+            "WHERE r.status IN :stuckStatuses")
+    int markStuckAsFailed(@Param("failed") ReportStatusEnum failed,
+                          @Param("stuckStatuses") Collection<ReportStatusEnum> stuckStatuses,
+                          @Param("reason") String reason,
+                          @Param("now") LocalDateTime now);
 
     long countByBrandCompanyCompanyId(Long companyId);
 

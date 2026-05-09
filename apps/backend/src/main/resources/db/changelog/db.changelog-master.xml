@@ -21,5 +21,6 @@
     <include file="db/changelog/db.changelog-14-update-keyword-type-enum.sql"/>
     <include file="db/changelog/db.changelog-15-keyword-brand-cascade.sql"/>
     <include file="db/changelog/db.changelog-16-remove-brand-aspect.sql"/>
+    <include file="db/changelog/db.changelog-17-add-queued-report-status.sql"/>
 
 </databaseChangeLog>

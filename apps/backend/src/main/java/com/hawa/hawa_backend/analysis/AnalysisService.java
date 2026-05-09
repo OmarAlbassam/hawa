@@ -64,7 +64,7 @@ public class AnalysisService {
                 .user(user)
                 .brand(brand)
                 .dataSource(request.dataSource())
-                .status(ReportStatusEnum.PENDING)
+                .status(ReportStatusEnum.QUEUED)
                 .dateFrom(request.dateFrom())
                 .dateTo(request.dateTo())
                 .selectedKeywords(selectedKeywords)
@@ -108,7 +108,7 @@ public class AnalysisService {
                 .user(user)
                 .brand(brand)
                 .dataSource(DataSourceEnum.CSV_UPLOAD)
-                .status(ReportStatusEnum.PENDING)
+                .status(ReportStatusEnum.QUEUED)
                 .dateFrom(dateFrom)
                 .dateTo(dateTo)
                 .build();
