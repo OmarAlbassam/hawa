@@ -1,0 +1,15 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as ReportList<br/>«view»
+    participant RC as ReportController<br/>«controller»
+    participant RS as ReportService<br/>«service»
+    participant RR as ReportRepository<br/>«repository»
+
+    U->>FE: open /reports (optional status filter)
+    FE->>RC: GET /api/reports?status&page&size
+    RC->>RS: listReports(filters, pageable)
+    RS->>RR: findByCompanyIdWithFilters(companyId, status, dateFrom, dateTo, pageable)
+    RR-->>RS: page of ReportListItem
+    RS-->>RC: page of ReportResponse
+    RC-->>FE: 200 OK
+    FE-->>U: render paginated table

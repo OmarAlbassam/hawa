@@ -3,9 +3,9 @@ package com.hawa.hawa_backend.report.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
-import com.hawa.hawa_backend.enums.AspectEnum;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
@@ -25,5 +25,5 @@ public record ReportOverviewResponse(
         long filteredOutCount,
         BigDecimal averageSentiment,
         Map<EmotionEnum, Long> emotionDistribution,
-        Map<AspectEnum, Long> aspectDistribution
+        List<AspectBreakdownItem> aspects
 ) {}

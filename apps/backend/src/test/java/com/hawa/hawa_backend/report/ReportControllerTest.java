@@ -235,10 +235,14 @@ class ReportControllerTest {
                     .andExpect(jsonPath("$.emotionDistribution.JOY").value(2))
                     .andExpect(jsonPath("$.emotionDistribution.ANGER").value(1))
                     .andExpect(jsonPath("$.emotionDistribution.SADNESS").value(0))
-                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(2))
-                    .andExpect(jsonPath("$.aspectDistribution.SERVICE").value(1))
-                    .andExpect(jsonPath("$.aspectDistribution.DELIVERY").value(0))
-                    .andExpect(jsonPath("$.aspectDistribution.PRICING").value(0));
+                    .andExpect(jsonPath("$.aspects.length()").value(4))
+                    .andExpect(jsonPath("$.aspects[0].aspect").value("PRODUCT"))
+                    .andExpect(jsonPath("$.aspects[0].postCount").value(2))
+                    .andExpect(jsonPath("$.aspects[0].averageSentiment").value(3.5))
+                    .andExpect(jsonPath("$.aspects[0].emotionDistribution.JOY").value(2))
+                    .andExpect(jsonPath("$.aspects[1].aspect").value("SERVICE"))
+                    .andExpect(jsonPath("$.aspects[1].postCount").value(1))
+                    .andExpect(jsonPath("$.aspects[1].emotionDistribution.ANGER").value(1));
         }
 
         @Test
@@ -260,8 +264,9 @@ class ReportControllerTest {
                     .andExpect(jsonPath("$.averageSentiment").value(3.0))
                     .andExpect(jsonPath("$.emotionDistribution.JOY").value(1))
                     .andExpect(jsonPath("$.emotionDistribution.ANGER").value(1))
-                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(1))
-                    .andExpect(jsonPath("$.aspectDistribution.SERVICE").value(1));
+                    .andExpect(jsonPath("$.aspects.length()").value(4))
+                    .andExpect(jsonPath("$.aspects[?(@.aspect=='PRODUCT')].postCount").value(1))
+                    .andExpect(jsonPath("$.aspects[?(@.aspect=='SERVICE')].postCount").value(1));
         }
 
         @Test
@@ -274,7 +279,9 @@ class ReportControllerTest {
                     .andExpect(jsonPath("$.analyzedPosts").value(0))
                     .andExpect(jsonPath("$.averageSentiment").doesNotExist())
                     .andExpect(jsonPath("$.emotionDistribution.JOY").value(0))
-                    .andExpect(jsonPath("$.aspectDistribution.PRODUCT").value(0));
+                    .andExpect(jsonPath("$.aspects.length()").value(4))
+                    .andExpect(jsonPath("$.aspects[0].postCount").value(0))
+                    .andExpect(jsonPath("$.aspects[0].averageSentiment").doesNotExist());
         }
 
         @Test
@@ -334,110 +341,6 @@ class ReportControllerTest {
             Report report = createReport(brand, ReportStatusEnum.COMPLETED);
 
             mockMvc.perform(get("/api/reports/" + report.getReportId()))
-                    .andExpect(status().isUnauthorized());
-        }
-    }
-
-    @Nested
-    class GetAspectBreakdown {
-
-        @Test
-        void shouldReturnRankedAspects_whenReportCompleted() throws Exception {
-            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
-            // PRODUCT: 3 reviews (2 JOY, 1 SADNESS), avg 3.0
-            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createReview(report, new BigDecimal("3.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createReview(report, new BigDecimal("2.0"), EmotionEnum.SADNESS, AspectEnum.PRODUCT);
-            // SERVICE: 1 ANGER, avg 1.0
-            createReview(report, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.reportId").value(report.getReportId()))
-                    .andExpect(jsonPath("$.aspects.length()").value(4))
-                    .andExpect(jsonPath("$.aspects[0].aspect").value("PRODUCT"))
-                    .andExpect(jsonPath("$.aspects[0].postCount").value(3))
-                    .andExpect(jsonPath("$.aspects[0].averageSentiment").value(3.0))
-                    .andExpect(jsonPath("$.aspects[0].emotionDistribution.JOY").value(2))
-                    .andExpect(jsonPath("$.aspects[0].emotionDistribution.SADNESS").value(1))
-                    .andExpect(jsonPath("$.aspects[0].emotionDistribution.ANGER").value(0))
-                    .andExpect(jsonPath("$.aspects[1].aspect").value("SERVICE"))
-                    .andExpect(jsonPath("$.aspects[1].postCount").value(1))
-                    .andExpect(jsonPath("$.aspects[1].averageSentiment").value(1.0))
-                    .andExpect(jsonPath("$.aspects[1].emotionDistribution.ANGER").value(1));
-        }
-
-        @Test
-        void shouldReturnAllAspectsWithZeros_whenCompletedReportHasNoReviews() throws Exception {
-            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.aspects.length()").value(4))
-                    .andExpect(jsonPath("$.aspects[0].postCount").value(0))
-                    .andExpect(jsonPath("$.aspects[0].averageSentiment").doesNotExist())
-                    .andExpect(jsonPath("$.aspects[0].emotionDistribution.JOY").value(0));
-        }
-
-        @Test
-        void shouldReturnSingleAspect_whenAspectFilterProvided() throws Exception {
-            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
-            createReview(report, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createReview(report, new BigDecimal("2.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects")
-                            .param("aspect", "PRODUCT")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.aspects.length()").value(1))
-                    .andExpect(jsonPath("$.aspects[0].aspect").value("PRODUCT"))
-                    .andExpect(jsonPath("$.aspects[0].postCount").value(1));
-        }
-
-        @Test
-        void shouldReturn400_whenReportNotCompleted() throws Exception {
-            Report report = createReport(brand, ReportStatusEnum.PROCESSING);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        void shouldReturn404_whenReportDoesNotExist() throws Exception {
-            mockMvc.perform(get("/api/reports/999999/aspects")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        void shouldReturn404_whenReportBelongsToDifferentCompany() throws Exception {
-            Company otherCompany = new Company();
-            otherCompany.setCompanyName("Other Corp");
-            otherCompany = companyRepository.save(otherCompany);
-            Brand otherBrand = Brand.builder().brandName("Adidas").company(otherCompany).build();
-            otherBrand = brandRepository.save(otherBrand);
-            User otherUser = createUser("other@example.com", UserRoleEnum.MARKETING_USER, otherCompany);
-            Report report = Report.builder()
-                    .brand(otherBrand)
-                    .user(otherUser)
-                    .dataSource(DataSourceEnum.REDDIT)
-                    .status(ReportStatusEnum.COMPLETED)
-                    .build();
-            report = reportRepository.save(report);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        void shouldReturn401_whenUnauthenticated() throws Exception {
-            Report report = createReport(brand, ReportStatusEnum.COMPLETED);
-
-            mockMvc.perform(get("/api/reports/" + report.getReportId() + "/aspects"))
                     .andExpect(status().isUnauthorized());
         }
     }

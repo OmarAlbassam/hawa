@@ -1,0 +1,30 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as StartAnalysis<br/>«view»
+    participant DC as DatasetController<br/>«controller»
+    participant AC as AnalysisController<br/>«controller»
+    participant AS as AnalysisService<br/>«service»
+    participant DP as DatasetCsvParser<br/>«service»
+
+    opt download template
+        U->>FE: click "Download CSV template"
+        FE->>DC: GET /api/datasets/template
+        DC-->>FE: 200 OK (text,url,language)
+    end
+
+    U->>FE: choose CSV file (≤10MB)
+    FE->>AC: POST /api/brands/{brandId}/reports/csv (file upload)
+    AC->>AS: startAnalysisFromCsv(brandId, file, dateRange)
+    AS->>DP: parse(file)
+    alt valid CSV
+        DP-->>AS: parsed posts
+        AS->>AS: persist Posts + Report (status=QUEUED)
+        AS-->>AC: ReportResponse
+        AC-->>FE: 200 OK
+        FE-->>U: navigate to /reports/{id}
+        Note over AS: async LLM flow same as start-analysis
+    else parse / validation error
+        DP-->>AS: DatasetValidationException
+        AC-->>FE: 400 with errors[]
+        FE-->>U: show field-level error table
+    end

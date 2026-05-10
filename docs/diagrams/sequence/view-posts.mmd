@@ -1,0 +1,33 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as PostsList<br/>«view»
+    participant RC as ReportController<br/>«controller»
+    participant RS as ReportService<br/>«service»
+    participant ReR as ReviewRepository<br/>«repository»
+    participant PR as PostRepository<br/>«repository»
+
+    U->>FE: open /reports/{reportId}/posts (filters in URL)
+    FE->>RC: GET /api/reports/{reportId}/posts?relevance,sentiment,emotion,aspect,language,dates,page
+    Note over FE,RC: all query params are optional —<br/>relevance defaults to RELEVANT
+    RC->>RS: listPosts(reportId, filters, pageable)
+    Note over RS,PR: two paths: relevant posts JOIN review (sentiment/emotion/aspect),<br/>irrelevant posts have no review row — different data shapes & filter sets
+    alt relevance = RELEVANT
+        RS->>ReR: findRelevantPostsForReport(reportId, filters)
+        ReR-->>RS: page of post + review
+    else relevance = IRRELEVANT
+        RS->>PR: findPostsWithFilters(reportId, filters)
+        PR-->>RS: page of post
+    end
+    RS-->>RC: page of PostListItemResponse
+    RC-->>FE: 200 OK
+    FE-->>U: paginated table + post detail modal
+
+    opt export current filter to CSV
+        U->>FE: click "Export CSV"
+        FE->>RC: GET /api/reports/{reportId}/export?{same filters}
+        RC->>ReR: re-run review query (no pagination)
+        ReR-->>RC: all matching rows
+        RC->>RC: build CSV in memory (ByteArrayOutputStream)
+        RC-->>FE: text/csv with Content-Disposition (filename=report-{id}.csv)
+        FE-->>U: browser saves report-{id}.csv
+    end

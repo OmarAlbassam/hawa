@@ -23,7 +23,6 @@ import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.enums.RelevanceStatusEnum;
 import com.hawa.hawa_backend.enums.ReportStatusEnum;
-import com.hawa.hawa_backend.report.dto.AspectBreakdownResponse;
 import com.hawa.hawa_backend.report.dto.PostListItemResponse;
 import com.hawa.hawa_backend.report.dto.ReportOverviewResponse;
 import com.hawa.hawa_backend.report.dto.ReportResponse;
@@ -98,13 +97,6 @@ public class ReportController {
         return ResponseEntity.ok(reportService.listPosts(
                 reportId, relevance, sentimentMin, sentimentMax, emotion, aspect,
                 language, dateFrom, dateTo, pageable));
-    }
-
-    @GetMapping("/{reportId}/aspects")
-    public ResponseEntity<AspectBreakdownResponse> getAspectBreakdown(
-            @PathVariable Long reportId,
-            @RequestParam(required = false) AspectEnum aspect) {
-        return ResponseEntity.ok(reportService.getAspectBreakdown(reportId, aspect));
     }
 
     @GetMapping("/{reportId}/status-indicator")

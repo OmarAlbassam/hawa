@@ -1,0 +1,23 @@
+sequenceDiagram
+    actor U as Marketing Team User
+    participant FE as InaccurateAnalysisDialog<br/>«view»
+    participant FC as FeedbackController<br/>«controller»
+    participant FS as FeedbackService<br/>«service»
+    participant ReR as ReviewRepository<br/>«repository»
+    participant FR as FeedbackRepository<br/>«repository»
+
+    U->>FE: open post detail, click "Inaccurate Analysis"
+    U->>FE: type brief (5–1000 chars), submit
+    FE->>FC: POST /api/reviews/{reviewId}/feedback { brief }
+    FC->>FS: submitFeedback(reviewId, brief)
+    FS->>ReR: findById(reviewId)
+    FS->>FR: findByUserAndReview(userId, reviewId)
+    alt feedback exists
+        FS->>FR: update(brief)
+    else first time
+        FS->>FR: save(new Feedback)
+    end
+    FR-->>FS: Feedback
+    FS-->>FC: FeedbackResponse
+    FC-->>FE: 200 OK
+    FE-->>U: "Thanks for the feedback"

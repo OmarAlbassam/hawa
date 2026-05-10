@@ -44,7 +44,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
         BigDecimal getAvgScore();
         long getIrrelevantCount();
         String getEmotionCountsJson();
-        String getAspectCountsJson();
+        String getBreakdownJson();
     }
 
     interface AnalyticsProjection {
@@ -134,21 +134,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
                  FROM review rv JOIN post p ON p.post_id = rv.post_id
                  WHERE p.report_id = r.report_id AND rv.emotion IS NOT NULL
                  GROUP BY rv.emotion) e) AS emotionCountsJson,
-              (SELECT jsonb_object_agg(aspect, c)::text FROM (
-                 SELECT rv.aspect::text AS aspect, COUNT(*) AS c
-                 FROM review rv JOIN post p ON p.post_id = rv.post_id
-                 WHERE p.report_id = r.report_id
-                 GROUP BY rv.aspect) a) AS aspectCountsJson
-            FROM report r JOIN brand b ON b.brand_id = r.brand_id
-            WHERE r.report_id = :reportId AND b.company_id = :companyId
-            """, nativeQuery = true)
-    ReportOverviewProjection loadOverview(@Param("reportId") Long reportId,
-                                          @Param("companyId") Long companyId);
-
-    @Query(value = """
-            SELECT
-              r.report_id      AS reportId,
-              r.status::text   AS status,
               (SELECT jsonb_agg(jsonb_build_object(
                         'aspect', g.aspect,
                         'emotion', g.emotion,
@@ -166,14 +151,8 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             FROM report r JOIN brand b ON b.brand_id = r.brand_id
             WHERE r.report_id = :reportId AND b.company_id = :companyId
             """, nativeQuery = true)
-    AspectBreakdownProjection loadAspectBreakdown(@Param("reportId") Long reportId,
-                                                  @Param("companyId") Long companyId);
-
-    interface AspectBreakdownProjection {
-        Long getReportId();
-        String getStatus();
-        String getBreakdownJson();
-    }
+    ReportOverviewProjection loadOverview(@Param("reportId") Long reportId,
+                                          @Param("companyId") Long companyId);
 
     interface StatusIndicatorProjection {
         Long getReportId();
