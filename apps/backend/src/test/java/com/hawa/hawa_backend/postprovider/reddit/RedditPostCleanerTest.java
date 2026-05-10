@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.post.collector;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

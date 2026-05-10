@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

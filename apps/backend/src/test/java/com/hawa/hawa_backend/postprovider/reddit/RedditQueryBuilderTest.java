@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

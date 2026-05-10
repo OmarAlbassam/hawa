@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 public class RedditServiceException extends RuntimeException {
 

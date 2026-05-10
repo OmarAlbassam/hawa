@@ -51,7 +51,7 @@ import com.hawa.hawa_backend.llm.dto.BatchAnalyzeRequest;
 import com.hawa.hawa_backend.llm.dto.BatchAnalyzeResponse;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
-import com.hawa.hawa_backend.post.collector.RedditPostCollector;
+import com.hawa.hawa_backend.postprovider.reddit.RedditPostProvider;
 import com.hawa.hawa_backend.report.Report;
 import com.hawa.hawa_backend.report.ReportRepository;
 import com.hawa.hawa_backend.review.Review;
@@ -80,7 +80,7 @@ class StartAnalysisFlowTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockitoBean private LlmClient llmClient;
-    @MockitoSpyBean private RedditPostCollector redditPostCollector;
+    @MockitoSpyBean private RedditPostProvider redditPostProvider;
 
     private Company company;
     private User marketingUser;
@@ -131,7 +131,7 @@ class StartAnalysisFlowTest {
         doAnswer(inv -> List.of(
                         buildPost(inv.getArgument(0), "Great shoes!"),
                         buildPost(inv.getArgument(0), "Terrible delivery time")))
-                .when(redditPostCollector).collect(any(), any(), any(), any());
+                .when(redditPostProvider).collect(any(), any(), any(), any());
 
         ArgumentCaptor<BatchAnalyzeRequest> captor = ArgumentCaptor.forClass(BatchAnalyzeRequest.class);
         when(llmClient.analyzeBatch(captor.capture())).thenAnswer(inv -> {
@@ -185,7 +185,7 @@ class StartAnalysisFlowTest {
         Long kwId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
 
         doAnswer(inv -> List.of(buildPost(inv.getArgument(0), "anything")))
-                .when(redditPostCollector).collect(any(), any(), any(), any());
+                .when(redditPostProvider).collect(any(), any(), any(), any());
 
         when(llmClient.analyzeBatch(any()))
                 .thenThrow(new LlmServiceException("boom: connection refused"));
@@ -212,7 +212,7 @@ class StartAnalysisFlowTest {
         Long kwId = seedKeyword("nike", KeywordTypeEnum.BRAND_NAME);
 
         doReturn(List.of())
-                .when(redditPostCollector).collect(any(), any(), any(), any());
+                .when(redditPostProvider).collect(any(), any(), any(), any());
 
         mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/reports")
                         .header("Authorization", "Bearer " + userToken)
@@ -237,7 +237,7 @@ class StartAnalysisFlowTest {
                         buildPost(inv.getArgument(0), "Love the new Air Jordans"),
                         buildPost(inv.getArgument(0), "unrelated homonym"),
                         buildPost(inv.getArgument(0), "buy crypto now!!!")))
-                .when(redditPostCollector).collect(any(), any(), any(), any());
+                .when(redditPostProvider).collect(any(), any(), any(), any());
 
         when(llmClient.analyzeBatch(any())).thenAnswer(inv -> {
             BatchAnalyzeRequest req = inv.getArgument(0);

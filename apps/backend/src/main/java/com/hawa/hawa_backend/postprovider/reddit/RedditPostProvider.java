@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.post.collector;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,10 +16,8 @@ import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.post.Post;
-import com.hawa.hawa_backend.reddit.RedditClient;
-import com.hawa.hawa_backend.reddit.RedditProperties;
-import com.hawa.hawa_backend.reddit.RedditQueryBuilder;
-import com.hawa.hawa_backend.reddit.dto.RedditPostDto;
+import com.hawa.hawa_backend.postprovider.PostProvider;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditPostDto;
 import com.hawa.hawa_backend.report.Report;
 
 import lombok.RequiredArgsConstructor;
@@ -28,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RedditPostCollector implements PostCollector {
+public class RedditPostProvider extends PostProvider {
 
     private final RedditClient redditClient;
     private final RedditPostCleaner cleaner;
