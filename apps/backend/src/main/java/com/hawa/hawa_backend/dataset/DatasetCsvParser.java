@@ -3,6 +3,7 @@ package com.hawa.hawa_backend.dataset;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -133,6 +134,108 @@ public class DatasetCsvParser {
             throw new DatasetValidationException(errors);
         }
         return parsed;
+    }
+
+    public List<ParsedPost> parsePasted(
+            String rawText, String textColumn, String urlColumn, String languageColumn) {
+        List<DatasetValidationError> errors = new ArrayList<>();
+
+        if (rawText == null || rawText.isBlank()) {
+            errors.add(new DatasetValidationError("EMPTY_FILE", null, "Pasted content is empty"));
+            throw new DatasetValidationException(errors);
+        }
+
+        char delimiter = detectDelimiter(rawText);
+
+        CSVFormat format = CSVFormat.DEFAULT.builder()
+                .setDelimiter(delimiter)
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .setIgnoreEmptyLines(true)
+                .setTrim(true)
+                .setIgnoreHeaderCase(true)
+                .build();
+
+        String normalizedText = textColumn.trim().toLowerCase(Locale.ROOT);
+        String normalizedUrl = urlColumn != null ? urlColumn.trim().toLowerCase(Locale.ROOT) : null;
+        String normalizedLang = languageColumn != null ? languageColumn.trim().toLowerCase(Locale.ROOT) : null;
+
+        List<ParsedPost> parsed = new ArrayList<>();
+        try (Reader reader = new StringReader(rawText);
+             CSVParser csvParser = CSVParser.parse(reader, format)) {
+
+            List<String> headers = normalizeHeaders(csvParser.getHeaderNames());
+
+            if (!headers.contains(normalizedText)) {
+                errors.add(new DatasetValidationError(
+                        "MISSING_COLUMN", COL_TEXT,
+                        "Column '" + textColumn + "' not found in pasted data"));
+                throw new DatasetValidationException(errors);
+            }
+
+            int maxRows = properties.maxRows();
+            int rowCount = 0;
+
+            for (CSVRecord record : csvParser) {
+                rowCount++;
+                if (rowCount > maxRows) {
+                    errors.add(new DatasetValidationError(
+                            "TOO_MANY_ROWS", null,
+                            "Pasted data has more than " + maxRows + " rows (max allowed)"));
+                    break;
+                }
+
+                String text = readMappedColumn(record, normalizedText);
+                String url = normalizedUrl != null ? readMappedColumn(record, normalizedUrl) : null;
+                String languageRaw = normalizedLang != null ? readMappedColumn(record, normalizedLang) : null;
+
+                if (text == null || text.isBlank()) {
+                    errors.add(new DatasetValidationError(
+                            "EMPTY_ROW", COL_TEXT, "Row " + rowCount + " has empty text"));
+                    continue;
+                }
+
+                LanguageEnum language = resolveLanguage(languageRaw, rowCount, errors);
+                parsed.add(new ParsedPost(
+                        text,
+                        (url == null || url.isBlank()) ? null : url,
+                        language));
+            }
+
+            if (rowCount == 0) {
+                errors.add(new DatasetValidationError("NO_DATA_ROWS", null, "Pasted content has no data rows"));
+            }
+        } catch (IOException ex) {
+            errors.add(new DatasetValidationError(
+                    "MALFORMED_CSV", null, "Failed to parse pasted content: " + ex.getMessage()));
+            throw new DatasetValidationException(errors);
+        } catch (IllegalArgumentException ex) {
+            errors.add(new DatasetValidationError(
+                    "MALFORMED_CSV", null, "Malformed pasted content: " + ex.getMessage()));
+            throw new DatasetValidationException(errors);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new DatasetValidationException(errors);
+        }
+        return parsed;
+    }
+
+    private static char detectDelimiter(String text) {
+        String firstLine = text.indexOf('\n') >= 0
+                ? text.substring(0, text.indexOf('\n'))
+                : text;
+        long tabs = firstLine.chars().filter(c -> c == '\t').count();
+        long commas = firstLine.chars().filter(c -> c == ',').count();
+        return tabs >= commas ? '\t' : ',';
+    }
+
+    private static String readMappedColumn(CSVRecord record, String normalizedHeader) {
+        if (!record.isMapped(normalizedHeader)) {
+            return null;
+        }
+        String v = record.get(normalizedHeader);
+        return v == null ? null : v.trim();
     }
 
     private static List<String> normalizeHeaders(List<String> raw) {

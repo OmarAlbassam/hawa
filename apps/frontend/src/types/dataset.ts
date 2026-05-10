@@ -4,7 +4,21 @@ export type DatasetValidationErrorCode =
   | "INVALID_LANGUAGE"
   | "TOO_MANY_ROWS"
   | "NO_DATA_ROWS"
-  | "MALFORMED_CSV";
+  | "MALFORMED_CSV"
+  | "EMPTY_FILE";
+
+export interface PasteColumnMapping {
+  text: string | null;
+  url: string | null;
+  language: string | null;
+}
+
+export interface PastePreview {
+  rawText: string;
+  headers: string[];
+  previewRows: string[][];
+  mapping: PasteColumnMapping;
+}
 
 export interface DatasetValidationError {
   code: DatasetValidationErrorCode;

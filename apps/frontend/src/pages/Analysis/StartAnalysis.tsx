@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Download, Settings2, Upload } from "lucide-react";
+import { ArrowLeft, ClipboardPaste, Download, Settings2, Upload } from "lucide-react";
 import { getBrands, getBrand } from "../../services/brandService";
 import { startAnalysis } from "../../services/reportService";
 import {
   downloadDatasetTemplate,
   startAnalysisFromCsv,
+  startAnalysisFromPaste,
 } from "../../services/datasetService";
 import { DatasetValidationFailed } from "../../types/dataset";
-import type { DatasetValidationError } from "../../types/dataset";
+import type { DatasetValidationError, PastePreview, PasteColumnMapping } from "../../types/dataset";
 import {
   KEYWORD_TYPE_LABELS,
   type BrandSummaryResponse,
@@ -24,6 +25,35 @@ interface LocationState {
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+const TEXT_CANDIDATES = ["text", "post", "post_text", "content", "body", "message", "tweet"];
+const URL_CANDIDATES = ["url", "link", "href", "source"];
+const LANG_CANDIDATES = ["language", "lang"];
+
+function detectDelimiter(text: string): "\t" | "," {
+  const firstLine = text.split("\n")[0] ?? "";
+  const tabs = (firstLine.match(/\t/g) ?? []).length;
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  return tabs >= commas ? "\t" : ",";
+}
+
+function parsePasteText(raw: string): PastePreview {
+  const delimiter = detectDelimiter(raw);
+  const lines = raw.split("\n").map((l) => l.replace(/\r$/, "")).filter((l) => l.trim());
+  if (lines.length === 0) {
+    return { rawText: raw, headers: [], previewRows: [], mapping: { text: null, url: null, language: null } };
+  }
+  const headers = lines[0].split(delimiter).map((h) => h.trim());
+  const dataRows = lines.slice(1).map((l) => l.split(delimiter).map((c) => c.trim()));
+  const find = (candidates: string[]) =>
+    headers.find((h) => candidates.includes(h.toLowerCase())) ?? null;
+  const mapping: PasteColumnMapping = {
+    text: find(TEXT_CANDIDATES),
+    url: find(URL_CANDIDATES),
+    language: find(LANG_CANDIDATES),
+  };
+  return { rawText: raw, headers, previewRows: dataRows.slice(0, 5), mapping };
+}
 
 const StartAnalysis = (): React.JSX.Element => {
   const navigate = useNavigate();
@@ -51,6 +81,10 @@ const StartAnalysis = (): React.JSX.Element => {
   const [templateDownloading, setTemplateDownloading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [datasetTab, setDatasetTab] = useState<"upload" | "paste">("upload");
+  const [pastePreview, setPastePreview] = useState<PastePreview | null>(null);
+  const pasteAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [brandKeywords, setBrandKeywords] = useState<KeywordInfo[]>([]);
   const [loadingKeywords, setLoadingKeywords] = useState(false);
   const [keywordError, setKeywordError] = useState<string | null>(null);
@@ -153,6 +187,24 @@ const StartAnalysis = (): React.JSX.Element => {
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData("text");
+    if (!text.trim()) return;
+    e.preventDefault();
+    setSubmitError(null);
+    setCsvErrors([]);
+    setPastePreview(parsePasteText(text));
+  };
+
+  const handlePasteAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    if (!text.trim()) {
+      setPastePreview(null);
+      return;
+    }
+    setPastePreview(parsePasteText(text));
+  };
+
   const toggleKeyword = (keywordId: number) => {
     setSelectedKeywordIds((prev) => {
       const next = new Set(prev);
@@ -176,28 +228,51 @@ const StartAnalysis = (): React.JSX.Element => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBrandId || !validDateRange) return;
-    if (dataSource === "CSV_UPLOAD" && !file) {
-      setSubmitError("Select a CSV file to upload");
-      return;
+    if (dataSource === "CSV_UPLOAD") {
+      if (datasetTab === "upload" && !file) {
+        setSubmitError("Select a CSV file to upload");
+        return;
+      }
+      if (datasetTab === "paste") {
+        if (!pastePreview || !pastePreview.rawText.trim()) {
+          setSubmitError("Paste your data first");
+          return;
+        }
+        if (!pastePreview.mapping.text) {
+          setSubmitError("Map a column to 'Text' before submitting");
+          return;
+        }
+      }
     }
     if (selectedKeywordIds.size === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     setCsvErrors([]);
     try {
-      const report =
-        dataSource === "CSV_UPLOAD"
-          ? await startAnalysisFromCsv(Number(selectedBrandId), {
-              file: file as File,
-              dateFrom: dateFrom || undefined,
-              dateTo: dateTo || undefined,
-            })
-          : await startAnalysis(Number(selectedBrandId), {
-              dataSource,
-              dateFrom: dateFrom || undefined,
-              dateTo: dateTo || undefined,
-              selectedKeywordIds: Array.from(selectedKeywordIds),
-            });
+      let report;
+      if (dataSource === "CSV_UPLOAD" && datasetTab === "paste" && pastePreview) {
+        report = await startAnalysisFromPaste(Number(selectedBrandId), {
+          rawText: pastePreview.rawText,
+          textColumn: pastePreview.mapping.text as string,
+          urlColumn: pastePreview.mapping.url ?? undefined,
+          languageColumn: pastePreview.mapping.language ?? undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+        });
+      } else if (dataSource === "CSV_UPLOAD") {
+        report = await startAnalysisFromCsv(Number(selectedBrandId), {
+          file: file as File,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+        });
+      } else {
+        report = await startAnalysis(Number(selectedBrandId), {
+          dataSource,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          selectedKeywordIds: Array.from(selectedKeywordIds),
+        });
+      }
       navigate(`/reports/${report.reportId}`, { state: { report } });
     } catch (err) {
       if (err instanceof DatasetValidationFailed) {
@@ -401,49 +476,160 @@ const StartAnalysis = (): React.JSX.Element => {
 
             {dataSource === "CSV_UPLOAD" && (
               <div className="start-analysis-csv">
-                <div className="start-analysis-csv-template">
+                <div className="start-analysis-dataset-tabs">
                   <button
                     type="button"
-                    className="start-analysis-template-btn"
-                    onClick={handleDownloadTemplate}
-                    disabled={templateDownloading}
+                    className={`start-analysis-dataset-tab${datasetTab === "upload" ? " start-analysis-dataset-tab--active" : ""}`}
+                    onClick={() => { setDatasetTab("upload"); setCsvErrors([]); setSubmitError(null); }}
                   >
-                    <Download size={14} />
-                    {templateDownloading
-                      ? "Preparing…"
-                      : "Download template"}
+                    <Upload size={13} />
+                    Upload file
                   </button>
-                  <p className="start-analysis-hint">
-                    Columns: <code>text</code> (required),{" "}
-                    <code>url</code> (optional),{" "}
-                    <code>language</code> (EN or AR, defaults to EN). Max 10 MB.
-                  </p>
-                  {templateError && (
-                    <p className="start-analysis-hint start-analysis-hint--error">
-                      {templateError}
-                    </p>
-                  )}
+                  <button
+                    type="button"
+                    className={`start-analysis-dataset-tab${datasetTab === "paste" ? " start-analysis-dataset-tab--active" : ""}`}
+                    onClick={() => { setDatasetTab("paste"); setCsvErrors([]); setSubmitError(null); }}
+                  >
+                    <ClipboardPaste size={13} />
+                    Paste data
+                  </button>
                 </div>
 
-                <label className="start-analysis-field">
-                  <span className="start-analysis-label">CSV file</span>
-                  <div className="start-analysis-file">
-                    <label className="start-analysis-file-btn">
-                      <Upload size={14} />
-                      {file ? "Choose another file" : "Choose file"}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,text/csv"
-                        onChange={handleFileChange}
-                        className="start-analysis-file-input"
-                      />
+                {datasetTab === "upload" && (
+                  <>
+                    <div className="start-analysis-csv-template">
+                      <button
+                        type="button"
+                        className="start-analysis-template-btn"
+                        onClick={handleDownloadTemplate}
+                        disabled={templateDownloading}
+                      >
+                        <Download size={14} />
+                        {templateDownloading ? "Preparing…" : "Download template"}
+                      </button>
+                      <p className="start-analysis-hint">
+                        Columns: <code>text</code> (required),{" "}
+                        <code>url</code> (optional),{" "}
+                        <code>language</code> (EN or AR, defaults to EN). Max 10 MB.
+                      </p>
+                      {templateError && (
+                        <p className="start-analysis-hint start-analysis-hint--error">
+                          {templateError}
+                        </p>
+                      )}
+                    </div>
+
+                    <label className="start-analysis-field">
+                      <span className="start-analysis-label">CSV file</span>
+                      <div className="start-analysis-file">
+                        <label className="start-analysis-file-btn">
+                          <Upload size={14} />
+                          {file ? "Choose another file" : "Choose file"}
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".csv,text/csv"
+                            onChange={handleFileChange}
+                            className="start-analysis-file-input"
+                          />
+                        </label>
+                        <span className="start-analysis-file-name">
+                          {file ? file.name : "No file selected"}
+                        </span>
+                      </div>
                     </label>
-                    <span className="start-analysis-file-name">
-                      {file ? file.name : "No file selected"}
-                    </span>
-                  </div>
-                </label>
+                  </>
+                )}
+
+                {datasetTab === "paste" && (
+                  <>
+                    {!pastePreview ? (
+                      <div className="start-analysis-paste-zone">
+                        <ClipboardPaste size={24} className="start-analysis-paste-icon" />
+                        <p className="start-analysis-paste-hint">
+                          Copy rows from Excel, Google Sheets, or a CSV file, then paste here
+                        </p>
+                        <textarea
+                          ref={pasteAreaRef}
+                          className="start-analysis-paste-area"
+                          placeholder="Paste your data here (Cmd+V / Ctrl+V)…"
+                          rows={6}
+                          onPaste={handlePaste}
+                          onChange={handlePasteAreaChange}
+                          aria-label="Paste dataset"
+                        />
+                      </div>
+                    ) : (
+                      <div className="start-analysis-paste-preview">
+                        <div className="start-analysis-paste-preview-header">
+                          <span className="start-analysis-paste-preview-title">
+                            {pastePreview.headers.length} column{pastePreview.headers.length !== 1 ? "s" : ""} detected
+                            {" · "}map each to a field
+                          </span>
+                          <button
+                            type="button"
+                            className="start-analysis-link-btn"
+                            onClick={() => { setPastePreview(null); setCsvErrors([]); }}
+                          >
+                            Clear
+                          </button>
+                        </div>
+
+                        <div className="start-analysis-paste-mapping">
+                          {(["text", "url", "language"] as const).map((field) => (
+                            <label key={field} className="start-analysis-paste-mapping-row">
+                              <span className="start-analysis-paste-mapping-field">
+                                {field}
+                                {field === "text" && <span className="start-analysis-paste-required">*</span>}
+                              </span>
+                              <select
+                                className="start-analysis-input start-analysis-paste-mapping-select"
+                                value={pastePreview.mapping[field] ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value || null;
+                                  setPastePreview((prev) =>
+                                    prev ? { ...prev, mapping: { ...prev.mapping, [field]: val } } : prev
+                                  );
+                                }}
+                              >
+                                <option value="">— ignored —</option>
+                                {pastePreview.headers.map((h) => (
+                                  <option key={h} value={h}>{h}</option>
+                                ))}
+                              </select>
+                            </label>
+                          ))}
+                        </div>
+
+                        {pastePreview.previewRows.length > 0 && (
+                          <div className="start-analysis-paste-table-wrap">
+                            <table className="start-analysis-paste-table">
+                              <thead>
+                                <tr>
+                                  {pastePreview.headers.map((h) => (
+                                    <th key={h}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pastePreview.previewRows.map((row, i) => (
+                                  <tr key={i}>
+                                    {pastePreview.headers.map((_, j) => (
+                                      <td key={j}>{row[j] ?? ""}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <p className="start-analysis-hint">
+                              Showing first {pastePreview.previewRows.length} rows
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {csvErrors.length > 0 && (
                   <div
@@ -452,8 +638,9 @@ const StartAnalysis = (): React.JSX.Element => {
                     aria-live="polite"
                   >
                     <p className="start-analysis-csv-errors-title">
-                      The uploaded file couldn't be processed. Fix these issues
-                      and select the file again:
+                      {datasetTab === "paste"
+                        ? "The pasted data couldn't be processed. Fix these issues:"
+                        : "The uploaded file couldn't be processed. Fix these issues and select the file again:"}
                     </p>
                     <ul className="start-analysis-csv-errors-list">
                       {csvErrors.map((err, i) => (
@@ -520,7 +707,8 @@ const StartAnalysis = (): React.JSX.Element => {
                 !validDateRange ||
                 !selectedBrandId ||
                 !hasSelection ||
-                (dataSource === "CSV_UPLOAD" && !file)
+                (dataSource === "CSV_UPLOAD" && datasetTab === "upload" && !file) ||
+                (dataSource === "CSV_UPLOAD" && datasetTab === "paste" && (!pastePreview || !pastePreview.mapping.text))
               }
             >
               {submitting ? "Starting..." : "Start analysis"}

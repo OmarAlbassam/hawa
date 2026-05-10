@@ -75,6 +75,56 @@ export async function startAnalysisFromCsv(
   throw new Error(body?.message || "Failed to start analysis");
 }
 
+export interface StartAnalysisFromPasteInput {
+  rawText: string;
+  textColumn: string;
+  urlColumn?: string;
+  languageColumn?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export async function startAnalysisFromPaste(
+  brandId: number,
+  input: StartAnalysisFromPasteInput
+): Promise<ReportResponse> {
+  const body: Record<string, unknown> = {
+    rawText: input.rawText,
+    textColumn: input.textColumn,
+  };
+  if (input.urlColumn) body.urlColumn = input.urlColumn;
+  if (input.languageColumn) body.languageColumn = input.languageColumn;
+  if (input.dateFrom) body.dateFrom = input.dateFrom;
+  if (input.dateTo) body.dateTo = input.dateTo;
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/brands/${brandId}/reports/paste`,
+    {
+      method: "POST",
+      headers: { ...authHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (response.status === 201) {
+    return response.json();
+  }
+
+  if (response.status === 400) {
+    const parsed = (await response.json().catch(() => null)) as
+      | DatasetValidationErrorResponse
+      | { message?: string }
+      | null;
+    if (parsed && "errors" in parsed && Array.isArray(parsed.errors)) {
+      throw new DatasetValidationFailed(parsed.errors);
+    }
+    throw new Error(parsed?.message || "Invalid request");
+  }
+
+  const errBody = await response.json().catch(() => null);
+  throw new Error(errBody?.message || "Failed to start analysis");
+}
+
 function extractFilename(header: string | null): string | null {
   if (!header) return null;
   const match = /filename="?([^"]+)"?/i.exec(header);
