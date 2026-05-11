@@ -11,9 +11,13 @@ public record PasteDatasetRequest(
         String rawText,
 
         @NotBlank(message = "textColumn must not be blank")
+        @Size(max = 256, message = "textColumn name too long")
         String textColumn,
 
+        @Size(max = 256, message = "urlColumn name too long")
         String urlColumn,
+
+        @Size(max = 256, message = "languageColumn name too long")
         String languageColumn,
 
         LocalDate dateFrom,

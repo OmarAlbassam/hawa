@@ -30,6 +30,9 @@ const TEXT_CANDIDATES = ["text", "post", "post_text", "content", "body", "messag
 const URL_CANDIDATES = ["url", "link", "href", "source"];
 const LANG_CANDIDATES = ["language", "lang"];
 
+// MUST stay in sync with the backend heuristic in
+// apps/backend/src/main/java/com/hawa/hawa_backend/dataset/DatasetCsvParser.java
+// so the preview shown to the user matches what the server actually parses.
 function detectDelimiter(text: string): "\t" | "," {
   const firstLine = text.split("\n")[0] ?? "";
   const tabs = (firstLine.match(/\t/g) ?? []).length;
@@ -37,14 +40,59 @@ function detectDelimiter(text: string): "\t" | "," {
   return tabs >= commas ? "\t" : ",";
 }
 
+// Quote-aware row tokenizer matching commons-csv DEFAULT (RFC 4180-ish):
+// fields may be wrapped in double quotes, embedded quotes are escaped by doubling,
+// quoted fields may contain the delimiter and newlines.
+function parseCsvRows(raw: string, delimiter: string): string[][] {
+  const rows: string[][] = [];
+  let field = "";
+  let row: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (raw[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+    } else if (c === delimiter) {
+      row.push(field);
+      field = "";
+    } else if (c === "\n" || c === "\r") {
+      row.push(field);
+      field = "";
+      if (row.some((v) => v.length > 0)) rows.push(row);
+      row = [];
+      if (c === "\r" && raw[i + 1] === "\n") i++;
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    if (row.some((v) => v.length > 0)) rows.push(row);
+  }
+  return rows;
+}
+
 function parsePasteText(raw: string): PastePreview {
   const delimiter = detectDelimiter(raw);
-  const lines = raw.split("\n").map((l) => l.replace(/\r$/, "")).filter((l) => l.trim());
-  if (lines.length === 0) {
+  const rows = parseCsvRows(raw, delimiter);
+  if (rows.length === 0) {
     return { rawText: raw, headers: [], previewRows: [], mapping: { text: null, url: null, language: null } };
   }
-  const headers = lines[0].split(delimiter).map((h) => h.trim());
-  const dataRows = lines.slice(1).map((l) => l.split(delimiter).map((c) => c.trim()));
+  const headers = rows[0].map((h) => h.trim());
+  const dataRows = rows.slice(1).map((r) => r.map((c) => c.trim()));
   const find = (candidates: string[]) =>
     headers.find((h) => candidates.includes(h.toLowerCase())) ?? null;
   const mapping: PasteColumnMapping = {
@@ -196,15 +244,6 @@ const StartAnalysis = (): React.JSX.Element => {
     setPastePreview(parsePasteText(text));
   };
 
-  const handlePasteAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const text = e.target.value;
-    if (!text.trim()) {
-      setPastePreview(null);
-      return;
-    }
-    setPastePreview(parsePasteText(text));
-  };
-
   const toggleKeyword = (keywordId: number) => {
     setSelectedKeywordIds((prev) => {
       const next = new Set(prev);
@@ -225,53 +264,68 @@ const StartAnalysis = (): React.JSX.Element => {
     setSelectedKeywordIds(new Set());
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedBrandId || !validDateRange) return;
+  const submitPaste = (brandId: number) =>
+    startAnalysisFromPaste(brandId, {
+      rawText: pastePreview!.rawText,
+      textColumn: pastePreview!.mapping.text as string,
+      urlColumn: pastePreview!.mapping.url ?? undefined,
+      languageColumn: pastePreview!.mapping.language ?? undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    });
+
+  const submitUpload = (brandId: number) =>
+    startAnalysisFromCsv(brandId, {
+      file: file as File,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    });
+
+  const submitExternal = (brandId: number) =>
+    startAnalysis(brandId, {
+      dataSource,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      selectedKeywordIds: Array.from(selectedKeywordIds),
+    });
+
+  const validateBeforeSubmit = (): boolean => {
+    if (!selectedBrandId || !validDateRange) return false;
     if (dataSource === "CSV_UPLOAD") {
       if (datasetTab === "upload" && !file) {
         setSubmitError("Select a CSV file to upload");
-        return;
+        return false;
       }
       if (datasetTab === "paste") {
         if (!pastePreview || !pastePreview.rawText.trim()) {
           setSubmitError("Paste your data first");
-          return;
+          return false;
         }
         if (!pastePreview.mapping.text) {
           setSubmitError("Map a column to 'Text' before submitting");
-          return;
+          return false;
         }
       }
     }
-    if (selectedKeywordIds.size === 0) return;
+    if (selectedKeywordIds.size === 0) return false;
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateBeforeSubmit()) return;
     setSubmitting(true);
     setSubmitError(null);
     setCsvErrors([]);
     try {
+      const brandId = Number(selectedBrandId);
       let report;
-      if (dataSource === "CSV_UPLOAD" && datasetTab === "paste" && pastePreview) {
-        report = await startAnalysisFromPaste(Number(selectedBrandId), {
-          rawText: pastePreview.rawText,
-          textColumn: pastePreview.mapping.text as string,
-          urlColumn: pastePreview.mapping.url ?? undefined,
-          languageColumn: pastePreview.mapping.language ?? undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        });
+      if (dataSource === "CSV_UPLOAD" && datasetTab === "paste") {
+        report = await submitPaste(brandId);
       } else if (dataSource === "CSV_UPLOAD") {
-        report = await startAnalysisFromCsv(Number(selectedBrandId), {
-          file: file as File,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        });
+        report = await submitUpload(brandId);
       } else {
-        report = await startAnalysis(Number(selectedBrandId), {
-          dataSource,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          selectedKeywordIds: Array.from(selectedKeywordIds),
-        });
+        report = await submitExternal(brandId);
       }
       navigate(`/reports/${report.reportId}`, { state: { report } });
     } catch (err) {
@@ -555,7 +609,7 @@ const StartAnalysis = (): React.JSX.Element => {
                           placeholder="Paste your data here (Cmd+V / Ctrl+V)…"
                           rows={6}
                           onPaste={handlePaste}
-                          onChange={handlePasteAreaChange}
+                          readOnly
                           aria-label="Paste dataset"
                         />
                       </div>
