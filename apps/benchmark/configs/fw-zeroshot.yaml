@@ -12,10 +12,18 @@
 # above what max_concurrency=8 can produce.
 
 experiments:
-  - id: llama-3.3-70b-zero-shot
+  - id: llama3.3-70b-zero-shot
     provider: fireworks
     prompt: zero_shot
-    model:
-      - accounts/fireworks/models/llama-v3p3-70b-instruct
+    model: accounts/fireworks/models/llama-v3p3-70b-instruct
     temperature: 0.0
     max_concurrency: 8
+
+  - id: gpt-oss-120b-zero-shot
+    provider: fireworks
+    prompt: zero_shot
+    model: accounts/fireworks/models/gpt-oss-120b
+    temperature: 0.0
+    max_concurrency: 8
+    max_tokens: 1024
+    reasoning_effort: low

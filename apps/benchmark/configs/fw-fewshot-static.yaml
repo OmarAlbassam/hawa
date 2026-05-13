@@ -1,0 +1,20 @@
+experiments:                                                                                                                                    
+    - id: llama3.3-70b-few-shot                                                                                                          
+      provider: fireworks
+      prompt: few_shot_static
+      fewshot_static_ids: [10065, 10033, 10025, 10028, 10005, 10013, 10029, 10016, 10006, 10008]                                                                          
+      model: accounts/fireworks/models/llama-v3p3-70b-instruct                                                                                       
+      temperature: 0.0                                                                                                                            
+      max_concurrency: 8                                                                                                                        
+      exemplar_dataset: data/apple_fewshot_dataset.jsonl 
+
+    - id: gpt-oss-120b-few-shot                                                                                                       
+      provider: fireworks
+      prompt: few_shot_static
+      fewshot_static_ids: [10065, 10033, 10025, 10028, 10005, 10013, 10029, 10016, 10006, 10008]                                                                          
+      model: accounts/fireworks/models/gpt-oss-120b
+      temperature: 0.0                                                                                                                            
+      max_concurrency: 8                                                                                                                        
+      exemplar_dataset: data/apple_fewshot_dataset.jsonl 
+      max_tokens: 1024
+      reasoning_effort: low

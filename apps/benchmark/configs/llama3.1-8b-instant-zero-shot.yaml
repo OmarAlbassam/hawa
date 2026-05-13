@@ -1,7 +1,0 @@
-experiments:
-  - id: llama_8b_zero_shot
-    provider: groq
-    prompt: zero_shot
-    model: llama-3.1-8b-instant
-    temperature: 0.0
-    max_concurrency: 5
