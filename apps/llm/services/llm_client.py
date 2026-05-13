@@ -220,8 +220,9 @@ class LLMClient:
                     ],
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "response_format": self.response_format,
                 }
+                if self.response_format is not None:
+                    kwargs["response_format"] = self.response_format
                 if self.extra_body is not None:
                     kwargs["extra_body"] = self.extra_body
                 if session_id is not None:
@@ -394,6 +395,12 @@ def _build_response_format(provider: Provider, model: str) -> dict[str, Any]:
                 "strict": True,
             },
         }
+    if provider == Provider.RUNPOD:
+        # vLLM rejects requests that specify both `response_format=json_object`
+        # and `guided_json` — it counts them as two competing guided-decoding
+        # specs. `extra_body.guided_json` (set in `_build_extra_body`) is the
+        # stronger token-level constraint, so leave `response_format` unset.
+        return None
     return {"type": "json_object"}
 
 

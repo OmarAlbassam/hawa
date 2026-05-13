@@ -510,15 +510,18 @@ def test_ollama_uses_plain_json_object_response_format():
     assert client.response_format == {"type": "json_object"}
 
 
-def test_runpod_uses_plain_json_object_response_format():
-    """vLLM enforcement happens via extra_body['guided_json']; response_format stays simple."""
+def test_runpod_omits_response_format():
+    """vLLM rejects requests that combine `response_format=json_object` with
+    `extra_body.guided_json` (it counts them as two competing guided-decoding
+    specs). guided_json is the stronger token-level constraint, so we keep
+    that and leave `response_format` unset for RunPod."""
     client, _ = _build_client(
         provider="runpod",
         base_url="https://api.runpod.ai/v2/abc/openai/v1",
         api_key="rp_secret",
         model="meta-llama/Llama-3.1-8B-Instruct",
     )
-    assert client.response_format == {"type": "json_object"}
+    assert client.response_format is None
 
 
 def test_groq_unsupported_model_uses_json_object():
