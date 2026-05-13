@@ -10,7 +10,7 @@ sequenceDiagram
     FE->>RC: GET /api/reports/{reportId}/posts?relevance,sentiment,emotion,aspect,language,dates,page
     Note over FE,RC: all query params are optional —<br/>relevance defaults to RELEVANT
     RC->>RS: listPosts(reportId, filters, pageable)
-    Note over RS,PR: two paths: relevant posts JOIN review (sentiment/emotion/aspect),<br/>irrelevant posts have no review row — different data shapes & filter sets
+    Note over RS,PR: two paths: relevant posts JOIN review (sentiment/emotion/aspect),<br/>irrelevant posts have no review row —> different data shapes & filter sets
     alt relevance = RELEVANT
         RS->>ReR: findRelevantPostsForReport(reportId, filters)
         ReR-->>RS: page of post + review
