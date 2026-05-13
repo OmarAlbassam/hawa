@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.post.collector;
+package com.hawa.hawa_backend.postprovider.csv;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -9,13 +9,14 @@ import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
+import com.hawa.hawa_backend.postprovider.PostProvider;
 import com.hawa.hawa_backend.report.Report;
 
 import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class CsvPostCollector implements PostCollector {
+public class CsvPostProvider extends PostProvider {
 
     private final PostRepository postRepository;
 

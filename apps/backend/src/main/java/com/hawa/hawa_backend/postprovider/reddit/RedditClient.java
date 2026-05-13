@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import java.net.URI;
 import java.time.Duration;
@@ -18,8 +18,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.hawa.hawa_backend.reddit.dto.RedditListingResponse;
-import com.hawa.hawa_backend.reddit.dto.RedditPostDto;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditListingResponse;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditPostDto;
 
 import lombok.extern.slf4j.Slf4j;
 

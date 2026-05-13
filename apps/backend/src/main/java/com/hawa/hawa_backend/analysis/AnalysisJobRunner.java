@@ -15,8 +15,8 @@ import com.hawa.hawa_backend.llm.dto.BatchAnalyzeResponse;
 import com.hawa.hawa_backend.llm.dto.FailedResult;
 import com.hawa.hawa_backend.llm.dto.LlmPostDto;
 import com.hawa.hawa_backend.post.Post;
-import com.hawa.hawa_backend.post.collector.PostCollector;
-import com.hawa.hawa_backend.post.collector.PostCollectorFactory;
+import com.hawa.hawa_backend.postprovider.PostProvider;
+import com.hawa.hawa_backend.postprovider.PostProviderFactory;
 import com.hawa.hawa_backend.report.Report;
 
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AnalysisJobRunner {
 
     private final AnalysisJobOperations operations;
-    private final PostCollectorFactory postCollectorFactory;
+    private final PostProviderFactory postProviderFactory;
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
 
@@ -39,8 +39,8 @@ public class AnalysisJobRunner {
             Report report = operations.markProcessing(reportId);
             Brand brand = report.getBrand();
 
-            PostCollector collector = postCollectorFactory.forDataSource(report.getDataSource());
-            List<Post> posts = operations.collectAndPersistPosts(report, brand, collector);
+            PostProvider provider = postProviderFactory.forDataSource(report.getDataSource());
+            List<Post> posts = operations.collectAndPersistPosts(report, brand, provider);
 
             if (posts.isEmpty()) {
                 operations.finalizeEmpty(reportId);

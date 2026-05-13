@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit.dto;
+package com.hawa.hawa_backend.postprovider.reddit.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

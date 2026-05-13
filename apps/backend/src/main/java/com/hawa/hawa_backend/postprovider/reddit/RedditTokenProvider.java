@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.reddit;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -15,7 +15,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import com.hawa.hawa_backend.reddit.dto.RedditTokenResponse;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditTokenResponse;
 
 import lombok.extern.slf4j.Slf4j;
 

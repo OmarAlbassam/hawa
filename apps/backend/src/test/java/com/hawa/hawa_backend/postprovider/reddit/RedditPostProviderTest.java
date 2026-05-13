@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.post.collector;
+package com.hawa.hawa_backend.postprovider.reddit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,13 +18,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.hawa.hawa_backend.brand.Brand;
 import com.hawa.hawa_backend.post.Post;
-import com.hawa.hawa_backend.reddit.RedditClient;
-import com.hawa.hawa_backend.reddit.RedditProperties;
-import com.hawa.hawa_backend.reddit.dto.RedditPostDto;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditPostDto;
 import com.hawa.hawa_backend.report.Report;
 
 @ExtendWith(MockitoExtension.class)
-class RedditPostCollectorTest {
+class RedditPostProviderTest {
 
     @Mock
     private RedditClient redditClient;
@@ -36,7 +34,7 @@ class RedditPostCollectorTest {
     private RedditProperties properties;
 
     @InjectMocks
-    private RedditPostCollector collector;
+    private RedditPostProvider provider;
 
     private Report reportWithKeyword(String keyword) {
         Report report = new Report();
@@ -58,7 +56,7 @@ class RedditPostCollectorTest {
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Tried the new place", "Honestly the coffee here is excellent")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("coffee"),
+        List<Post> posts = provider.collect(reportWithKeyword("coffee"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).hasSize(1);
@@ -72,7 +70,7 @@ class RedditPostCollectorTest {
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Random thoughts today", "Check this site https://coffee.example.com for details now")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("coffee"),
+        List<Post> posts = provider.collect(reportWithKeyword("coffee"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).isEmpty();
@@ -84,7 +82,7 @@ class RedditPostCollectorTest {
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Morning routine", "I went running this morning around the park area")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("run"),
+        List<Post> posts = provider.collect(reportWithKeyword("run"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).isEmpty();
@@ -96,7 +94,7 @@ class RedditPostCollectorTest {
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("NIKE drop coming", "Saw the new shoes today, looked great")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("nike"),
+        List<Post> posts = provider.collect(reportWithKeyword("nike"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).hasSize(1);
@@ -108,7 +106,7 @@ class RedditPostCollectorTest {
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                 post("Some unrelated title here", "[removed]")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("coffee"),
+        List<Post> posts = provider.collect(reportWithKeyword("coffee"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).isEmpty();
@@ -132,7 +130,7 @@ class RedditPostCollectorTest {
                 System.currentTimeMillis() / 1000.0, "sub3", "carol", false, null);
         when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(a, b, c));
 
-        List<Post> posts = collector.collect(reportWithKeyword("headline"),
+        List<Post> posts = provider.collect(reportWithKeyword("headline"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).hasSize(1);
@@ -145,7 +143,7 @@ class RedditPostCollectorTest {
                 post("Cafe review summary", "Ordered an iced latte and it was excellent today"),
                 post("Other cafe notes here", "Iced tea and a regular latte separately ordered")));
 
-        List<Post> posts = collector.collect(reportWithKeyword("iced latte"),
+        List<Post> posts = provider.collect(reportWithKeyword("iced latte"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
 
         assertThat(posts).hasSize(1);

@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.post.collector;
+package com.hawa.hawa_backend.postprovider;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -8,9 +8,9 @@ import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.report.Report;
 
-public interface PostCollector {
+public abstract class PostProvider {
 
-    DataSourceEnum dataSource();
+    public abstract DataSourceEnum dataSource();
 
-    List<Post> collect(Report report, Brand brand, LocalDate from, LocalDate to);
+    public abstract List<Post> collect(Report report, Brand brand, LocalDate from, LocalDate to);
 }

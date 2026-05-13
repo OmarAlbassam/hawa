@@ -24,7 +24,7 @@ import com.hawa.hawa_backend.llm.dto.AnalyzeResult;
 import com.hawa.hawa_backend.llm.dto.FailedResult;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.post.PostRepository;
-import com.hawa.hawa_backend.post.collector.PostCollector;
+import com.hawa.hawa_backend.postprovider.PostProvider;
 import com.hawa.hawa_backend.report.Report;
 import com.hawa.hawa_backend.report.ReportRepository;
 import com.hawa.hawa_backend.review.Review;
@@ -56,8 +56,8 @@ public class AnalysisJobOperations {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<Post> collectAndPersistPosts(Report report, Brand brand, PostCollector collector) {
-        List<Post> collected = collector.collect(report, brand, report.getDateFrom(), report.getDateTo());
+    public List<Post> collectAndPersistPosts(Report report, Brand brand, PostProvider provider) {
+        List<Post> collected = provider.collect(report, brand, report.getDateFrom(), report.getDateTo());
         if (collected.isEmpty()) {
             return List.of();
         }
