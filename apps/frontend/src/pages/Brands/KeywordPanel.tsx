@@ -1,165 +1,172 @@
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
   getKeywords,
   createKeyword,
   updateKeyword,
   deleteKeyword,
-} from "../../services/brandService";
-import type { Page } from "../../types/page";
+} from '../../services/brandService'
+import type { Page } from '../../types/page'
 import {
   KEYWORD_TYPES,
   KEYWORD_TYPE_LABELS,
   type KeywordInfo,
   type KeywordType,
-} from "../../types/brand";
-import Badge from "../../components/Badge/Badge";
-import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
-import "./KeywordPanel.css";
+} from '../../types/brand'
+import Badge from '../../components/Badge/Badge'
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
-const TYPE_BADGE_VARIANT: Record<KeywordType, "primary" | "info" | "warning" | "default"> = {
-  BRAND_NAME: "primary",
-  PRODUCT: "info",
-  MISSPELLING: "warning",
-  OTHER: "default",
-};
+const TYPE_BADGE_VARIANT: Record<KeywordType, 'primary' | 'info' | 'warning' | 'default'> = {
+  BRAND_NAME: 'primary',
+  PRODUCT: 'info',
+  MISSPELLING: 'warning',
+  OTHER: 'default',
+}
+
+const selectClass =
+  'flex h-9 rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
 
 interface KeywordPanelProps {
-  brandId: number;
+  brandId: number
 }
 
 const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
-  const [data, setData] = useState<Page<KeywordInfo> | null>(null);
-  const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [data, setData] = useState<Page<KeywordInfo> | null>(null)
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Add form
-  const [newKeyword, setNewKeyword] = useState("");
-  const [newType, setNewType] = useState<KeywordType>("BRAND_NAME");
-  const [addLoading, setAddLoading] = useState(false);
-  const [addError, setAddError] = useState("");
+  const [newKeyword, setNewKeyword] = useState('')
+  const [newType, setNewType] = useState<KeywordType>('BRAND_NAME')
+  const [addLoading, setAddLoading] = useState(false)
+  const [addError, setAddError] = useState('')
 
-  // Inline edit
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editKeyword, setEditKeyword] = useState("");
-  const [editType, setEditType] = useState<KeywordType>("BRAND_NAME");
-  const [editLoading, setEditLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editKeyword, setEditKeyword] = useState('')
+  const [editType, setEditType] = useState<KeywordType>('BRAND_NAME')
+  const [editLoading, setEditLoading] = useState(false)
 
-  // Delete
-  const [deletingKeyword, setDeletingKeyword] = useState<KeywordInfo | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deletingKeyword, setDeletingKeyword] = useState<KeywordInfo | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError("");
+    let cancelled = false
+    setLoading(true)
+    setError('')
     getKeywords(brandId, page)
       .then((result) => {
-        if (!cancelled) setData(result);
+        if (!cancelled) setData(result)
       })
       .catch((err) => {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : "Failed to load keywords");
+          setError(err instanceof Error ? err.message : 'Failed to load keywords')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        if (!cancelled) setLoading(false)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, [brandId, page, refreshKey]);
+      cancelled = true
+    }
+  }, [brandId, page, refreshKey])
 
   const handleAdd = async () => {
-    const trimmed = newKeyword.trim();
-    if (!trimmed) return;
-    setAddLoading(true);
-    setAddError("");
+    const trimmed = newKeyword.trim()
+    if (!trimmed) return
+    setAddLoading(true)
+    setAddError('')
     try {
-      await createKeyword(brandId, { keyword: trimmed, keywordType: newType });
-      setNewKeyword("");
-      setNewType("BRAND_NAME");
-      setPage(0);
-      setRefreshKey((k) => k + 1);
+      await createKeyword(brandId, { keyword: trimmed, keywordType: newType })
+      setNewKeyword('')
+      setNewType('BRAND_NAME')
+      setPage(0)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to add keyword");
+      setAddError(err instanceof Error ? err.message : 'Failed to add keyword')
     } finally {
-      setAddLoading(false);
+      setAddLoading(false)
     }
-  };
+  }
 
   const handleEditStart = (kw: KeywordInfo) => {
-    setEditingId(kw.keywordId);
-    setEditKeyword(kw.keyword);
-    setEditType(kw.keywordType);
-  };
+    setEditingId(kw.keywordId)
+    setEditKeyword(kw.keyword)
+    setEditType(kw.keywordType)
+  }
 
   const handleEditSave = async () => {
-    if (editingId === null) return;
-    const trimmed = editKeyword.trim();
-    if (!trimmed) return;
-    setEditLoading(true);
+    if (editingId === null) return
+    const trimmed = editKeyword.trim()
+    if (!trimmed) return
+    setEditLoading(true)
     try {
       await updateKeyword(brandId, editingId, {
         keyword: trimmed,
         keywordType: editType,
-      });
-      setEditingId(null);
-      setRefreshKey((k) => k + 1);
+      })
+      setEditingId(null)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update keyword");
+      setError(err instanceof Error ? err.message : 'Failed to update keyword')
     } finally {
-      setEditLoading(false);
+      setEditLoading(false)
     }
-  };
+  }
 
-  const handleEditCancel = () => {
-    setEditingId(null);
-  };
+  const handleEditCancel = () => setEditingId(null)
 
   const handleDelete = async () => {
-    if (!deletingKeyword) return;
-    setDeleteLoading(true);
+    if (!deletingKeyword) return
+    setDeleteLoading(true)
     try {
-      await deleteKeyword(brandId, deletingKeyword.keywordId);
-      setDeletingKeyword(null);
+      await deleteKeyword(brandId, deletingKeyword.keywordId)
+      setDeletingKeyword(null)
       if (keywords.length === 1 && page > 0) {
-        setPage((p) => p - 1);
+        setPage((p) => p - 1)
       } else {
-        setRefreshKey((k) => k + 1);
+        setRefreshKey((k) => k + 1)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete keyword");
-      setDeletingKeyword(null);
+      setError(err instanceof Error ? err.message : 'Failed to delete keyword')
+      setDeletingKeyword(null)
     } finally {
-      setDeleteLoading(false);
+      setDeleteLoading(false)
     }
-  };
+  }
 
-  const keywords = data?.content ?? [];
-  const totalPages = data?.totalPages ?? 0;
-  const totalElements = data?.totalElements ?? 0;
+  const keywords = data?.content ?? []
+  const totalPages = data?.totalPages ?? 0
+  const totalElements = data?.totalElements ?? 0
 
   return (
-    <div className="keywords-panel">
-      <div className="keywords-add-row">
-        <input
-          className="keywords-add-input"
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
           type="text"
-          placeholder="Enter keyword..."
+          placeholder="Enter keyword…"
           value={newKeyword}
           onChange={(e) => setNewKeyword(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAdd();
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleAdd()
             }
           }}
           disabled={addLoading}
+          className="flex-1"
         />
         <select
-          className="keywords-add-select"
+          className={selectClass}
           value={newType}
           onChange={(e) => setNewType(e.target.value as KeywordType)}
           disabled={addLoading}
@@ -170,143 +177,167 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
             </option>
           ))}
         </select>
-        <button
-          className="keywords-add-btn"
-          onClick={handleAdd}
-          disabled={addLoading || !newKeyword.trim()}
-        >
-          <Plus size={16} />
-          {addLoading ? "..." : "Add"}
-        </button>
+        <Button onClick={handleAdd} disabled={addLoading || !newKeyword.trim()}>
+          {addLoading ? <Loader2 className="size-4 animate-spin" /> : <Plus />}
+          Add
+        </Button>
       </div>
 
-      {addError && <div className="keywords-error">{addError}</div>}
-      {error && <div className="keywords-error">{error}</div>}
+      {addError && (
+        <p role="alert" className="text-[12px] text-neg-text">
+          {addError}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-[12px] text-neg-text">
+          {error}
+        </p>
+      )}
 
       {loading ? (
-        <div className="keywords-loading">Loading...</div>
+        <div className="rounded-md border border-dashed border-border py-8 text-center text-[13px] text-muted-foreground">
+          Loading…
+        </div>
       ) : keywords.length === 0 ? (
-        <div className="keywords-empty">No keywords yet. Add one above.</div>
+        <div className="rounded-md border border-dashed border-border py-8 text-center text-[13px] text-muted-foreground">
+          No keywords yet. Add one above.
+        </div>
       ) : (
         <>
-          <table className="keywords-table">
-            <thead>
-              <tr>
-                <th>Keyword</th>
-                <th>Type</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {keywords.map((kw) =>
-                editingId === kw.keywordId ? (
-                  <tr key={kw.keywordId}>
-                    <td>
-                      <input
-                        className="keywords-edit-input"
-                        type="text"
-                        value={editKeyword}
-                        onChange={(e) => setEditKeyword(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleEditSave();
-                          }
-                          if (e.key === "Escape") handleEditCancel();
-                        }}
-                        disabled={editLoading}
-                        autoFocus
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="keywords-edit-select"
-                        value={editType}
-                        onChange={(e) => setEditType(e.target.value as KeywordType)}
-                        disabled={editLoading}
-                      >
-                        {KEYWORD_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {KEYWORD_TYPE_LABELS[t]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <div className="keywords-actions">
-                        <button
-                          className="keywords-action-btn keywords-action-btn--save"
-                          onClick={handleEditSave}
-                          disabled={editLoading || !editKeyword.trim()}
-                          aria-label="Save"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          className="keywords-action-btn"
-                          onClick={handleEditCancel}
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Keyword</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {keywords.map((kw) =>
+                  editingId === kw.keywordId ? (
+                    <TableRow key={kw.keywordId}>
+                      <TableCell>
+                        <Input
+                          type="text"
+                          value={editKeyword}
+                          onChange={(e) => setEditKeyword(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleEditSave()
+                            }
+                            if (e.key === 'Escape') handleEditCancel()
+                          }}
                           disabled={editLoading}
-                          aria-label="Cancel"
+                          autoFocus
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <select
+                          className={selectClass}
+                          value={editType}
+                          onChange={(e) => setEditType(e.target.value as KeywordType)}
+                          disabled={editLoading}
                         >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={kw.keywordId}>
-                    <td>{kw.keyword}</td>
-                    <td>
-                      <Badge variant={TYPE_BADGE_VARIANT[kw.keywordType]}>
-                        {KEYWORD_TYPE_LABELS[kw.keywordType]}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="keywords-actions">
-                        <button
-                          className="keywords-action-btn"
-                          onClick={() => handleEditStart(kw)}
-                          aria-label="Edit keyword"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="keywords-action-btn keywords-action-btn--danger"
-                          onClick={() => setDeletingKeyword(kw)}
-                          aria-label="Delete keyword"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+                          {KEYWORD_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                              {KEYWORD_TYPE_LABELS[t]}
+                            </option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-pos hover:bg-pos-bg"
+                            onClick={handleEditSave}
+                            disabled={editLoading || !editKeyword.trim()}
+                            aria-label="Save"
+                          >
+                            <Check className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={handleEditCancel}
+                            disabled={editLoading}
+                            aria-label="Cancel"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    <TableRow key={kw.keywordId}>
+                      <TableCell className="font-medium text-foreground">{kw.keyword}</TableCell>
+                      <TableCell>
+                        <Badge variant={TYPE_BADGE_VARIANT[kw.keywordType]}>
+                          {KEYWORD_TYPE_LABELS[kw.keywordType]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleEditStart(kw)}
+                            aria-label="Edit keyword"
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-neg hover:bg-neg-bg"
+                            onClick={() => setDeletingKeyword(kw)}
+                            aria-label="Delete keyword"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           {totalPages > 1 && (
-            <div className="keywords-pagination">
-              <span className="keywords-pagination-info">
-                {totalElements} keyword{totalElements !== 1 ? "s" : ""}
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-muted-foreground">
+                {totalElements} keyword{totalElements !== 1 ? 's' : ''}
               </span>
-              <div className="keywords-pagination-controls">
-                <button
-                  className="keywords-page-btn"
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => setPage((p) => p - 1)}
                   disabled={page === 0}
                   aria-label="Previous page"
                 >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  className="keywords-page-btn"
+                  <ChevronLeft />
+                </Button>
+                <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-text-3">
+                  Page {page + 1} of {totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={page >= totalPages - 1}
                   aria-label="Next page"
                 >
-                  <ChevronRight size={16} />
-                </button>
+                  <ChevronRight />
+                </Button>
               </div>
             </div>
           )}
@@ -324,7 +355,7 @@ const KeywordPanel = ({ brandId }: KeywordPanelProps): React.JSX.Element => {
         loading={deleteLoading}
       />
     </div>
-  );
-};
+  )
+}
 
-export default KeywordPanel;
+export default KeywordPanel

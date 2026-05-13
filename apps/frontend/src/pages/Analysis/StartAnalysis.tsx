@@ -1,268 +1,280 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, ClipboardPaste, Download, Settings2, Upload } from "lucide-react";
-import { getBrands, getBrand } from "../../services/brandService";
-import { startAnalysis } from "../../services/reportService";
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
+import {
+  ArrowLeft,
+  ClipboardPaste,
+  Download,
+  Settings2,
+  Upload,
+  Loader2,
+} from 'lucide-react'
+import { getBrands, getBrand } from '../../services/brandService'
+import { startAnalysis } from '../../services/reportService'
 import {
   downloadDatasetTemplate,
   startAnalysisFromCsv,
   startAnalysisFromPaste,
-} from "../../services/datasetService";
-import { DatasetValidationFailed } from "../../types/dataset";
-import type { DatasetValidationError, PastePreview, PasteColumnMapping } from "../../types/dataset";
+} from '../../services/datasetService'
+import { DatasetValidationFailed } from '../../types/dataset'
+import type {
+  DatasetValidationError,
+  PastePreview,
+  PasteColumnMapping,
+} from '../../types/dataset'
 import {
   KEYWORD_TYPE_LABELS,
   type BrandSummaryResponse,
   type KeywordInfo,
-} from "../../types/brand";
-import type { DataSource } from "../../types/dashboard";
-import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
-import { useBrandSelection } from "../../context/useBrandSelection";
-import "./StartAnalysis.css";
+} from '../../types/brand'
+import type { DataSource } from '../../types/dashboard'
+import ErrorBanner from '../../components/ErrorBanner/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton/PageSkeleton'
+import { useBrandSelection } from '../../context/useBrandSelection'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 interface LocationState {
-  preselectedBrandId?: number;
+  preselectedBrandId?: number
 }
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+const TEXT_CANDIDATES = ['text', 'post', 'post_text', 'content', 'body', 'message', 'tweet']
+const URL_CANDIDATES = ['url', 'link', 'href', 'source']
+const LANG_CANDIDATES = ['language', 'lang']
 
-const TEXT_CANDIDATES = ["text", "post", "post_text", "content", "body", "message", "tweet"];
-const URL_CANDIDATES = ["url", "link", "href", "source"];
-const LANG_CANDIDATES = ["language", "lang"];
+const selectClass =
+  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
 
-// MUST stay in sync with the backend heuristic in
-// apps/backend/src/main/java/com/hawa/hawa_backend/dataset/DatasetCsvParser.java
-// so the preview shown to the user matches what the server actually parses.
-function detectDelimiter(text: string): "\t" | "," {
-  const firstLine = text.split("\n")[0] ?? "";
-  const tabs = (firstLine.match(/\t/g) ?? []).length;
-  const commas = (firstLine.match(/,/g) ?? []).length;
-  return tabs >= commas ? "\t" : ",";
+function detectDelimiter(text: string): '\t' | ',' {
+  const firstLine = text.split('\n')[0] ?? ''
+  const tabs = (firstLine.match(/\t/g) ?? []).length
+  const commas = (firstLine.match(/,/g) ?? []).length
+  return tabs >= commas ? '\t' : ','
 }
 
-// Quote-aware row tokenizer matching commons-csv DEFAULT (RFC 4180-ish):
-// fields may be wrapped in double quotes, embedded quotes are escaped by doubling,
-// quoted fields may contain the delimiter and newlines.
 function parseCsvRows(raw: string, delimiter: string): string[][] {
-  const rows: string[][] = [];
-  let field = "";
-  let row: string[] = [];
-  let inQuotes = false;
+  const rows: string[][] = []
+  let field = ''
+  let row: string[] = []
+  let inQuotes = false
   for (let i = 0; i < raw.length; i++) {
-    const c = raw[i];
+    const c = raw[i]
     if (inQuotes) {
       if (c === '"') {
         if (raw[i + 1] === '"') {
-          field += '"';
-          i++;
+          field += '"'
+          i++
         } else {
-          inQuotes = false;
+          inQuotes = false
         }
       } else {
-        field += c;
+        field += c
       }
-      continue;
+      continue
     }
     if (c === '"') {
-      inQuotes = true;
+      inQuotes = true
     } else if (c === delimiter) {
-      row.push(field);
-      field = "";
-    } else if (c === "\n" || c === "\r") {
-      row.push(field);
-      field = "";
-      if (row.some((v) => v.length > 0)) rows.push(row);
-      row = [];
-      if (c === "\r" && raw[i + 1] === "\n") i++;
+      row.push(field)
+      field = ''
+    } else if (c === '\n' || c === '\r') {
+      row.push(field)
+      field = ''
+      if (row.some((v) => v.length > 0)) rows.push(row)
+      row = []
+      if (c === '\r' && raw[i + 1] === '\n') i++
     } else {
-      field += c;
+      field += c
     }
   }
   if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    if (row.some((v) => v.length > 0)) rows.push(row);
+    row.push(field)
+    if (row.some((v) => v.length > 0)) rows.push(row)
   }
-  return rows;
+  return rows
 }
 
 function parsePasteText(raw: string): PastePreview {
-  const delimiter = detectDelimiter(raw);
-  const rows = parseCsvRows(raw, delimiter);
+  const delimiter = detectDelimiter(raw)
+  const rows = parseCsvRows(raw, delimiter)
   if (rows.length === 0) {
-    return { rawText: raw, headers: [], previewRows: [], mapping: { text: null, url: null, language: null } };
+    return {
+      rawText: raw,
+      headers: [],
+      previewRows: [],
+      mapping: { text: null, url: null, language: null },
+    }
   }
-  const headers = rows[0].map((h) => h.trim());
-  const dataRows = rows.slice(1).map((r) => r.map((c) => c.trim()));
+  const headers = rows[0].map((h) => h.trim())
+  const dataRows = rows.slice(1).map((r) => r.map((c) => c.trim()))
   const find = (candidates: string[]) =>
-    headers.find((h) => candidates.includes(h.toLowerCase())) ?? null;
+    headers.find((h) => candidates.includes(h.toLowerCase())) ?? null
   const mapping: PasteColumnMapping = {
     text: find(TEXT_CANDIDATES),
     url: find(URL_CANDIDATES),
     language: find(LANG_CANDIDATES),
-  };
-  return { rawText: raw, headers, previewRows: dataRows.slice(0, 5), mapping };
+  }
+  return { rawText: raw, headers, previewRows: dataRows.slice(0, 5), mapping }
 }
 
+const Fieldset = ({
+  legend,
+  children,
+}: {
+  legend: string
+  children: React.ReactNode
+}) => (
+  <fieldset className="space-y-4 rounded-md border border-border bg-card p-6">
+    <legend className="px-1 eyebrow">{legend}</legend>
+    {children}
+  </fieldset>
+)
+
 const StartAnalysis = (): React.JSX.Element => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate = useNavigate()
+  const location = useLocation()
   const { selectedBrandId: navbarBrandId, setSelectedBrandId: setNavbarBrandId } =
-    useBrandSelection();
-  const preselectedBrandId = (location.state as LocationState | null)
-    ?.preselectedBrandId;
+    useBrandSelection()
+  const preselectedBrandId = (location.state as LocationState | null)?.preselectedBrandId
 
-  const [brands, setBrands] = useState<BrandSummaryResponse[]>([]);
-  const [loadingBrands, setLoadingBrands] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [brands, setBrands] = useState<BrandSummaryResponse[]>([])
+  const [loadingBrands, setLoadingBrands] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [selectedBrandId, setSelectedBrandId] = useState<number | "">(
-    preselectedBrandId ?? navbarBrandId ?? ""
-  );
-  const [dataSource, setDataSource] = useState<DataSource>("REDDIT");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<number | ''>(
+    preselectedBrandId ?? navbarBrandId ?? '',
+  )
+  const [dataSource, setDataSource] = useState<DataSource>('REDDIT')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const [file, setFile] = useState<File | null>(null);
-  const [csvErrors, setCsvErrors] = useState<DatasetValidationError[]>([]);
-  const [templateDownloading, setTemplateDownloading] = useState(false);
-  const [templateError, setTemplateError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null)
+  const [csvErrors, setCsvErrors] = useState<DatasetValidationError[]>([])
+  const [templateDownloading, setTemplateDownloading] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const [datasetTab, setDatasetTab] = useState<"upload" | "paste">("upload");
-  const [pastePreview, setPastePreview] = useState<PastePreview | null>(null);
-  const pasteAreaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [brandKeywords, setBrandKeywords] = useState<KeywordInfo[]>([]);
-  const [loadingKeywords, setLoadingKeywords] = useState(false);
-  const [keywordError, setKeywordError] = useState<string | null>(null);
-  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(
-    new Set()
-  );
+  const [datasetTab, setDatasetTab] = useState<'upload' | 'paste'>('upload')
+  const [pastePreview, setPastePreview] = useState<PastePreview | null>(null)
+  const pasteAreaRef = useRef<HTMLTextAreaElement | null>(null)
+  const [brandKeywords, setBrandKeywords] = useState<KeywordInfo[]>([])
+  const [loadingKeywords, setLoadingKeywords] = useState(false)
+  const [keywordError, setKeywordError] = useState<string | null>(null)
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(new Set())
 
   const loadBrands = useCallback(async () => {
-    setLoadingBrands(true);
-    setLoadError(null);
+    setLoadingBrands(true)
+    setLoadError(null)
     try {
-      const page = await getBrands(0, 100);
-      setBrands(page.content);
+      const page = await getBrands(0, 100)
+      setBrands(page.content)
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Something went wrong");
+      setLoadError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
-      setLoadingBrands(false);
+      setLoadingBrands(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    loadBrands();
-  }, [loadBrands]);
+    loadBrands()
+  }, [loadBrands])
 
   useEffect(() => {
     if (!selectedBrandId) {
-      setBrandKeywords([]);
-      setSelectedKeywordIds(new Set());
-      setKeywordError(null);
-      return;
+      setBrandKeywords([])
+      setSelectedKeywordIds(new Set())
+      setKeywordError(null)
+      return
     }
-    let cancelled = false;
-    setLoadingKeywords(true);
-    setKeywordError(null);
+    let cancelled = false
+    setLoadingKeywords(true)
+    setKeywordError(null)
     getBrand(Number(selectedBrandId))
       .then((detail) => {
-        if (cancelled) return;
-        setBrandKeywords(detail.keywords);
-        setSelectedKeywordIds(new Set(detail.keywords.map((k) => k.keywordId)));
+        if (cancelled) return
+        setBrandKeywords(detail.keywords)
+        setSelectedKeywordIds(new Set(detail.keywords.map((k) => k.keywordId)))
       })
       .catch((err) => {
-        if (cancelled) return;
-        setKeywordError(
-          err instanceof Error ? err.message : "Failed to load keywords"
-        );
-        setBrandKeywords([]);
-        setSelectedKeywordIds(new Set());
+        if (cancelled) return
+        setKeywordError(err instanceof Error ? err.message : 'Failed to load keywords')
+        setBrandKeywords([])
+        setSelectedKeywordIds(new Set())
       })
       .finally(() => {
-        if (!cancelled) setLoadingKeywords(false);
-      });
+        if (!cancelled) setLoadingKeywords(false)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, [selectedBrandId]);
+      cancelled = true
+    }
+  }, [selectedBrandId])
 
-  const validDateRange =
-    !dateFrom || !dateTo || new Date(dateFrom) <= new Date(dateTo);
-
-  const backTarget = preselectedBrandId
-    ? `/brands/${preselectedBrandId}`
-    : "/dashboard";
-  const backLabel = preselectedBrandId ? "Back to brand" : "Back to dashboard";
+  const validDateRange = !dateFrom || !dateTo || new Date(dateFrom) <= new Date(dateTo)
+  const backTarget = preselectedBrandId ? `/brands/${preselectedBrandId}` : '/dashboard'
+  const backLabel = preselectedBrandId ? 'Back to brand' : 'Back to dashboard'
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = e.target.files?.[0] ?? null;
-    setSubmitError(null);
-    setCsvErrors([]);
+    const picked = e.target.files?.[0] ?? null
+    setSubmitError(null)
+    setCsvErrors([])
     if (!picked) {
-      setFile(null);
-      return;
+      setFile(null)
+      return
     }
-    const name = picked.name.toLowerCase();
-    if (!name.endsWith(".csv")) {
-      setSubmitError("Only .csv files are supported");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
+    const name = picked.name.toLowerCase()
+    if (!name.endsWith('.csv')) {
+      setSubmitError('Only .csv files are supported')
+      setFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
     if (picked.size > MAX_FILE_BYTES) {
-      setSubmitError("File too large (max 10 MB)");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
+      setSubmitError('File too large (max 10 MB)')
+      setFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
-    setFile(picked);
-  };
+    setFile(picked)
+  }
 
   const handleDownloadTemplate = async () => {
-    setTemplateDownloading(true);
-    setTemplateError(null);
+    setTemplateDownloading(true)
+    setTemplateError(null)
     try {
-      await downloadDatasetTemplate();
+      await downloadDatasetTemplate()
     } catch (err) {
-      setTemplateError(
-        err instanceof Error ? err.message : "Failed to download template"
-      );
+      setTemplateError(err instanceof Error ? err.message : 'Failed to download template')
     } finally {
-      setTemplateDownloading(false);
+      setTemplateDownloading(false)
     }
-  };
+  }
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const text = e.clipboardData.getData("text");
-    if (!text.trim()) return;
-    e.preventDefault();
-    setSubmitError(null);
-    setCsvErrors([]);
-    setPastePreview(parsePasteText(text));
-  };
+    const text = e.clipboardData.getData('text')
+    if (!text.trim()) return
+    e.preventDefault()
+    setSubmitError(null)
+    setCsvErrors([])
+    setPastePreview(parsePasteText(text))
+  }
 
   const toggleKeyword = (keywordId: number) => {
     setSelectedKeywordIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(keywordId)) {
-        next.delete(keywordId);
-      } else {
-        next.add(keywordId);
-      }
-      return next;
-    });
-  };
+      const next = new Set(prev)
+      if (next.has(keywordId)) next.delete(keywordId)
+      else next.add(keywordId)
+      return next
+    })
+  }
 
-  const selectAllKeywords = () => {
-    setSelectedKeywordIds(new Set(brandKeywords.map((k) => k.keywordId)));
-  };
-
-  const clearKeywords = () => {
-    setSelectedKeywordIds(new Set());
-  };
+  const selectAllKeywords = () =>
+    setSelectedKeywordIds(new Set(brandKeywords.map((k) => k.keywordId)))
+  const clearKeywords = () => setSelectedKeywordIds(new Set())
 
   const submitPaste = (brandId: number) =>
     startAnalysisFromPaste(brandId, {
@@ -272,14 +284,14 @@ const StartAnalysis = (): React.JSX.Element => {
       languageColumn: pastePreview!.mapping.language ?? undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-    });
+    })
 
   const submitUpload = (brandId: number) =>
     startAnalysisFromCsv(brandId, {
       file: file as File,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-    });
+    })
 
   const submitExternal = (brandId: number) =>
     startAnalysis(brandId, {
@@ -287,116 +299,113 @@ const StartAnalysis = (): React.JSX.Element => {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       selectedKeywordIds: Array.from(selectedKeywordIds),
-    });
+    })
 
   const validateBeforeSubmit = (): boolean => {
-    if (!selectedBrandId || !validDateRange) return false;
-    if (dataSource === "CSV_UPLOAD") {
-      if (datasetTab === "upload" && !file) {
-        setSubmitError("Select a CSV file to upload");
-        return false;
+    if (!selectedBrandId || !validDateRange) return false
+    if (dataSource === 'CSV_UPLOAD') {
+      if (datasetTab === 'upload' && !file) {
+        setSubmitError('Select a CSV file to upload')
+        return false
       }
-      if (datasetTab === "paste") {
+      if (datasetTab === 'paste') {
         if (!pastePreview || !pastePreview.rawText.trim()) {
-          setSubmitError("Paste your data first");
-          return false;
+          setSubmitError('Paste your data first')
+          return false
         }
         if (!pastePreview.mapping.text) {
-          setSubmitError("Map a column to 'Text' before submitting");
-          return false;
+          setSubmitError("Map a column to 'Text' before submitting")
+          return false
         }
       }
     }
-    if (selectedKeywordIds.size === 0) return false;
-    return true;
-  };
+    if (selectedKeywordIds.size === 0) return false
+    return true
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateBeforeSubmit()) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    setCsvErrors([]);
+    e.preventDefault()
+    if (!validateBeforeSubmit()) return
+    setSubmitting(true)
+    setSubmitError(null)
+    setCsvErrors([])
     try {
-      const brandId = Number(selectedBrandId);
-      let report;
-      if (dataSource === "CSV_UPLOAD" && datasetTab === "paste") {
-        report = await submitPaste(brandId);
-      } else if (dataSource === "CSV_UPLOAD") {
-        report = await submitUpload(brandId);
+      const brandId = Number(selectedBrandId)
+      let report
+      if (dataSource === 'CSV_UPLOAD' && datasetTab === 'paste') {
+        report = await submitPaste(brandId)
+      } else if (dataSource === 'CSV_UPLOAD') {
+        report = await submitUpload(brandId)
       } else {
-        report = await submitExternal(brandId);
+        report = await submitExternal(brandId)
       }
-      navigate(`/reports/${report.reportId}`, { state: { report } });
+      navigate(`/reports/${report.reportId}`, { state: { report } })
     } catch (err) {
       if (err instanceof DatasetValidationFailed) {
-        setCsvErrors(err.errors);
-        setFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        setCsvErrors(err.errors)
+        setFile(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
       } else {
-        setSubmitError(
-          err instanceof Error ? err.message : "Failed to start analysis"
-        );
+        setSubmitError(err instanceof Error ? err.message : 'Failed to start analysis')
       }
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
-
-  if (loadingBrands) {
-    return <div className="start-analysis-loading">Loading brands...</div>;
   }
 
-  if (loadError) {
-    return <ErrorBanner message={loadError} onRetry={loadBrands} />;
-  }
+  if (loadingBrands) return <PageSkeleton />
+  if (loadError) return <ErrorBanner message={loadError} onRetry={loadBrands} />
 
-  const selectedBrand = brands.find((b) => b.brandId === selectedBrandId);
-  const hasSelection = selectedKeywordIds.size > 0;
+  const selectedBrand = brands.find((b) => b.brandId === selectedBrandId)
+  const hasSelection = selectedKeywordIds.size > 0
 
   return (
-    <div className="start-analysis">
-      <Link to={backTarget} className="start-analysis-back">
-        <ArrowLeft size={16} />
-        {backLabel}
-      </Link>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+        <Link to={backTarget}>
+          <ArrowLeft />
+          {backLabel}
+        </Link>
+      </Button>
 
-      <div className="start-analysis-header">
-        <h1 className="start-analysis-title">Start Analysis</h1>
-        <p className="start-analysis-subtitle">
+      <header>
+        <span className="eyebrow">Analysis</span>
+        <h1 className="mt-2 font-display text-[32px] font-semibold leading-none tracking-[-0.025em] text-foreground">
+          Start Analysis
+        </h1>
+        <p className="mt-3 text-[14px] text-muted-foreground">
           {selectedBrand ? (
             <>
-              Run a sentiment analysis for{" "}
-              <strong>{selectedBrand.brandName}</strong>. Pick the keywords to
-              use for this run.
+              Run a sentiment analysis for{' '}
+              <strong className="font-medium text-foreground">{selectedBrand.brandName}</strong>.
+              Pick the keywords to use for this run.
             </>
           ) : (
-            "Select a brand and configure the analysis below."
+            'Select a brand and configure the analysis below.'
           )}
         </p>
-      </div>
+      </header>
 
       {brands.length === 0 ? (
-        <div className="start-analysis-empty">
-          <p>You don't have any brands yet.</p>
-          <Link to="/brands" className="start-analysis-submit">
-            Go to Brands
-          </Link>
+        <div className="rounded-md border border-dashed border-border bg-card px-6 py-10 text-center">
+          <p className="text-[14px] text-muted-foreground">You don't have any brands yet.</p>
+          <Button asChild className="mt-4">
+            <Link to="/brands">Go to Brands</Link>
+          </Button>
         </div>
       ) : (
-        <form className="start-analysis-form" onSubmit={handleSubmit}>
-          <fieldset className="start-analysis-fieldset">
-            <legend className="start-analysis-legend">Brand</legend>
-            <label className="start-analysis-field">
-              <span className="start-analysis-label">Select a brand</span>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Fieldset legend="Brand">
+            <div className="space-y-1.5">
+              <Label htmlFor="brandSelect">Select a brand</Label>
               <select
-                className="start-analysis-input"
+                id="brandSelect"
+                className={selectClass}
                 value={selectedBrandId}
                 onChange={(e) => {
-                  const next =
-                    e.target.value === "" ? "" : Number(e.target.value);
-                  setSelectedBrandId(next);
-                  if (next !== "") setNavbarBrandId(next);
+                  const next = e.target.value === '' ? '' : Number(e.target.value)
+                  setSelectedBrandId(next)
+                  if (next !== '') setNavbarBrandId(next)
                 }}
                 required
               >
@@ -406,74 +415,66 @@ const StartAnalysis = (): React.JSX.Element => {
                 {brands.map((b) => (
                   <option key={b.brandId} value={b.brandId}>
                     {b.brandName}
-                    {b.industry ? ` — ${b.industry}` : ""}
+                    {b.industry ? ` — ${b.industry}` : ''}
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
             {selectedBrand && (
-              <Link
-                to={`/brands/${selectedBrand.brandId}`}
-                className="start-analysis-keywords-btn"
-              >
-                <Settings2 size={14} />
-                Configure keywords for {selectedBrand.brandName}
-              </Link>
+              <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+                <Link to={`/brands/${selectedBrand.brandId}`}>
+                  <Settings2 />
+                  Configure keywords for {selectedBrand.brandName}
+                </Link>
+              </Button>
             )}
-          </fieldset>
+          </Fieldset>
 
-          {selectedBrandId !== "" && (
-            <fieldset className="start-analysis-fieldset">
-              <legend className="start-analysis-legend">Keywords</legend>
+          {selectedBrandId !== '' && (
+            <Fieldset legend="Keywords">
               {loadingKeywords ? (
-                <p className="start-analysis-hint">Loading keywords…</p>
+                <p className="text-[13px] text-muted-foreground">Loading keywords…</p>
               ) : keywordError ? (
-                <p className="start-analysis-hint start-analysis-hint--error">
-                  {keywordError}
-                </p>
+                <p className="text-[13px] text-neg-text">{keywordError}</p>
               ) : brandKeywords.length === 0 ? (
-                <p className="start-analysis-hint start-analysis-hint--error">
-                  This brand has no keywords. Add at least one on the brand
-                  page before starting an analysis.
+                <p className="text-[13px] text-neg-text">
+                  This brand has no keywords. Add at least one on the brand page before
+                  starting an analysis.
                 </p>
               ) : (
                 <>
-                  <p className="start-analysis-hint">
-                    Only selected keywords will drive post collection and LLM
-                    context for this run.
+                  <p className="text-[13px] text-muted-foreground">
+                    Only selected keywords will drive post collection and LLM context for this
+                    run.
                   </p>
-                  <div className="start-analysis-keyword-actions">
+                  <div className="flex gap-3 text-[12px]">
                     <button
                       type="button"
-                      className="start-analysis-link-btn"
                       onClick={selectAllKeywords}
+                      className="text-primary hover:underline"
                     >
                       Select all
                     </button>
                     <button
                       type="button"
-                      className="start-analysis-link-btn"
                       onClick={clearKeywords}
+                      className="text-primary hover:underline"
                     >
                       Clear
                     </button>
                   </div>
-                  <ul className="start-analysis-keyword-list">
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {brandKeywords.map((kw) => (
-                      <li
-                        key={kw.keywordId}
-                        className="start-analysis-keyword-item"
-                      >
-                        <label className="start-analysis-keyword-label">
+                      <li key={kw.keywordId}>
+                        <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border bg-muted/40 px-3 py-2 transition-colors hover:bg-muted">
                           <input
                             type="checkbox"
                             checked={selectedKeywordIds.has(kw.keywordId)}
                             onChange={() => toggleKeyword(kw.keywordId)}
+                            className="size-3.5 accent-primary"
                           />
-                          <span className="start-analysis-keyword-text">
-                            {kw.keyword}
-                          </span>
-                          <span className="start-analysis-keyword-type">
+                          <span className="flex-1 text-[13px] text-foreground">{kw.keyword}</span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-text-3">
                             {KEYWORD_TYPE_LABELS[kw.keywordType]}
                           </span>
                         </label>
@@ -481,201 +482,240 @@ const StartAnalysis = (): React.JSX.Element => {
                     ))}
                   </ul>
                   {!hasSelection && (
-                    <p className="start-analysis-hint start-analysis-hint--error">
-                      Select at least one keyword.
-                    </p>
+                    <p className="text-[13px] text-neg-text">Select at least one keyword.</p>
                   )}
                 </>
               )}
-            </fieldset>
+            </Fieldset>
           )}
 
-          <fieldset className="start-analysis-fieldset">
-            <legend className="start-analysis-legend">Data source</legend>
-            <label className="start-analysis-radio">
-              <input
-                type="radio"
-                name="dataSource"
-                value="REDDIT"
-                checked={dataSource === "REDDIT"}
-                onChange={() => {
-                  setDataSource("REDDIT");
-                  setCsvErrors([]);
-                }}
-              />
-              <div>
-                <span className="start-analysis-radio-title">Reddit</span>
-                <span className="start-analysis-radio-desc">
-                  Collect posts from Reddit using the selected keywords.
-                </span>
-              </div>
-            </label>
-            <label className="start-analysis-radio">
-              <input
-                type="radio"
-                name="dataSource"
-                value="CSV_UPLOAD"
-                checked={dataSource === "CSV_UPLOAD"}
-                onChange={() => setDataSource("CSV_UPLOAD")}
-              />
-              <div>
-                <span className="start-analysis-radio-title">
-                  Upload Custom Dataset
-                </span>
-                <span className="start-analysis-radio-desc">
-                  Upload a CSV of posts you've collected yourself.
-                </span>
-              </div>
-            </label>
+          <Fieldset legend="Data source">
+            {(
+              [
+                {
+                  value: 'REDDIT' as const,
+                  title: 'Reddit',
+                  desc: 'Collect posts from Reddit using the selected keywords.',
+                },
+                {
+                  value: 'CSV_UPLOAD' as const,
+                  title: 'Upload Custom Dataset',
+                  desc: "Upload a CSV of posts you've collected yourself.",
+                },
+              ]
+            ).map((opt) => {
+              const active = dataSource === opt.value
+              return (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    'flex cursor-pointer gap-3 rounded-md border bg-card p-4 transition-colors',
+                    active
+                      ? 'border-primary ring-1 ring-primary/15'
+                      : 'border-border hover:border-border-strong',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="dataSource"
+                    value={opt.value}
+                    checked={active}
+                    onChange={() => {
+                      setDataSource(opt.value)
+                      if (opt.value === 'REDDIT') setCsvErrors([])
+                    }}
+                    className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                  />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[13px] font-medium text-foreground">{opt.title}</span>
+                    <span className="text-[12px] text-muted-foreground">{opt.desc}</span>
+                  </div>
+                </label>
+              )
+            })}
 
-            {dataSource === "CSV_UPLOAD" && (
-              <div className="start-analysis-csv">
-                <div className="start-analysis-dataset-tabs">
-                  <button
-                    type="button"
-                    className={`start-analysis-dataset-tab${datasetTab === "upload" ? " start-analysis-dataset-tab--active" : ""}`}
-                    onClick={() => { setDatasetTab("upload"); setCsvErrors([]); setSubmitError(null); }}
-                  >
-                    <Upload size={13} />
-                    Upload file
-                  </button>
-                  <button
-                    type="button"
-                    className={`start-analysis-dataset-tab${datasetTab === "paste" ? " start-analysis-dataset-tab--active" : ""}`}
-                    onClick={() => { setDatasetTab("paste"); setCsvErrors([]); setSubmitError(null); }}
-                  >
-                    <ClipboardPaste size={13} />
-                    Paste data
-                  </button>
+            {dataSource === 'CSV_UPLOAD' && (
+              <div className="space-y-4">
+                <div className="inline-flex rounded-md bg-muted p-1">
+                  {(['upload', 'paste'] as const).map((t) => {
+                    const active = datasetTab === t
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          setDatasetTab(t)
+                          setCsvErrors([])
+                          setSubmitError(null)
+                        }}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-[12px] font-medium transition-all',
+                          active
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {t === 'upload' ? (
+                          <Upload className="size-3.5" />
+                        ) : (
+                          <ClipboardPaste className="size-3.5" />
+                        )}
+                        {t === 'upload' ? 'Upload file' : 'Paste data'}
+                      </button>
+                    )
+                  })}
                 </div>
 
-                {datasetTab === "upload" && (
+                {datasetTab === 'upload' && (
                   <>
-                    <div className="start-analysis-csv-template">
-                      <button
+                    <div className="space-y-2">
+                      <Button
                         type="button"
-                        className="start-analysis-template-btn"
+                        variant="secondary"
+                        size="sm"
                         onClick={handleDownloadTemplate}
                         disabled={templateDownloading}
                       >
-                        <Download size={14} />
-                        {templateDownloading ? "Preparing…" : "Download template"}
-                      </button>
-                      <p className="start-analysis-hint">
-                        Columns: <code>text</code> (required),{" "}
-                        <code>url</code> (optional),{" "}
-                        <code>language</code> (EN or AR, defaults to EN). Max 10 MB.
+                        {templateDownloading ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Download />
+                        )}
+                        {templateDownloading ? 'Preparing…' : 'Download template'}
+                      </Button>
+                      <p className="text-[12px] text-muted-foreground">
+                        Columns: <code className="font-mono text-[11px]">text</code> (required),{' '}
+                        <code className="font-mono text-[11px]">url</code> (optional),{' '}
+                        <code className="font-mono text-[11px]">language</code> (EN or AR,
+                        defaults to EN). Max 10 MB.
                       </p>
                       {templateError && (
-                        <p className="start-analysis-hint start-analysis-hint--error">
-                          {templateError}
-                        </p>
+                        <p className="text-[12px] text-neg-text">{templateError}</p>
                       )}
                     </div>
 
-                    <label className="start-analysis-field">
-                      <span className="start-analysis-label">CSV file</span>
-                      <div className="start-analysis-file">
-                        <label className="start-analysis-file-btn">
-                          <Upload size={14} />
-                          {file ? "Choose another file" : "Choose file"}
+                    <div className="space-y-1.5">
+                      <Label>CSV file</Label>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border-strong bg-card px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-muted">
+                          <Upload className="size-3.5" />
+                          {file ? 'Choose another file' : 'Choose file'}
                           <input
                             ref={fileInputRef}
                             type="file"
                             accept=".csv,text/csv"
                             onChange={handleFileChange}
-                            className="start-analysis-file-input"
+                            className="hidden"
                           />
                         </label>
-                        <span className="start-analysis-file-name">
-                          {file ? file.name : "No file selected"}
+                        <span className="text-[13px] text-muted-foreground">
+                          {file ? file.name : 'No file selected'}
                         </span>
                       </div>
-                    </label>
+                    </div>
                   </>
                 )}
 
-                {datasetTab === "paste" && (
+                {datasetTab === 'paste' && (
                   <>
                     {!pastePreview ? (
-                      <div className="start-analysis-paste-zone">
-                        <ClipboardPaste size={24} className="start-analysis-paste-icon" />
-                        <p className="start-analysis-paste-hint">
+                      <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border bg-muted/30 p-8 text-center">
+                        <ClipboardPaste className="size-6 text-text-3" />
+                        <p className="text-[13px] text-muted-foreground">
                           Copy rows from Excel, Google Sheets, or a CSV file, then paste here
                         </p>
-                        <textarea
+                        <Textarea
                           ref={pasteAreaRef}
-                          className="start-analysis-paste-area"
                           placeholder="Paste your data here (Cmd+V / Ctrl+V)…"
-                          rows={6}
+                          rows={4}
                           onPaste={handlePaste}
                           readOnly
                           aria-label="Paste dataset"
+                          className="w-full font-mono text-[12px]"
                         />
                       </div>
                     ) : (
-                      <div className="start-analysis-paste-preview">
-                        <div className="start-analysis-paste-preview-header">
-                          <span className="start-analysis-paste-preview-title">
-                            {pastePreview.headers.length} column{pastePreview.headers.length !== 1 ? "s" : ""} detected
-                            {" · "}map each to a field
+                      <div className="space-y-3 rounded-md border border-border bg-muted/30 p-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] text-muted-foreground">
+                            {pastePreview.headers.length} column
+                            {pastePreview.headers.length !== 1 ? 's' : ''} detected · map each
+                            to a field
                           </span>
                           <button
                             type="button"
-                            className="start-analysis-link-btn"
-                            onClick={() => { setPastePreview(null); setCsvErrors([]); }}
+                            onClick={() => {
+                              setPastePreview(null)
+                              setCsvErrors([])
+                            }}
+                            className="text-[12px] text-primary hover:underline"
                           >
                             Clear
                           </button>
                         </div>
 
-                        <div className="start-analysis-paste-mapping">
-                          {(["text", "url", "language"] as const).map((field) => (
-                            <label key={field} className="start-analysis-paste-mapping-row">
-                              <span className="start-analysis-paste-mapping-field">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {(['text', 'url', 'language'] as const).map((field) => (
+                            <div key={field} className="space-y-1.5">
+                              <Label className="capitalize">
                                 {field}
-                                {field === "text" && <span className="start-analysis-paste-required">*</span>}
-                              </span>
+                                {field === 'text' && (
+                                  <span className="ml-1 text-neg-text">*</span>
+                                )}
+                              </Label>
                               <select
-                                className="start-analysis-input start-analysis-paste-mapping-select"
-                                value={pastePreview.mapping[field] ?? ""}
+                                className={selectClass}
+                                value={pastePreview.mapping[field] ?? ''}
                                 onChange={(e) => {
-                                  const val = e.target.value || null;
+                                  const val = e.target.value || null
                                   setPastePreview((prev) =>
-                                    prev ? { ...prev, mapping: { ...prev.mapping, [field]: val } } : prev
-                                  );
+                                    prev
+                                      ? { ...prev, mapping: { ...prev.mapping, [field]: val } }
+                                      : prev,
+                                  )
                                 }}
                               >
                                 <option value="">— ignored —</option>
                                 {pastePreview.headers.map((h) => (
-                                  <option key={h} value={h}>{h}</option>
+                                  <option key={h} value={h}>
+                                    {h}
+                                  </option>
                                 ))}
                               </select>
-                            </label>
+                            </div>
                           ))}
                         </div>
 
                         {pastePreview.previewRows.length > 0 && (
-                          <div className="start-analysis-paste-table-wrap">
-                            <table className="start-analysis-paste-table">
-                              <thead>
-                                <tr>
-                                  {pastePreview.headers.map((h) => (
-                                    <th key={h}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {pastePreview.previewRows.map((row, i) => (
-                                  <tr key={i}>
-                                    {pastePreview.headers.map((_, j) => (
-                                      <td key={j}>{row[j] ?? ""}</td>
+                          <div className="rounded-md border border-border bg-card">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[12px]">
+                                <thead>
+                                  <tr className="border-b border-border">
+                                    {pastePreview.headers.map((h) => (
+                                      <th
+                                        key={h}
+                                        className="px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.1em] text-text-3"
+                                      >
+                                        {h}
+                                      </th>
                                     ))}
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            <p className="start-analysis-hint">
+                                </thead>
+                                <tbody>
+                                  {pastePreview.previewRows.map((row, i) => (
+                                    <tr key={i} className="border-b border-border last:border-0">
+                                      {pastePreview.headers.map((_, j) => (
+                                        <td key={j} className="px-3 py-2 text-foreground">
+                                          {row[j] ?? ''}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
                               Showing first {pastePreview.previewRows.length} rows
                             </p>
                           </div>
@@ -687,20 +727,20 @@ const StartAnalysis = (): React.JSX.Element => {
 
                 {csvErrors.length > 0 && (
                   <div
-                    className="start-analysis-csv-errors"
                     role="alert"
                     aria-live="polite"
+                    className="rounded-md border border-neg/30 bg-neg-bg p-4"
                   >
-                    <p className="start-analysis-csv-errors-title">
-                      {datasetTab === "paste"
+                    <p className="mb-2 text-[13px] font-medium text-neg-text">
+                      {datasetTab === 'paste'
                         ? "The pasted data couldn't be processed. Fix these issues:"
                         : "The uploaded file couldn't be processed. Fix these issues and select the file again:"}
                     </p>
-                    <ul className="start-analysis-csv-errors-list">
+                    <ul className="space-y-1 text-[12px] text-neg-text">
                       {csvErrors.map((err, i) => (
-                        <li key={i}>
+                        <li key={i} className="flex flex-wrap gap-1.5">
                           {err.field && (
-                            <code className="start-analysis-csv-errors-field">
+                            <code className="rounded bg-neg/10 px-1.5 py-0.5 font-mono text-[11px]">
                               {err.field}
                             </code>
                           )}
@@ -712,66 +752,65 @@ const StartAnalysis = (): React.JSX.Element => {
                 )}
               </div>
             )}
-          </fieldset>
+          </Fieldset>
 
-          <fieldset className="start-analysis-fieldset">
-            <legend className="start-analysis-legend">
-              Date range (optional)
-            </legend>
-            <div className="start-analysis-date-row">
-              <label className="start-analysis-field">
-                <span className="start-analysis-label">From</span>
-                <input
+          <Fieldset legend="Date range (optional)">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="dateFrom">From</Label>
+                <Input
+                  id="dateFrom"
                   type="date"
-                  className="start-analysis-input"
                   value={dateFrom}
                   max={dateTo || undefined}
                   onChange={(e) => setDateFrom(e.target.value)}
                 />
-              </label>
-              <label className="start-analysis-field">
-                <span className="start-analysis-label">To</span>
-                <input
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="dateTo">To</Label>
+                <Input
+                  id="dateTo"
                   type="date"
-                  className="start-analysis-input"
                   value={dateTo}
                   min={dateFrom || undefined}
                   onChange={(e) => setDateTo(e.target.value)}
                 />
-              </label>
+              </div>
             </div>
             {!validDateRange && (
-              <p className="start-analysis-hint start-analysis-hint--error">
+              <p className="text-[13px] text-neg-text">
                 End date must be on or after start date.
               </p>
             )}
-          </fieldset>
+          </Fieldset>
 
           {submitError && <ErrorBanner message={submitError} />}
 
-          <div className="start-analysis-actions">
-            <Link to={backTarget} className="start-analysis-cancel">
-              Cancel
-            </Link>
-            <button
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button asChild variant="secondary">
+              <Link to={backTarget}>Cancel</Link>
+            </Button>
+            <Button
               type="submit"
-              className="start-analysis-submit"
               disabled={
                 submitting ||
                 !validDateRange ||
                 !selectedBrandId ||
                 !hasSelection ||
-                (dataSource === "CSV_UPLOAD" && datasetTab === "upload" && !file) ||
-                (dataSource === "CSV_UPLOAD" && datasetTab === "paste" && (!pastePreview || !pastePreview.mapping.text))
+                (dataSource === 'CSV_UPLOAD' && datasetTab === 'upload' && !file) ||
+                (dataSource === 'CSV_UPLOAD' &&
+                  datasetTab === 'paste' &&
+                  (!pastePreview || !pastePreview.mapping.text))
               }
             >
-              {submitting ? "Starting..." : "Start analysis"}
-            </button>
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              {submitting ? 'Starting…' : 'Start analysis'}
+            </Button>
           </div>
         </form>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default StartAnalysis;
+export default StartAnalysis

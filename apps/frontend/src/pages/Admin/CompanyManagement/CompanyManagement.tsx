@@ -1,154 +1,182 @@
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useAuth } from "../../../context/useAuth";
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useAuth } from '../../../context/useAuth'
 import {
   getCompanies,
   createCompany,
   updateCompany,
   deleteCompany,
-} from "../../../services/adminService";
-import type { Page, CompanyResponse } from "../../../types/admin";
-import { formatDate } from "../../../utils/formatDate";
-import DataTable from "../../../components/DataTable/DataTable";
-import type { Column } from "../../../components/DataTable/DataTable";
-import Modal from "../../../components/Modal/Modal";
-import ConfirmDialog from "../../../components/ConfirmDialog/ConfirmDialog";
-import ErrorBanner from "../../../components/ErrorBanner/ErrorBanner";
-import "./CompanyManagement.css";
+} from '../../../services/adminService'
+import type { Page, CompanyResponse } from '../../../types/admin'
+import { formatDate } from '../../../utils/formatDate'
+import DataTable from '../../../components/DataTable/DataTable'
+import type { Column } from '../../../components/DataTable/DataTable'
+import Modal from '../../../components/Modal/Modal'
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog'
+import ErrorBanner from '../../../components/ErrorBanner/ErrorBanner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
-type ModalMode = "create" | "edit" | null;
+type ModalMode = 'create' | 'edit' | null
 
 const CompanyManagement = (): React.JSX.Element => {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
 
-  const [data, setData] = useState<Page<CompanyResponse> | null>(null);
-  const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [data, setData] = useState<Page<CompanyResponse> | null>(null)
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [editingCompany, setEditingCompany] = useState<CompanyResponse | null>(null);
-  const [formError, setFormError] = useState("");
-  const [formLoading, setFormLoading] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>(null)
+  const [editingCompany, setEditingCompany] = useState<CompanyResponse | null>(null)
+  const [formError, setFormError] = useState('')
+  const [formLoading, setFormLoading] = useState(false)
 
-  const [deletingCompany, setDeletingCompany] = useState<CompanyResponse | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deletingCompany, setDeletingCompany] = useState<CompanyResponse | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const fetchCompanies = useCallback(async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setError("");
+    if (!accessToken) return
+    setLoading(true)
+    setError('')
     try {
-      const result = await getCompanies(accessToken, page);
-      setData(result);
+      const result = await getCompanies(accessToken, page)
+      setData(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load companies");
+      setError(err instanceof Error ? err.message : 'Failed to load companies')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [accessToken, page]);
+  }, [accessToken, page])
 
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
+    fetchCompanies()
+  }, [fetchCompanies])
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!accessToken) return;
+    e.preventDefault()
+    if (!accessToken) return
 
-    const formData = new FormData(e.currentTarget);
-    const companyName = formData.get("companyName") as string;
+    const formData = new FormData(e.currentTarget)
+    const companyName = formData.get('companyName') as string
 
-    setFormError("");
-    setFormLoading(true);
+    setFormError('')
+    setFormLoading(true)
 
     try {
-      if (modalMode === "create") {
-        await createCompany(accessToken, { companyName });
-      } else if (modalMode === "edit" && editingCompany) {
-        await updateCompany(accessToken, editingCompany.companyId, { companyName });
+      if (modalMode === 'create') {
+        await createCompany(accessToken, { companyName })
+      } else if (modalMode === 'edit' && editingCompany) {
+        await updateCompany(accessToken, editingCompany.companyId, { companyName })
       }
-      setModalMode(null);
-      setEditingCompany(null);
-      fetchCompanies();
+      setModalMode(null)
+      setEditingCompany(null)
+      fetchCompanies()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Operation failed");
+      setFormError(err instanceof Error ? err.message : 'Operation failed')
     } finally {
-      setFormLoading(false);
+      setFormLoading(false)
     }
-  };
+  }
 
   const handleDelete = async () => {
-    if (!accessToken || !deletingCompany) return;
-    setDeleteLoading(true);
+    if (!accessToken || !deletingCompany) return
+    setDeleteLoading(true)
     try {
-      await deleteCompany(accessToken, deletingCompany.companyId);
-      setDeletingCompany(null);
-      fetchCompanies();
+      await deleteCompany(accessToken, deletingCompany.companyId)
+      setDeletingCompany(null)
+      fetchCompanies()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete company");
-      setDeletingCompany(null);
+      setError(err instanceof Error ? err.message : 'Failed to delete company')
+      setDeletingCompany(null)
     } finally {
-      setDeleteLoading(false);
+      setDeleteLoading(false)
     }
-  };
+  }
 
   const columns: Column<CompanyResponse>[] = [
-    { key: "companyId", header: "ID" },
-    { key: "companyName", header: "Company Name" },
     {
-      key: "createdAt",
-      header: "Created",
-      render: (row) => formatDate(row.createdAt),
-    },
-    {
-      key: "updatedAt",
-      header: "Updated",
-      render: (row) => formatDate(row.updatedAt),
-    },
-    {
-      key: "actions",
-      header: "",
+      key: 'companyId',
+      header: 'ID',
       render: (row) => (
-        <div className="companies-actions">
-          <button
-            className="companies-action-btn"
+        <span className="font-mono text-[11px] tracking-[0.04em] text-text-3">
+          {row.companyId}
+        </span>
+      ),
+    },
+    {
+      key: 'companyName',
+      header: 'Company Name',
+      render: (row) => (
+        <span className="font-medium text-foreground">{row.companyName}</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      render: (row) => (
+        <span className="text-muted-foreground">{formatDate(row.createdAt)}</span>
+      ),
+    },
+    {
+      key: 'updatedAt',
+      header: 'Updated',
+      render: (row) => (
+        <span className="text-muted-foreground">{formatDate(row.updatedAt)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={() => {
-              setEditingCompany(row);
-              setModalMode("edit");
-              setFormError("");
+              setEditingCompany(row)
+              setModalMode('edit')
+              setFormError('')
             }}
             aria-label="Edit company"
           >
-            <Pencil size={16} />
-          </button>
-          <button
-            className="companies-action-btn companies-action-btn--danger"
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-neg hover:bg-neg-bg"
             onClick={() => setDeletingCompany(row)}
             aria-label="Delete company"
           >
-            <Trash2 size={16} />
-          </button>
+            <Trash2 className="size-3.5" />
+          </Button>
         </div>
       ),
     },
-  ];
+  ]
 
   return (
-    <div className="companies-page">
-      <div className="companies-header">
-        <h1 className="companies-title">Companies</h1>
-        <button
-          className="companies-create-btn"
+    <div className="space-y-6">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <span className="eyebrow">Admin · Companies</span>
+          <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.025em] text-foreground">
+            Companies
+          </h1>
+        </div>
+        <Button
           onClick={() => {
-            setEditingCompany(null);
-            setModalMode("create");
-            setFormError("");
+            setEditingCompany(null)
+            setModalMode('create')
+            setFormError('')
           }}
         >
-          <Plus size={18} />
+          <Plus />
           Create Company
-        </button>
+        </Button>
       </div>
 
       {error && <ErrorBanner message={error} onRetry={fetchCompanies} />}
@@ -168,49 +196,51 @@ const CompanyManagement = (): React.JSX.Element => {
       <Modal
         open={modalMode !== null}
         onClose={() => {
-          setModalMode(null);
-          setEditingCompany(null);
+          setModalMode(null)
+          setEditingCompany(null)
         }}
-        title={modalMode === "create" ? "Create Company" : "Edit Company"}
+        title={modalMode === 'create' ? 'Create Company' : 'Edit Company'}
         width="sm"
       >
-        <form className="companies-form" onSubmit={handleFormSubmit}>
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           {formError && (
-            <div className="companies-form-error">{formError}</div>
+            <div
+              role="alert"
+              className="rounded-md border border-neg/30 bg-neg-bg px-3 py-2 text-[12px] text-neg-text"
+            >
+              {formError}
+            </div>
           )}
-          <label className="companies-form-field">
-            <span className="companies-form-label">Company Name</span>
-            <input
+          <div className="space-y-1.5">
+            <Label htmlFor="companyName">Company name</Label>
+            <Input
+              id="companyName"
               name="companyName"
               type="text"
-              className="companies-form-input"
-              defaultValue={editingCompany?.companyName ?? ""}
+              defaultValue={editingCompany?.companyName ?? ''}
               required
             />
-          </label>
-          <div className="companies-form-actions">
-            <button
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
               type="button"
-              className="companies-form-cancel"
+              variant="secondary"
               onClick={() => {
-                setModalMode(null);
-                setEditingCompany(null);
+                setModalMode(null)
+                setEditingCompany(null)
               }}
               disabled={formLoading}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="companies-form-submit"
-              disabled={formLoading}
-            >
+            </Button>
+            <Button type="submit" disabled={formLoading}>
+              {formLoading && <Loader2 className="size-4 animate-spin" />}
               {formLoading
-                ? "..."
-                : modalMode === "create"
-                  ? "Create"
-                  : "Save Changes"}
-            </button>
+                ? 'Working…'
+                : modalMode === 'create'
+                  ? 'Create'
+                  : 'Save changes'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -226,7 +256,7 @@ const CompanyManagement = (): React.JSX.Element => {
         loading={deleteLoading}
       />
     </div>
-  );
-};
+  )
+}
 
-export default CompanyManagement;
+export default CompanyManagement

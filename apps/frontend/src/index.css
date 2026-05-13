@@ -1,110 +1,222 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─────────────────────────────────────────────────────────
+   Hawa — Identity tokens (light + dark)
+   Source: docs/Hawa Identity.html
+   ───────────────────────────────────────────────────────── */
+
 :root {
-  /* Colors */
-  --color-primary: #E91E63;
-  --color-primary-hover: #C2185B;
-  --color-primary-light: #FFF0F3;
-  --color-secondary: #F06292;
-  --color-background: #F5F5F5;
-  --color-surface: #FFFFFF;
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #757575;
-  --color-text-muted: #9E9E9E;
-  --color-border: #E0E0E0;
-  --color-muted-bg: #F5F5F5;
-  --color-ring: #E91E63;
+  /* Hawa brand */
+  --bg: #F8F8F7;
+  --bg-2: #F2F1ED;
+  --surface: #FFFFFF;
+  --border-soft: #E5E4E0;
+  --border-strong: #D7D6D1;
+  --text: #18181B;
+  --text-2: #71717A;
+  --text-3: #A1A1AA;
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-light: #EFF6FF;
+  --pos: #16A34A;
+  --pos-bg: #DCFCE7;
+  --pos-text: #15803D;
+  --neu: #D97706;
+  --neu-bg: #FEF3C7;
+  --neu-text: #B45309;
+  --neg: #DC2626;
+  --neg-bg: #FEE2E2;
+  --neg-text: #B91C1C;
 
-  /* Semantic */
-  --color-success: #16A34A;
-  --color-success-bg: #F0FDF4;
-  --color-warning: #D97706;
-  --color-warning-bg: #FFFBEB;
-  --color-error: #DC2626;
-  --color-error-bg: #FEF2F2;
-  --color-error-border: #FECACA;
-  --color-info: #0284C7;
-  --color-info-bg: #F0F9FF;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "DM Sans", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Typography */
-  --font-heading: 'Poppins', system-ui, sans-serif;
-  --font-body: 'Open Sans', system-ui, sans-serif;
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-base: 16px;
-  --text-lg: 18px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
-  --text-3xl: 32px;
-  --text-4xl: 40px;
+  /* shadcn aliases — mapped to brand */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--text-2);
+  --accent-color: var(--bg-2);
+  --accent-foreground: var(--text);
+  --destructive: var(--neg);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--border-soft);
+  --input: var(--border-strong);
+  --ring: var(--accent);
 
-  /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
-
-  /* Misc */
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-
-  /* Layout (fluid: 1080p → 4K)
-     Linear in viewport width: clamp(min @ 1920px, fluid, max @ 3840px).
-     The middle term uses calc(min + (max - min) * (vw - 1920px) / (3840 - 1920)). */
-  --topbar-height: 56px;
-  --sidebar-width: 260px;
-  --content-max-width: clamp(1280px, calc(1280px + (1920 - 1280) * (100vw - 1920px) / 1920), 1920px);
-  --page-padding-x: clamp(32px, calc(32px + (64 - 32) * (100vw - 1920px) / 1920), 64px);
-  --page-padding-y: clamp(24px, calc(24px + (40 - 24) * (100vw - 1920px) / 1920), 40px);
-
-  font-family: var(--font-body);
-  line-height: 1.6;
-  font-weight: 400;
-  color: var(--color-text-primary);
-  background-color: var(--color-background);
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+.dark {
+  /* Dark mode — derived from identity, kept warm-neutral */
+  --bg: #0B0B0C;
+  --bg-2: #18181B;
+  --surface: #161618;
+  --border-soft: #27272A;
+  --border-strong: #3F3F46;
+  --text: #FAFAFA;
+  --text-2: #A1A1AA;
+  --text-3: #71717A;
+  --accent: #60A5FA;
+  --accent-hover: #93C5FD;
+  --accent-light: rgba(96, 165, 250, 0.12);
+  --pos: #22C55E;
+  --pos-bg: rgba(34, 197, 94, 0.12);
+  --pos-text: #4ADE80;
+  --neu: #F59E0B;
+  --neu-bg: rgba(245, 158, 11, 0.12);
+  --neu-text: #FBBF24;
+  --neg: #F87171;
+  --neg-bg: rgba(248, 113, 113, 0.12);
+  --neg-text: #FCA5A5;
+
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #0B0B0C;
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--text-2);
+  --accent-color: var(--bg-2);
+  --accent-foreground: var(--text);
+  --destructive: var(--neg);
+  --destructive-foreground: #0B0B0C;
+  --border: var(--border-soft);
+  --input: var(--border-strong);
+  --ring: var(--accent);
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent-color);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Hawa-specific colors */
+  --color-brand: var(--accent);
+  --color-brand-hover: var(--accent-hover);
+  --color-pos: var(--pos);
+  --color-pos-bg: var(--pos-bg);
+  --color-pos-text: var(--pos-text);
+  --color-neu: var(--neu);
+  --color-neu-bg: var(--neu-bg);
+  --color-neu-text: var(--neu-text);
+  --color-neg: var(--neg);
+  --color-neg-bg: var(--neg-bg);
+  --color-neg-text: var(--neg-text);
+  --color-surface: var(--surface);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-border-strong: var(--border-strong);
+
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: var(--radius-sm);
+  --radius: var(--radius);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  margin: 0;
+/* Compat shim for not-yet-reskinned pages — maps old --color-* tokens to identity. */
+:root,
+.dark {
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-light: var(--accent-light);
+  --color-secondary: var(--accent);
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-text-primary: var(--text);
+  --color-text-secondary: var(--text-2);
+  --color-text-muted: var(--text-3);
+  --color-border: var(--border-soft);
+  --color-muted-bg: var(--bg-2);
+  --color-ring: var(--accent);
+  --color-success: var(--pos);
+  --color-success-bg: var(--pos-bg);
+  --color-warning: var(--neu);
+  --color-warning-bg: var(--neu-bg);
+  --color-error: var(--neg);
+  --color-error-bg: var(--neg-bg);
+  --color-error-border: var(--border-strong);
+  --color-info: var(--accent);
+  --color-info-bg: var(--accent-light);
 }
 
-a {
-  font-weight: 500;
-  color: var(--color-primary);
-  text-decoration: none;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    margin: 0;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
-a:hover {
-  color: var(--color-primary-hover);
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-ring);
-  outline-offset: 2px;
+@layer utilities {
+  .font-display { font-family: var(--font-display); }
+  .font-mono { font-family: var(--font-mono); }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+  }
 }

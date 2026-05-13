@@ -1,20 +1,24 @@
-import React from "react";
-import "./ErrorBanner.css";
+import { AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface ErrorBannerProps {
-  message: string;
-  onRetry?: () => void;
+  message: string
+  onRetry?: () => void
 }
 
 const ErrorBanner = ({ message, onRetry }: ErrorBannerProps): React.JSX.Element => (
-  <div className="ErrorBanner">
-    <p className="ErrorBanner-message">{message}</p>
+  <div
+    role="alert"
+    className="flex items-start gap-3 rounded-md border border-neg/30 bg-neg-bg px-4 py-3"
+  >
+    <AlertCircle className="mt-0.5 size-4 shrink-0 text-neg" />
+    <p className="flex-1 text-[13px] text-neg-text">{message}</p>
     {onRetry && (
-      <button className="ErrorBanner-retry" onClick={onRetry}>
+      <Button variant="ghost" size="sm" onClick={onRetry} className="text-neg-text hover:bg-neg/10">
         Retry
-      </button>
+      </Button>
     )}
   </div>
-);
+)
 
-export default ErrorBanner;
+export default ErrorBanner

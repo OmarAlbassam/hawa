@@ -1,106 +1,114 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { getBrand } from "../../services/brandService";
-import type { BrandDetailResponse } from "../../types/brand";
-import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
-import KeywordPanel from "./KeywordPanel";
-import { useBrandSelection } from "../../context/useBrandSelection";
-import { formatDate } from "../../utils/formatDate";
-import "./BrandDetail.css";
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { ArrowLeft, Play, FileBarChart } from 'lucide-react'
+import { getBrand } from '../../services/brandService'
+import type { BrandDetailResponse } from '../../types/brand'
+import ErrorBanner from '../../components/ErrorBanner/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton/PageSkeleton'
+import StatusIndicator from '../../components/StatusIndicator/StatusIndicator'
+import KeywordPanel from './KeywordPanel'
+import { useBrandSelection } from '../../context/useBrandSelection'
+import { formatDate } from '../../utils/formatDate'
+import { Button } from '@/components/ui/button'
 
 const BrandDetail = (): React.JSX.Element => {
-  const { brandId } = useParams<{ brandId: string }>();
-  const { setSelectedBrandId } = useBrandSelection();
-  const [brand, setBrand] = useState<BrandDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { brandId } = useParams<{ brandId: string }>()
+  const { setSelectedBrandId } = useBrandSelection()
+  const [brand, setBrand] = useState<BrandDetailResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const urlBrandId = brandId ? Number(brandId) : null;
+  const urlBrandId = brandId ? Number(brandId) : null
 
-  // URL is the source of truth on this page: when the route param changes
-  // (deep link, back/forward, BrandSelector navigation), push it to the navbar.
-  // The navbar -> URL direction is owned by BrandSelector itself, so there's
-  // no echo back here.
   useEffect(() => {
-    if (urlBrandId != null) setSelectedBrandId(urlBrandId);
-  }, [urlBrandId, setSelectedBrandId]);
+    if (urlBrandId != null) setSelectedBrandId(urlBrandId)
+  }, [urlBrandId, setSelectedBrandId])
 
   const loadData = useCallback(async () => {
-    if (!brandId) return;
-    setLoading(true);
-    setError(null);
+    if (!brandId) return
+    setLoading(true)
+    setError(null)
     try {
-      setBrand(await getBrand(Number(brandId)));
+      setBrand(await getBrand(Number(brandId)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [brandId]);
+  }, [brandId])
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData()
+  }, [loadData])
 
-  if (loading) {
-    return <div className="brand-detail-loading">Loading brand…</div>;
-  }
-
-  if (error) {
-    return <ErrorBanner message={error} onRetry={loadData} />;
-  }
-
-  if (!brand) return <></>;
+  if (loading) return <PageSkeleton />
+  if (error) return <ErrorBanner message={error} onRetry={loadData} />
+  if (!brand) return <></>
 
   return (
-    <div className="brand-detail">
-      <Link to="/brands" className="brand-detail-back">
-        <ArrowLeft size={16} />
-        Back to Brands
-      </Link>
+    <div className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+        <Link to="/brands">
+          <ArrowLeft />
+          Back to Brands
+        </Link>
+      </Button>
 
-      <div className="brand-detail-header">
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-border pb-6">
         <div>
-          <h1 className="brand-detail-name">{brand.brandName}</h1>
+          <span className="eyebrow">Brand</span>
+          <h1 className="mt-2 font-display text-[36px] font-semibold leading-none tracking-[-0.03em] text-foreground">
+            {brand.brandName}
+          </h1>
           {brand.industry && (
-            <span className="brand-detail-industry">{brand.industry}</span>
+            <p className="mt-2 text-[14px] text-muted-foreground">{brand.industry}</p>
           )}
         </div>
         {brand.statusIndicator != null && (
-          <div className="brand-detail-score">
-            <span className="brand-detail-score-value">
+          <div className="text-right">
+            <div className="font-display text-[44px] font-semibold leading-none tabular-nums tracking-[-0.04em] text-foreground">
               {brand.statusIndicator.toFixed(1)}
-            </span>
-            <span className="brand-detail-score-label">Health Score</span>
+            </div>
+            <div className="mt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-text-3">
+              Health Score
+            </div>
           </div>
         )}
-      </div>
+      </header>
 
-      <div className="brand-detail-meta">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-[11px] uppercase tracking-[0.06em] text-text-3">
         <span>Created {formatDate(brand.createdAt)}</span>
         <span>Updated {formatDate(brand.updatedAt)}</span>
       </div>
 
-      <section className="brand-detail-card">
-        <h2 className="brand-detail-section-title">Keywords</h2>
+      <StatusIndicator
+        source={{ kind: 'brand', brandId: brand.brandId }}
+        title="Brand health overview"
+      />
+
+      <section className="rounded-md border border-border bg-card p-6">
+        <h2 className="mb-4 font-display text-[16px] font-medium tracking-[-0.01em] text-foreground">
+          Keywords
+        </h2>
         <KeywordPanel brandId={brand.brandId} />
       </section>
 
-      <div className="brand-detail-actions">
-        <Link
-          to="/analyze"
-          state={{ preselectedBrandId: brand.brandId }}
-          className="brand-detail-analyze-btn"
-        >
-          Start Analysis
-        </Link>
-        <Link to="/reports" className="brand-detail-reports-btn">
-          View Reports
-        </Link>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild>
+          <Link to="/analyze" state={{ preselectedBrandId: brand.brandId }}>
+            <Play />
+            Start Analysis
+          </Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link to="/reports">
+            <FileBarChart />
+            View Reports
+          </Link>
+        </Button>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default BrandDetail;
+export default BrandDetail

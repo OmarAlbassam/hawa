@@ -1,122 +1,83 @@
-import { useEffect, useRef, useState } from "react";
-import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import { Check, ChevronDown, Tag } from "lucide-react";
-import { useBrandSelection } from "../../context/useBrandSelection";
-import "./BrandSelector.css";
+import { matchPath, useLocation, useNavigate } from 'react-router-dom'
+import { Check, ChevronDown, Tag } from 'lucide-react'
+import { useBrandSelection } from '../../context/useBrandSelection'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const BrandSelector = (): React.JSX.Element | null => {
-  const { brands, selectedBrand, setSelectedBrandId, loading } =
-    useBrandSelection();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const { brands, selectedBrand, setSelectedBrandId, loading } = useBrandSelection()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   if (loading && brands.length === 0) {
     return (
-      <div className="BrandSelector BrandSelector--static">
-        <Tag size={16} aria-hidden />
-        <span className="BrandSelector-label">Loading brands…</span>
+      <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-[13px] text-muted-foreground">
+        <Tag className="size-3.5 text-text-3" />
+        <span>Loading brands…</span>
       </div>
-    );
+    )
   }
 
-  if (brands.length === 0) return null;
+  if (brands.length === 0) return null
 
   if (brands.length === 1) {
     return (
-      <div className="BrandSelector BrandSelector--static">
-        <Tag size={16} aria-hidden />
-        <span className="BrandSelector-label">{brands[0].brandName}</span>
+      <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-[13px] text-foreground">
+        <Tag className="size-3.5 text-text-3" />
+        <span>{brands[0].brandName}</span>
       </div>
-    );
+    )
   }
 
   const handleSelect = (brandId: number) => {
-    setSelectedBrandId(brandId);
-    setOpen(false);
-    // Keep the URL in sync when the user is on a brand-scoped route.
-    if (matchPath("/brands/:brandId", location.pathname)) {
-      navigate(`/brands/${brandId}`, { replace: true });
+    setSelectedBrandId(brandId)
+    if (matchPath('/brands/:brandId', location.pathname)) {
+      navigate(`/brands/${brandId}`, { replace: true })
     }
-  };
+  }
 
   return (
-    <div className="BrandSelector" ref={containerRef}>
-      <button
-        type="button"
-        className="BrandSelector-trigger"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="Select brand"
-      >
-        <Tag size={16} aria-hidden />
-        <span className="BrandSelector-label">
-          {selectedBrand?.brandName ?? "Select a brand"}
-        </span>
-        <ChevronDown
-          size={16}
-          aria-hidden
-          className={`BrandSelector-chevron ${
-            open ? "BrandSelector-chevron--open" : ""
-          }`}
-        />
-      </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="secondary" className="gap-2">
+          <Tag className="size-3.5 text-text-3" />
+          <span>{selectedBrand?.brandName ?? 'Select a brand'}</span>
+          <ChevronDown className="size-3.5 text-text-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[240px]">
+        <DropdownMenuLabel>Brands</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {brands.map((brand) => {
+          const active = brand.brandId === selectedBrand?.brandId
+          return (
+            <DropdownMenuItem
+              key={brand.brandId}
+              onClick={() => handleSelect(brand.brandId)}
+              className="flex items-center justify-between"
+            >
+              <div className="flex flex-col">
+                <span className={active ? 'font-medium text-foreground' : 'text-foreground'}>
+                  {brand.brandName}
+                </span>
+                {brand.industry && (
+                  <span className="text-[11px] text-text-3">{brand.industry}</span>
+                )}
+              </div>
+              {active && <Check className="size-4 text-primary" />}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
-      {open && (
-        <ul className="BrandSelector-menu" role="listbox">
-          {brands.map((brand) => {
-            const active = brand.brandId === selectedBrand?.brandId;
-            return (
-              <li key={brand.brandId} role="none">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  className={`BrandSelector-option ${
-                    active ? "BrandSelector-option--active" : ""
-                  }`}
-                  onClick={() => handleSelect(brand.brandId)}
-                >
-                  <span className="BrandSelector-option-name">
-                    {brand.brandName}
-                  </span>
-                  {brand.industry && (
-                    <span className="BrandSelector-option-industry">
-                      {brand.industry}
-                    </span>
-                  )}
-                  {active && <Check size={14} aria-hidden />}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-};
-
-export default BrandSelector;
+export default BrandSelector

@@ -1,131 +1,42 @@
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
-import "./Modal.css";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 interface ModalProps {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  width?: "sm" | "md" | "lg";
+  open: boolean
+  onClose: () => void
+  title: string
+  children: React.ReactNode
+  width?: 'sm' | 'md' | 'lg'
 }
 
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const widthClass = {
+  sm: 'max-w-sm',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+} as const
 
-// Ref-counted body scroll lock so nested modals don't unlock the body when the
-// inner modal closes while the outer modal is still open.
-let openModalCount = 0;
-let savedBodyOverflow: string | null = null;
+const Modal = ({
+  open,
+  onClose,
+  title,
+  children,
+  width = 'md',
+}: ModalProps): React.JSX.Element => {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className={cn(widthClass[width])}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="text-[13px] text-foreground">{children}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-const lockBodyScroll = () => {
-  if (openModalCount === 0) {
-    savedBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-  openModalCount++;
-};
-
-const unlockBodyScroll = () => {
-  openModalCount = Math.max(0, openModalCount - 1);
-  if (openModalCount === 0) {
-    document.body.style.overflow = savedBodyOverflow ?? "";
-    savedBodyOverflow = null;
-  }
-};
-
-const Modal = ({ open, onClose, title, children, width = "md" }: ModalProps): React.JSX.Element | null => {
-  const titleId = useId();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-
-  useLayoutEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    if (!open) return;
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
-    const getFocusables = (): HTMLElement[] => {
-      if (!contentRef.current) return [];
-      return Array.from(contentRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement as HTMLElement | null;
-      const insideModal = !!active && !!contentRef.current?.contains(active);
-      if (!insideModal) return;
-
-      if (e.key === "Escape") {
-        onCloseRef.current();
-        return;
-      }
-      if (e.key !== "Tab" || !contentRef.current) return;
-
-      const focusables = getFocusables();
-      if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-
-      if (e.shiftKey) {
-        if (active === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (active === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    lockBodyScroll();
-
-    const rafId = requestAnimationFrame(() => {
-      const focusables = getFocusables();
-      const firstNonClose = focusables.find((el) => !el.classList.contains("modal-close"));
-      (firstNonClose ?? focusables[0])?.focus();
-    });
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      document.removeEventListener("keydown", handleKeyDown);
-      unlockBodyScroll();
-      previouslyFocused?.focus?.();
-    };
-  }, [open]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={contentRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={`modal-content modal-content--${width}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h2 id={titleId} className="modal-title">{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
-      </div>
-    </div>,
-    document.body
-  );
-};
-
-export default Modal;
+export default Modal

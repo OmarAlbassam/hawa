@@ -1,99 +1,147 @@
-import { useState, useRef, useEffect } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Users, BarChart3, MessageSquareWarning, Building2, Tag, LogOut, Menu, X } from "lucide-react";
-import { useAuth } from "../../context/useAuth";
-import { logout } from "../../services/authService";
-import hawaLogo from "../../assets/hawa-logo-cropped.png";
-import "./AdminLayout.css";
+import { useState } from 'react'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import {
+  Users,
+  BarChart3,
+  MessageSquareWarning,
+  Building2,
+  Tag,
+  LogOut,
+  Menu,
+  X,
+} from 'lucide-react'
+import { useAuth } from '../../context/useAuth'
+import { logout } from '../../services/authService'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { HawaLogo } from '@/components/brand/hawa-mark'
 
 const navItems = [
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/companies", label: "Companies", icon: Building2 },
-  { to: "/admin/brands", label: "Brands", icon: Tag },
-  { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/admin/reviews", label: "Reported Reviews", icon: MessageSquareWarning },
-];
+  { to: '/admin/users', label: 'Users', icon: Users },
+  { to: '/admin/companies', label: 'Companies', icon: Building2 },
+  { to: '/admin/brands', label: 'Brands', icon: Tag },
+  { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/admin/reviews', label: 'Reported Reviews', icon: MessageSquareWarning },
+]
 
 const AdminLayout = (): React.JSX.Element => {
-  const { user, refreshToken, clearAuth } = useAuth();
-  const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const topbarRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const el = topbarRef.current;
-    if (!el) return;
-    const update = () => {
-      document.documentElement.style.setProperty("--topbar-height", `${el.offsetHeight}px`);
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    update();
-    return () => observer.disconnect();
-  }, []);
+  const { user, refreshToken, clearAuth } = useAuth()
+  const navigate = useNavigate()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = async () => {
     try {
-      if (refreshToken) await logout(refreshToken);
+      if (refreshToken) await logout(refreshToken)
     } finally {
-      clearAuth();
-      navigate("/login", { replace: true });
+      clearAuth()
+      navigate('/login', { replace: true })
     }
-  };
+  }
 
   return (
-    <div className="admin-layout">
-      <header className="admin-topbar" ref={topbarRef}>
-        <button
-          className="admin-topbar-toggle"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-label="Toggle sidebar"
-        >
-          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-        <img src={hawaLogo} alt="Hawa" width="768" height="450" className="admin-topbar-logo" />
-        <div className="admin-topbar-user">
-          <span className="admin-topbar-name">
-            {user?.firstName} {user?.lastName}
-          </span>
-          <span className="admin-topbar-role">Admin</span>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Topbar */}
+      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex h-full items-center gap-3 px-4 lg:px-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label="Toggle sidebar"
+          >
+            {sidebarOpen ? <X /> : <Menu />}
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <HawaLogo />
+            <span className="h-4 w-px bg-border-strong" />
+            <span className="eyebrow">Admin</span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <div className="text-[13px] font-medium text-foreground">
+                {user?.firstName} {user?.lastName}
+              </div>
+              <div className="text-[11px] font-mono uppercase tracking-[0.1em] text-text-3">
+                Admin
+              </div>
+            </div>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
-      <aside className={`admin-sidebar ${sidebarOpen ? "admin-sidebar--open" : ""}`}>
-        <nav className="admin-sidebar-nav">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`
-              }
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Icon size={20} />
-              <span className="admin-nav-label">{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <button className="admin-nav-item admin-logout-btn" onClick={handleLogout}>
-          <LogOut size={20} />
-          <span className="admin-nav-label">Logout</span>
-        </button>
-      </aside>
+      <div className="flex">
+        {/* Sidebar */}
+        <aside
+          className={cn(
+            'fixed inset-y-14 left-0 z-20 w-[220px] shrink-0 border-r border-border bg-muted/60 transition-transform',
+            'lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:translate-x-0',
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          )}
+        >
+          <div className="flex h-full flex-col p-4">
+            <div className="px-2 pb-3 pt-1">
+              <span className="eyebrow">Workspace</span>
+            </div>
 
-      {sidebarOpen && (
-        <div
-          className="admin-sidebar-backdrop"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+            <nav className="flex flex-col gap-0.5">
+              {navItems.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex h-8 items-center gap-2.5 rounded-sm px-2 text-[13px] transition-colors',
+                      isActive
+                        ? 'border border-border bg-card font-medium text-foreground [&_svg]:text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:text-text-3',
+                    )
+                  }
+                >
+                  <Icon className="size-3.5" />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
 
-      <main className="admin-content">
-        <Outlet />
-      </main>
+            <div className="mt-auto">
+              <Separator className="my-3" />
+              <button
+                onClick={handleLogout}
+                className="flex h-8 w-full items-center gap-2.5 rounded-sm px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <LogOut className="size-3.5 text-text-3" />
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Backdrop (mobile) */}
+        {sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 top-14 z-10 bg-black/30 backdrop-blur-sm lg:hidden"
+          />
+        )}
+
+        {/* Main */}
+        <main className="min-w-0 flex-1">
+          <div className="px-4 py-6 lg:px-8 lg:py-8">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
-  );
-};
+  )
+}
 
-export default AdminLayout;
+export default AdminLayout

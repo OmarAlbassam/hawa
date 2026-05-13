@@ -1,267 +1,288 @@
-import { useState, useEffect, useRef } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useAuth } from "../../../context/useAuth";
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useAuth } from '../../../context/useAuth'
 import {
   getUsers,
   createUser,
   updateUser,
   deleteUser,
   getCompanies,
-} from "../../../services/adminService";
+} from '../../../services/adminService'
 import type {
   Page,
   AdminUserResponse,
   CreateUserRequest,
   UpdateUserRequest,
   CompanyResponse,
-} from "../../../types/admin";
-import { useDebounce } from "../../../hooks/useDebounce";
-import { formatDate } from "../../../utils/formatDate";
-import DataTable from "../../../components/DataTable/DataTable";
-import type { Column } from "../../../components/DataTable/DataTable";
-import Badge from "../../../components/Badge/Badge";
-import Modal from "../../../components/Modal/Modal";
-import ConfirmDialog from "../../../components/ConfirmDialog/ConfirmDialog";
-import ErrorBanner from "../../../components/ErrorBanner/ErrorBanner";
-import "./UserManagement.css";
+} from '../../../types/admin'
+import { useDebounce } from '../../../hooks/useDebounce'
+import { formatDate } from '../../../utils/formatDate'
+import DataTable from '../../../components/DataTable/DataTable'
+import type { Column } from '../../../components/DataTable/DataTable'
+import Badge from '../../../components/Badge/Badge'
+import Modal from '../../../components/Modal/Modal'
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog'
+import ErrorBanner from '../../../components/ErrorBanner/ErrorBanner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
-type ModalMode = "create" | "edit" | null;
+type ModalMode = 'create' | 'edit' | null
+
+const selectClass =
+  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
 
 const UserManagement = (): React.JSX.Element => {
-  const { accessToken, user: currentUser } = useAuth();
+  const { accessToken, user: currentUser } = useAuth()
 
-  // List state
-  const [data, setData] = useState<Page<AdminUserResponse> | null>(null);
-  const [page, setPage] = useState(0);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"" | "ADMIN" | "MARKETING_USER">("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [data, setData] = useState<Page<AdminUserResponse> | null>(null)
+  const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState<'' | 'ADMIN' | 'MARKETING_USER'>('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Companies for dropdowns
-  const [companies, setCompanies] = useState<CompanyResponse[]>([]);
+  const [companies, setCompanies] = useState<CompanyResponse[]>([])
 
-  // Modal state
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [editingUser, setEditingUser] = useState<AdminUserResponse | null>(null);
-  const [formRole, setFormRole] = useState<"ADMIN" | "MARKETING_USER">("MARKETING_USER");
-  const [formError, setFormError] = useState("");
-  const [formLoading, setFormLoading] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>(null)
+  const [editingUser, setEditingUser] = useState<AdminUserResponse | null>(null)
+  const [formRole, setFormRole] = useState<'ADMIN' | 'MARKETING_USER'>('MARKETING_USER')
+  const [formError, setFormError] = useState('')
+  const [formLoading, setFormLoading] = useState(false)
 
-  // Delete state
-  const [deletingUser, setDeletingUser] = useState<AdminUserResponse | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<AdminUserResponse | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const debouncedSearch = useDebounce(search, 300);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const prevFiltersRef = useRef({ search: debouncedSearch, role: roleFilter });
+  const debouncedSearch = useDebounce(search, 300)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const prevFiltersRef = useRef({ search: debouncedSearch, role: roleFilter })
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken) return
 
     const filtersChanged =
       prevFiltersRef.current.search !== debouncedSearch ||
-      prevFiltersRef.current.role !== roleFilter;
-    prevFiltersRef.current = { search: debouncedSearch, role: roleFilter };
+      prevFiltersRef.current.role !== roleFilter
+    prevFiltersRef.current = { search: debouncedSearch, role: roleFilter }
 
     if (filtersChanged && page !== 0) {
-      setPage(0);
-      return;
+      setPage(0)
+      return
     }
 
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
     getUsers(accessToken, {
       search: debouncedSearch || undefined,
       role: roleFilter || undefined,
       page,
       size: 20,
-      sort: "createdAt,desc",
+      sort: 'createdAt,desc',
     })
       .then(setData)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load users")
-      )
-      .finally(() => setLoading(false));
-  }, [accessToken, debouncedSearch, roleFilter, page, refreshKey]);
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load users'))
+      .finally(() => setLoading(false))
+  }, [accessToken, debouncedSearch, roleFilter, page, refreshKey])
 
   const loadCompanies = () => {
-    if (!accessToken || companies.length > 0) return;
+    if (!accessToken || companies.length > 0) return
     getCompanies(accessToken, 0, 1000)
       .then((res) => setCompanies(res.content))
-      .catch(() => {});
-  };
+      .catch(() => {})
+  }
 
-  // Form submit
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!accessToken) return;
+    e.preventDefault()
+    if (!accessToken) return
 
-    const formData = new FormData(e.currentTarget);
-    setFormError("");
+    const formData = new FormData(e.currentTarget)
+    setFormError('')
 
-    const role = formRole;
-    const companyIdRaw = formData.get("companyId");
+    const role = formRole
+    const companyIdRaw = formData.get('companyId')
     const companyId =
-      role === "ADMIN"
-        ? null
-        : companyIdRaw
-          ? Number(companyIdRaw)
-          : null;
+      role === 'ADMIN' ? null : companyIdRaw ? Number(companyIdRaw) : null
 
-    if (role !== "ADMIN" && companyId === null) {
-      setFormError("Company is required for marketing users");
-      return;
+    if (role !== 'ADMIN' && companyId === null) {
+      setFormError('Company is required for marketing users')
+      return
     }
 
-    setFormLoading(true);
-
-    try {
-      if (modalMode === "create") {
-        const payload: CreateUserRequest = {
-          firstName: formData.get("firstName") as string,
-          lastName: formData.get("lastName") as string,
-          email: formData.get("email") as string,
-          password: formData.get("password") as string,
-          role,
-          companyId,
-        };
-        await createUser(accessToken, payload);
-      } else if (modalMode === "edit" && editingUser) {
-        const payload: UpdateUserRequest = {
-          firstName: formData.get("firstName") as string,
-          lastName: formData.get("lastName") as string,
-          email: formData.get("email") as string,
-          role,
-          companyId,
-        };
-        await updateUser(accessToken, editingUser.userId, payload);
+    if (modalMode === 'create') {
+      const password = (formData.get('password') as string) ?? ''
+      if (password.length < 8) {
+        setFormError('Password must be at least 8 characters.')
+        return
       }
-      setModalMode(null);
-      setEditingUser(null);
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Operation failed");
-    } finally {
-      setFormLoading(false);
     }
-  };
 
-  // Delete
-  const handleDelete = async () => {
-    if (!accessToken || !deletingUser) return;
-    setDeleteLoading(true);
+    setFormLoading(true)
     try {
-      await deleteUser(accessToken, deletingUser.userId);
-      setDeletingUser(null);
-      setRefreshKey((k) => k + 1);
+      if (modalMode === 'create') {
+        const payload: CreateUserRequest = {
+          firstName: formData.get('firstName') as string,
+          lastName: formData.get('lastName') as string,
+          email: formData.get('email') as string,
+          password: formData.get('password') as string,
+          role,
+          companyId,
+        }
+        await createUser(accessToken, payload)
+      } else if (modalMode === 'edit' && editingUser) {
+        const payload: UpdateUserRequest = {
+          firstName: formData.get('firstName') as string,
+          lastName: formData.get('lastName') as string,
+          email: formData.get('email') as string,
+          role,
+          companyId,
+        }
+        await updateUser(accessToken, editingUser.userId, payload)
+      }
+      setModalMode(null)
+      setEditingUser(null)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete user");
-      setDeletingUser(null);
+      setFormError(err instanceof Error ? err.message : 'Operation failed')
     } finally {
-      setDeleteLoading(false);
+      setFormLoading(false)
     }
-  };
+  }
+
+  const handleDelete = async () => {
+    if (!accessToken || !deletingUser) return
+    setDeleteLoading(true)
+    try {
+      await deleteUser(accessToken, deletingUser.userId)
+      setDeletingUser(null)
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user')
+      setDeletingUser(null)
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   const openEdit = (user: AdminUserResponse) => {
-    loadCompanies();
-    setEditingUser(user);
-    setFormRole(user.role);
-    setModalMode("edit");
-    setFormError("");
-  };
+    loadCompanies()
+    setEditingUser(user)
+    setFormRole(user.role)
+    setModalMode('edit')
+    setFormError('')
+  }
 
   const openCreate = () => {
-    loadCompanies();
-    setEditingUser(null);
-    setFormRole("MARKETING_USER");
-    setModalMode("create");
-    setFormError("");
-  };
+    loadCompanies()
+    setEditingUser(null)
+    setFormRole('MARKETING_USER')
+    setModalMode('create')
+    setFormError('')
+  }
 
   const columns: Column<AdminUserResponse>[] = [
     {
-      key: "name",
-      header: "Name",
-      render: (row) => `${row.firstName} ${row.lastName}`,
-    },
-    { key: "email", header: "Email" },
-    {
-      key: "role",
-      header: "Role",
+      key: 'name',
+      header: 'Name',
       render: (row) => (
-        <Badge variant={row.role === "ADMIN" ? "primary" : "default"}>
-          {row.role === "ADMIN" ? "Admin" : "Marketing"}
+        <span className="font-medium text-foreground">
+          {row.firstName} {row.lastName}
+        </span>
+      ),
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      render: (row) => <span className="text-muted-foreground">{row.email}</span>,
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      render: (row) => (
+        <Badge variant={row.role === 'ADMIN' ? 'primary' : 'default'}>
+          {row.role === 'ADMIN' ? 'Admin' : 'Marketing'}
         </Badge>
       ),
     },
     {
-      key: "company",
-      header: "Company",
+      key: 'company',
+      header: 'Company',
       render: (row) =>
         row.company?.companyName ??
-        (row.role === "ADMIN" ? (
-          <span className="users-platform-label">Platform</span>
+        (row.role === 'ADMIN' ? (
+          <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-3">
+            Platform
+          </span>
         ) : (
-          "—"
+          '—'
         )),
     },
     {
-      key: "createdAt",
-      header: "Created",
-      render: (row) => formatDate(row.createdAt),
+      key: 'createdAt',
+      header: 'Created',
+      render: (row) => (
+        <span className="text-muted-foreground">{formatDate(row.createdAt)}</span>
+      ),
     },
     {
-      key: "actions",
-      header: "",
+      key: 'actions',
+      header: '',
       render: (row) => (
-        <div className="users-actions">
-          <button
-            className="users-action-btn"
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={() => openEdit(row)}
             aria-label="Edit user"
           >
-            <Pencil size={16} />
-          </button>
+            <Pencil className="size-3.5" />
+          </Button>
           {row.userId !== currentUser?.userId && (
-            <button
-              className="users-action-btn users-action-btn--danger"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-neg hover:bg-neg-bg"
               onClick={() => setDeletingUser(row)}
               aria-label="Delete user"
             >
-              <Trash2 size={16} />
-            </button>
+              <Trash2 className="size-3.5" />
+            </Button>
           )}
         </div>
       ),
     },
-  ];
+  ]
 
   return (
-    <div className="users-page">
-      <div className="users-header">
-        <h1 className="users-title">User Management</h1>
-        <button className="users-create-btn" onClick={openCreate}>
-          <Plus size={18} />
+    <div className="space-y-6">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <span className="eyebrow">Admin · Users</span>
+          <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.025em] text-foreground">
+            User Management
+          </h1>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus />
           Create User
-        </button>
+        </Button>
       </div>
 
       {error && <ErrorBanner message={error} onRetry={() => setRefreshKey((k) => k + 1)} />}
 
-      <div className="users-filters">
-        <input
-          className="users-search"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          className="sm:max-w-md"
         />
         <select
-          className="users-role-filter"
+          className={`${selectClass} sm:w-56`}
           value={roleFilter}
           onChange={(e) =>
-            setRoleFilter(e.target.value as "" | "ADMIN" | "MARKETING_USER")
+            setRoleFilter(e.target.value as '' | 'ADMIN' | 'MARKETING_USER')
           }
         >
           <option value="">All Roles</option>
@@ -282,93 +303,92 @@ const UserManagement = (): React.JSX.Element => {
         emptyMessage="No users found"
       />
 
-      {/* Create / Edit Modal */}
       <Modal
         open={modalMode !== null}
         onClose={() => {
-          setModalMode(null);
-          setEditingUser(null);
+          setModalMode(null)
+          setEditingUser(null)
         }}
-        title={modalMode === "create" ? "Create User" : "Edit User"}
+        title={modalMode === 'create' ? 'Create User' : 'Edit User'}
       >
-        <form className="users-form" onSubmit={handleFormSubmit}>
+        <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
           {formError && (
-            <div className="users-form-error">{formError}</div>
+            <div
+              role="alert"
+              className="rounded-md border border-neg/30 bg-neg-bg px-3 py-2 text-[12px] text-neg-text"
+            >
+              {formError}
+            </div>
           )}
-          <div className="users-form-row">
-            <label className="users-form-field">
-              <span className="users-form-label">First Name</span>
-              <input
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="firstName">First name</Label>
+              <Input
+                id="firstName"
                 name="firstName"
                 type="text"
-                className="users-form-input"
-                defaultValue={editingUser?.firstName ?? ""}
+                defaultValue={editingUser?.firstName ?? ''}
                 required
               />
-            </label>
-            <label className="users-form-field">
-              <span className="users-form-label">Last Name</span>
-              <input
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lastName">Last name</Label>
+              <Input
+                id="lastName"
                 name="lastName"
                 type="text"
-                className="users-form-input"
-                defaultValue={editingUser?.lastName ?? ""}
+                defaultValue={editingUser?.lastName ?? ''}
                 required
               />
-            </label>
+            </div>
           </div>
-          <label className="users-form-field">
-            <span className="users-form-label">Email</span>
-            <input
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
               name="email"
               type="email"
-              className="users-form-input"
-              defaultValue={editingUser?.email ?? ""}
+              defaultValue={editingUser?.email ?? ''}
               required
             />
-          </label>
-          {modalMode === "create" && (
-            <label className="users-form-field">
-              <span className="users-form-label">Password</span>
-              <input
-                name="password"
-                type="password"
-                className="users-form-input"
-                minLength={8}
-                required
-              />
-            </label>
+          </div>
+          {modalMode === 'create' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" name="password" type="password" />
+              <p className="text-[11px] text-text-3">At least 8 characters.</p>
+            </div>
           )}
-          <div className="users-form-row">
-            <label className="users-form-field">
-              <span className="users-form-label">Role</span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="role">Role</Label>
               <select
+                id="role"
                 name="role"
-                className="users-form-input"
+                className={selectClass}
                 value={formRole}
-                onChange={(e) =>
-                  setFormRole(e.target.value as "ADMIN" | "MARKETING_USER")
-                }
+                onChange={(e) => setFormRole(e.target.value as 'ADMIN' | 'MARKETING_USER')}
                 required
               >
                 <option value="MARKETING_USER">Marketing User</option>
                 <option value="ADMIN">Admin</option>
               </select>
-            </label>
-            {formRole === "ADMIN" ? (
-              <div className="users-form-field users-form-admin-note">
-                <span className="users-form-label">Company</span>
-                <span className="users-form-static">
+            </div>
+            {formRole === 'ADMIN' ? (
+              <div className="space-y-1.5">
+                <Label>Company</Label>
+                <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">
                   Platform admin — no company
-                </span>
+                </div>
               </div>
             ) : (
-              <label className="users-form-field">
-                <span className="users-form-label">Company</span>
+              <div className="space-y-1.5">
+                <Label htmlFor="companyId">Company</Label>
                 <select
+                  id="companyId"
                   name="companyId"
-                  className="users-form-input"
-                  defaultValue={editingUser?.company?.companyId ?? ""}
+                  className={selectClass}
+                  defaultValue={editingUser?.company?.companyId ?? ''}
                   required
                 >
                   <option value="">Select company</option>
@@ -378,37 +398,33 @@ const UserManagement = (): React.JSX.Element => {
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
             )}
           </div>
-          <div className="users-form-actions">
-            <button
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
               type="button"
-              className="users-form-cancel"
+              variant="secondary"
               onClick={() => {
-                setModalMode(null);
-                setEditingUser(null);
+                setModalMode(null)
+                setEditingUser(null)
               }}
               disabled={formLoading}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="users-form-submit"
-              disabled={formLoading}
-            >
+            </Button>
+            <Button type="submit" disabled={formLoading}>
+              {formLoading && <Loader2 className="size-4 animate-spin" />}
               {formLoading
-                ? "..."
-                : modalMode === "create"
-                  ? "Create"
-                  : "Save Changes"}
-            </button>
+                ? 'Working…'
+                : modalMode === 'create'
+                  ? 'Create'
+                  : 'Save changes'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         open={deletingUser !== null}
         onClose={() => setDeletingUser(null)}
@@ -420,7 +436,7 @@ const UserManagement = (): React.JSX.Element => {
         loading={deleteLoading}
       />
     </div>
-  );
-};
+  )
+}
 
-export default UserManagement;
+export default UserManagement

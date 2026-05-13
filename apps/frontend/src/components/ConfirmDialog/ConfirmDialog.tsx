@@ -1,15 +1,16 @@
-import Modal from "../Modal/Modal";
-import "./ConfirmDialog.css";
+import { Loader2 } from 'lucide-react'
+import Modal from '../Modal/Modal'
+import { Button } from '@/components/ui/button'
 
 interface ConfirmDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  variant?: "primary" | "destructive";
-  loading?: boolean;
+  open: boolean
+  onClose: () => void
+  onConfirm: () => void
+  title: string
+  message: string
+  confirmLabel?: string
+  variant?: 'primary' | 'destructive'
+  loading?: boolean
 }
 
 const ConfirmDialog = ({
@@ -18,31 +19,28 @@ const ConfirmDialog = ({
   onConfirm,
   title,
   message,
-  confirmLabel = "Confirm",
-  variant = "primary",
+  confirmLabel = 'Confirm',
+  variant = 'primary',
   loading = false,
 }: ConfirmDialogProps): React.JSX.Element => {
   return (
     <Modal open={open} onClose={onClose} title={title} width="sm">
-      <p className="confirm-dialog-message">{message}</p>
-      <div className="confirm-dialog-actions">
-        <button
-          className="confirm-dialog-cancel"
-          onClick={onClose}
-          disabled={loading}
-        >
+      <p className="text-[13px] text-muted-foreground">{message}</p>
+      <div className="mt-6 flex items-center justify-end gap-2">
+        <Button variant="secondary" onClick={onClose} disabled={loading}>
           Cancel
-        </button>
-        <button
-          className={`confirm-dialog-confirm confirm-dialog-confirm--${variant}`}
+        </Button>
+        <Button
+          variant={variant === 'destructive' ? 'destructive' : 'default'}
           onClick={onConfirm}
           disabled={loading}
         >
-          {loading ? "..." : confirmLabel}
-        </button>
+          {loading && <Loader2 className="size-4 animate-spin" />}
+          {loading ? 'Working…' : confirmLabel}
+        </Button>
       </div>
     </Modal>
-  );
-};
+  )
+}
 
-export default ConfirmDialog;
+export default ConfirmDialog
