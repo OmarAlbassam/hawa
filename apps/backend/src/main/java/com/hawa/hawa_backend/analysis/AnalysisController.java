@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.hawa.hawa_backend.analysis.dto.PasteDatasetRequest;
 import com.hawa.hawa_backend.analysis.dto.ReportStatusResponse;
 import com.hawa.hawa_backend.analysis.dto.StartAnalysisRequest;
 import com.hawa.hawa_backend.dataset.DatasetCsvParser;
@@ -53,6 +54,20 @@ public class AnalysisController {
         List<ParsedPost> parsed = datasetCsvParser.parse(file);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(analysisService.startAnalysisFromCsv(brandId, parsed, dateFrom, dateTo));
+    }
+
+    @PostMapping("/brands/{brandId}/reports/paste")
+    public ResponseEntity<ReportResponse> startAnalysisFromPaste(
+            @PathVariable Long brandId,
+            @Valid @RequestBody PasteDatasetRequest request) {
+        List<ParsedPost> parsed = datasetCsvParser.parsePasted(
+                request.rawText(),
+                request.textColumn(),
+                request.urlColumn(),
+                request.languageColumn());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(analysisService.startAnalysisFromCsv(
+                        brandId, parsed, request.dateFrom(), request.dateTo()));
     }
 
     @GetMapping("/reports/{reportId}/status")

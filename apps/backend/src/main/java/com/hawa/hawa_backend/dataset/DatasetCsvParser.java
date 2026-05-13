@@ -3,6 +3,7 @@ package com.hawa.hawa_backend.dataset;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,20 +60,57 @@ public class DatasetCsvParser {
             throw new DatasetValidationException(errors);
         }
 
-        CSVFormat format = CSVFormat.DEFAULT.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setIgnoreEmptyLines(true)
-                .setTrim(true)
-                .setIgnoreHeaderCase(true)
-                .build();
+        CSVFormat format = baseFormat().build();
 
+        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
+            return parseFromReader(reader, format, ColumnMapping.fixed(), "File", errors);
+        } catch (IOException ex) {
+            errors.add(new DatasetValidationError(
+                    "MALFORMED_CSV",
+                    null,
+                    "Failed to read CSV: " + ex.getMessage()));
+            throw new DatasetValidationException(errors);
+        }
+    }
+
+    public List<ParsedPost> parsePasted(
+            String rawText, String textColumn, String urlColumn, String languageColumn) {
+        List<DatasetValidationError> errors = new ArrayList<>();
+
+        if (rawText == null || rawText.isBlank()) {
+            errors.add(new DatasetValidationError("EMPTY_FILE", null, "Pasted content is empty"));
+            throw new DatasetValidationException(errors);
+        }
+
+        char delimiter = detectDelimiter(rawText);
+        CSVFormat format = baseFormat().setDelimiter(delimiter).build();
+
+        ColumnMapping mapping = ColumnMapping.mapped(textColumn, urlColumn, languageColumn);
+
+        try (Reader reader = new StringReader(rawText)) {
+            return parseFromReader(reader, format, mapping, "Pasted data", errors);
+        } catch (IOException ex) {
+            errors.add(new DatasetValidationError(
+                    "MALFORMED_CSV", null, "Failed to parse pasted content: " + ex.getMessage()));
+            throw new DatasetValidationException(errors);
+        }
+    }
+
+    private List<ParsedPost> parseFromReader(
+            Reader reader,
+            CSVFormat format,
+            ColumnMapping mapping,
+            String sourceLabel,
+            List<DatasetValidationError> errors) {
         List<ParsedPost> parsed = new ArrayList<>();
-        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8);
-             CSVParser csvParser = CSVParser.parse(reader, format)) {
-
+        try (CSVParser csvParser = CSVParser.parse(reader, format)) {
             List<String> headers = normalizeHeaders(csvParser.getHeaderNames());
-            validateHeaders(headers, errors);
+
+            if (mapping.isFixed()) {
+                validateHeaders(headers, errors);
+            } else {
+                validateMappedHeaders(headers, mapping, errors);
+            }
             if (!errors.isEmpty()) {
                 throw new DatasetValidationException(errors);
             }
@@ -84,21 +122,20 @@ public class DatasetCsvParser {
                 rowCount++;
                 if (rowCount > maxRows) {
                     errors.add(new DatasetValidationError(
-                            "TOO_MANY_ROWS",
-                            null,
-                            "File has more than " + maxRows + " rows (max allowed)"));
+                            "TOO_MANY_ROWS", null,
+                            sourceLabel + " has more than " + maxRows + " rows (max allowed)"));
                     break;
                 }
 
-                String text = readColumn(record, COL_TEXT);
-                String url = readColumn(record, COL_URL);
-                String languageRaw = readColumn(record, COL_LANGUAGE);
+                String text = readMappedColumn(record, mapping.textHeader());
+                String url = mapping.urlHeader() != null ? readMappedColumn(record, mapping.urlHeader()) : null;
+                String languageRaw = mapping.languageHeader() != null
+                        ? readMappedColumn(record, mapping.languageHeader())
+                        : null;
 
                 if (text == null || text.isBlank()) {
                     errors.add(new DatasetValidationError(
-                            "EMPTY_ROW",
-                            COL_TEXT,
-                            "Row " + rowCount + " has empty text"));
+                            "EMPTY_ROW", COL_TEXT, "Row " + rowCount + " has empty text"));
                     continue;
                 }
 
@@ -111,21 +148,15 @@ public class DatasetCsvParser {
 
             if (rowCount == 0) {
                 errors.add(new DatasetValidationError(
-                        "NO_DATA_ROWS",
-                        null,
-                        "File has no data rows"));
+                        "NO_DATA_ROWS", null, sourceLabel + " has no data rows"));
             }
         } catch (IOException ex) {
             errors.add(new DatasetValidationError(
-                    "MALFORMED_CSV",
-                    null,
-                    "Failed to read CSV: " + ex.getMessage()));
+                    "MALFORMED_CSV", null, "Failed to read CSV: " + ex.getMessage()));
             throw new DatasetValidationException(errors);
         } catch (IllegalArgumentException ex) {
             errors.add(new DatasetValidationError(
-                    "MALFORMED_CSV",
-                    null,
-                    "Malformed CSV: " + ex.getMessage()));
+                    "MALFORMED_CSV", null, "Malformed CSV: " + ex.getMessage()));
             throw new DatasetValidationException(errors);
         }
 
@@ -133,6 +164,75 @@ public class DatasetCsvParser {
             throw new DatasetValidationException(errors);
         }
         return parsed;
+    }
+
+    private static CSVFormat.Builder baseFormat() {
+        return CSVFormat.DEFAULT.builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .setIgnoreEmptyLines(true)
+                .setTrim(true)
+                .setIgnoreHeaderCase(true);
+    }
+
+    /**
+     * Detects ',' vs '\t' delimiter from the first line. Must stay in sync with
+     * the frontend heuristic in {@code apps/frontend/src/pages/Analysis/StartAnalysis.tsx}
+     * so the client preview matches what this parser produces.
+     */
+    static char detectDelimiter(String text) {
+        String firstLine = text.indexOf('\n') >= 0
+                ? text.substring(0, text.indexOf('\n'))
+                : text;
+        long tabs = firstLine.chars().filter(c -> c == '\t').count();
+        long commas = firstLine.chars().filter(c -> c == ',').count();
+        return tabs >= commas ? '\t' : ',';
+    }
+
+    private record ColumnMapping(String textHeader, String urlHeader, String languageHeader,
+                                 String rawText, String rawUrl, String rawLang) {
+        static ColumnMapping fixed() {
+            return new ColumnMapping(COL_TEXT, COL_URL, COL_LANGUAGE, COL_TEXT, COL_URL, COL_LANGUAGE);
+        }
+
+        static ColumnMapping mapped(String textColumn, String urlColumn, String languageColumn) {
+            String t = textColumn.trim().toLowerCase(Locale.ROOT);
+            String u = urlColumn != null ? urlColumn.trim().toLowerCase(Locale.ROOT) : null;
+            String l = languageColumn != null ? languageColumn.trim().toLowerCase(Locale.ROOT) : null;
+            return new ColumnMapping(t, u, l, textColumn, urlColumn, languageColumn);
+        }
+
+        boolean isFixed() {
+            return COL_TEXT.equals(textHeader) && COL_URL.equals(urlHeader) && COL_LANGUAGE.equals(languageHeader)
+                    && COL_TEXT.equals(rawText);
+        }
+    }
+
+    private static void validateMappedHeaders(
+            List<String> headers, ColumnMapping mapping, List<DatasetValidationError> errors) {
+        if (!headers.contains(mapping.textHeader())) {
+            errors.add(new DatasetValidationError(
+                    "MISSING_COLUMN", COL_TEXT,
+                    "Column '" + mapping.rawText() + "' not found in pasted data"));
+        }
+        if (mapping.urlHeader() != null && !headers.contains(mapping.urlHeader())) {
+            errors.add(new DatasetValidationError(
+                    "MISSING_COLUMN", COL_URL,
+                    "Column '" + mapping.rawUrl() + "' not found in pasted data"));
+        }
+        if (mapping.languageHeader() != null && !headers.contains(mapping.languageHeader())) {
+            errors.add(new DatasetValidationError(
+                    "MISSING_COLUMN", COL_LANGUAGE,
+                    "Column '" + mapping.rawLang() + "' not found in pasted data"));
+        }
+    }
+
+    private static String readMappedColumn(CSVRecord record, String normalizedHeader) {
+        if (!record.isMapped(normalizedHeader)) {
+            return null;
+        }
+        String v = record.get(normalizedHeader);
+        return v == null ? null : v.trim();
     }
 
     private static List<String> normalizeHeaders(List<String> raw) {
@@ -168,14 +268,6 @@ public class DatasetCsvParser {
                         "Duplicate column '" + h + "'"));
             }
         }
-    }
-
-    private static String readColumn(CSVRecord record, String name) {
-        if (!record.isMapped(name)) {
-            return null;
-        }
-        String v = record.get(name);
-        return v == null ? null : v.trim();
     }
 
     private static LanguageEnum resolveLanguage(
