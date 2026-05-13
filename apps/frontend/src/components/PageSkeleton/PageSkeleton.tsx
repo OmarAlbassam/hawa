@@ -1,18 +1,18 @@
-import "./PageSkeleton.css";
+import { Skeleton } from '@/components/ui/skeleton'
 
 const PageSkeleton = (): React.JSX.Element => {
   return (
-    <div className="page-skeleton" role="status" aria-busy="true" aria-label="Loading page">
-      <div className="page-skeleton-block page-skeleton-block--title" />
-      <div className="page-skeleton-block page-skeleton-block--subtitle" />
-      <div className="page-skeleton-grid">
-        <div className="page-skeleton-block page-skeleton-block--card" />
-        <div className="page-skeleton-block page-skeleton-block--card" />
-        <div className="page-skeleton-block page-skeleton-block--card" />
+    <div role="status" aria-busy="true" aria-label="Loading page" className="space-y-6">
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-4 w-96" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
       </div>
-      <div className="page-skeleton-block page-skeleton-block--panel" />
+      <Skeleton className="h-72" />
     </div>
-  );
-};
+  )
+}
 
-export default PageSkeleton;
+export default PageSkeleton
