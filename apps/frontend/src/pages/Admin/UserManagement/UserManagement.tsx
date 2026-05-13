@@ -108,6 +108,14 @@ const UserManagement = (): React.JSX.Element => {
       return
     }
 
+    if (modalMode === 'create') {
+      const password = (formData.get('password') as string) ?? ''
+      if (password.length < 8) {
+        setFormError('Password must be at least 8 characters.')
+        return
+      }
+    }
+
     setFormLoading(true)
     try {
       if (modalMode === 'create') {
@@ -303,7 +311,7 @@ const UserManagement = (): React.JSX.Element => {
         }}
         title={modalMode === 'create' ? 'Create User' : 'Edit User'}
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
           {formError && (
             <div
               role="alert"
@@ -347,13 +355,8 @@ const UserManagement = (): React.JSX.Element => {
           {modalMode === 'create' && (
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                minLength={8}
-                required
-              />
+              <Input id="password" name="password" type="password" />
+              <p className="text-[11px] text-text-3">At least 8 characters.</p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
