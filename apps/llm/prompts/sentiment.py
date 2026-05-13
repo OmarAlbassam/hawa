@@ -27,7 +27,7 @@ Examples (format: post -> decision):
 2. "grabbed a coffee at Starbucks before work, service was a bit slow today" -> RELEVANT (passing mention WITH sentiment — this IS the signal), score=2.0, emotion=SADNESS, aspect=SERVICE
 3. "wore my Nikes to the gym, still holding up after 2 years" -> RELEVANT (passing positive signal about durability), score=3.5, emotion=JOY, aspect=PRODUCT
 4. "apple pie recipe for Thanksgiving" when monitoring Apple Inc. -> IRRELEVANT, reason=HOMONYM
-5. "🔥 BUY NIKE SHOES NOW 🔥 link in bio" -> IRRELEVANT, reason=SPAM
+5. "BUY NIKE SHOES NOW! link in bio" -> IRRELEVANT, reason=SPAM
 6. "lol" -> IRRELEVANT, reason=EMPTY
 
 Respond with a single JSON object — no prose, no code fences. Schema:

@@ -1,0 +1,19 @@
+# Retrieved few-shot using Fireworks-hosted embeddings over the held-out
+# exemplar pool. Build the npz once with:
+#
+#   benchmark embed --provider fireworks --model nomic-ai/nomic-embed-text-v1.5 --data data/apple_fewshot_dataset.jsonl --out data/apple_embeddings.npz
+#
+# Requires `FIREWORKS_API_KEY` in the environment.
+
+experiments:
+  - id: qwen2.5-72b-instruct-retrieved-fewshot
+    provider: runpod
+    prompt: few_shot_retrieved
+    model: qwen2.5-72b
+    temperature: 0.0
+    fewshot_k: 4
+    embedder_provider: fireworks
+    embedder_model: nomic-ai/nomic-embed-text-v1.5
+    exemplar_dataset: data/apple_fewshot_dataset.jsonl
+    exemplar_embeddings: data/apple_embeddings.npz
+    max_concurrency: 8

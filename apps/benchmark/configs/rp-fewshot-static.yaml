@@ -1,10 +1,9 @@
 experiments:                                                                                                                                    
-    - id: llama-3.3-70b-few-shot-10ex                                                                                                           
-      provider: fireworks
+    - id: qwen2.5-72b-instruct-fewshot-static                                                                                                           
+      provider: runpod                                                                                                          
       prompt: few_shot_static
       fewshot_static_ids: [10014, 10067, 10110, 10097, 10043, 10053, 10055, 10088, 10024, 10118]                                                  
-      model:                                                                                                                                      
-        - accounts/fireworks/models/llama-v3p3-70b-instruct                                                                                       
+      model: qwen2.5-72b
       temperature: 0.0                                                                                                                            
       max_concurrency: 8                                                                                                                        
-      exemplar_dataset: data/exemplars.jsonl 
+      exemplar_dataset: data/apple_fewshot_dataset.jsonl 

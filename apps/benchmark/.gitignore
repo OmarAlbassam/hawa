@@ -10,6 +10,7 @@ venv/
 
 # Cached LLM responses (sqlite) and embedding artifacts
 cache.db
+cache_tests.db
 cache.db-*
 cache.db.bak
 *.npz
