@@ -11,6 +11,7 @@ Brand   1──* Keyword
 Brand   1──* Report
 User    1──* Report
 User    1──* Feedback
+User    1──* RefreshToken
 Report  1──* Post
 Post    1──1 Review
 Review  1──* Feedback
@@ -32,7 +33,7 @@ Review  1──* Feedback
 | Column | Type | Constraints | Default |
 |--------|------|-------------|---------|
 | `user_id` | `bigint` | PK, GENERATED ALWAYS AS IDENTITY | — |
-| `company_id` | `bigint` | FK → `company.company_id`, NOT NULL | — |
+| `company_id` | `bigint` | FK → `company.company_id` | — |
 | `first_name` | `varchar` | NOT NULL | — |
 | `last_name` | `varchar` | NOT NULL | — |
 | `role` | `enum` | NOT NULL | — |
@@ -74,11 +75,13 @@ Review  1──* Feedback
 | `score` | `integer` | — | — |
 | `summary` | `text` | — | — |
 | `data_source` | `enum` | NOT NULL | — |
-| `status` | `enum` | NOT NULL | `'PENDING'` |
+| `status` | `enum` | NOT NULL | `'PENDING'::report_status` |
 | `date_from` | `date` | — | — |
 | `date_to` | `date` | — | — |
 | `created_at` | `timestamp` | NOT NULL | `now()` |
 | `finished_at` | `timestamp` | — | — |
+| `failure_reason` | `varchar` | — | — |
+| `selected_keywords` | `jsonb` | NOT NULL | `'[]'::jsonb` |
 
 ### post
 
@@ -89,7 +92,7 @@ Review  1──* Feedback
 | `post_text` | `text` | NOT NULL | — |
 | `post_url` | `text` | — | — |
 | `language` | `enum` | NOT NULL | — |
-| `relevance_status` | `enum` | NOT NULL | `'RELEVANT'` |
+| `relevance_status` | `enum` | NOT NULL | `'RELEVANT'::relevance_status` |
 | `irrelevance_reason` | `enum` | — | — |
 | `created_at` | `timestamp` | NOT NULL | `now()` |
 
@@ -103,7 +106,6 @@ Review  1──* Feedback
 | `score` | `numeric` | NOT NULL | — |
 | `emotion` | `enum` | — | — |
 | `aspect` | `enum` | NOT NULL | — |
-| `confidence` | `numeric` | NOT NULL | — |
 
 ### feedback
 
@@ -113,6 +115,16 @@ Review  1──* Feedback
 | `review_id` | `bigint` | FK → `review.review_id`, NOT NULL | — |
 | `user_id` | `bigint` | FK → `user.user_id`, NOT NULL | — |
 | `brief` | `text` | NOT NULL | — |
+
+### refresh_token
+
+| Column | Type | Constraints | Default |
+|--------|------|-------------|---------|
+| `refresh_token_id` | `bigint` | PK, GENERATED ALWAYS AS IDENTITY | — |
+| `user_id` | `bigint` | FK → `user.user_id`, NOT NULL | — |
+| `token` | `varchar` | NOT NULL, UNIQUE | — |
+| `expires_at` | `timestamp` | NOT NULL | — |
+| `created_at` | `timestamp` | NOT NULL | `now()` |
 
 ## Enum Types
 
