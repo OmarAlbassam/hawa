@@ -1,244 +1,254 @@
-import { useState, useEffect, useRef } from "react";
-import { Plus, Pencil, Trash2, Tags } from "lucide-react";
-import { useAuth } from "../../../context/useAuth";
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Pencil, Trash2, Tags, Loader2 } from 'lucide-react'
+import { useAuth } from '../../../context/useAuth'
 import {
   getBrands,
   createBrand,
   updateBrand,
   deleteBrand,
   getCompanies,
-} from "../../../services/adminService";
-import type {
-  Page,
-  BrandResponse,
-  CompanyResponse,
-} from "../../../types/admin";
-import { formatDate } from "../../../utils/formatDate";
-import DataTable from "../../../components/DataTable/DataTable";
-import type { Column } from "../../../components/DataTable/DataTable";
-import Badge from "../../../components/Badge/Badge";
-import Modal from "../../../components/Modal/Modal";
-import ConfirmDialog from "../../../components/ConfirmDialog/ConfirmDialog";
-import ErrorBanner from "../../../components/ErrorBanner/ErrorBanner";
-import KeywordPanel from "./KeywordPanel";
-import "./BrandManagement.css";
+} from '../../../services/adminService'
+import type { Page, BrandResponse, CompanyResponse } from '../../../types/admin'
+import { formatDate } from '../../../utils/formatDate'
+import DataTable from '../../../components/DataTable/DataTable'
+import type { Column } from '../../../components/DataTable/DataTable'
+import Badge from '../../../components/Badge/Badge'
+import Modal from '../../../components/Modal/Modal'
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog'
+import ErrorBanner from '../../../components/ErrorBanner/ErrorBanner'
+import KeywordPanel from './KeywordPanel'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
-type ModalMode = "create" | "edit" | null;
+type ModalMode = 'create' | 'edit' | null
+
+const selectClass =
+  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
 
 const BrandManagement = (): React.JSX.Element => {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
 
-  const [data, setData] = useState<Page<BrandResponse> | null>(null);
-  const [page, setPage] = useState(0);
-  const [companyFilter, setCompanyFilter] = useState<number | "">("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [data, setData] = useState<Page<BrandResponse> | null>(null)
+  const [page, setPage] = useState(0)
+  const [companyFilter, setCompanyFilter] = useState<number | ''>('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Companies list for filter & form dropdowns
-  const [companies, setCompanies] = useState<CompanyResponse[]>([]);
+  const [companies, setCompanies] = useState<CompanyResponse[]>([])
 
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [editingBrand, setEditingBrand] = useState<BrandResponse | null>(null);
-  const [formError, setFormError] = useState("");
-  const [formLoading, setFormLoading] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>(null)
+  const [editingBrand, setEditingBrand] = useState<BrandResponse | null>(null)
+  const [formError, setFormError] = useState('')
+  const [formLoading, setFormLoading] = useState(false)
 
-  const [deletingBrand, setDeletingBrand] = useState<BrandResponse | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState<BrandResponse | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const [keywordsBrand, setKeywordsBrand] = useState<BrandResponse | null>(null);
+  const [keywordsBrand, setKeywordsBrand] = useState<BrandResponse | null>(null)
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const loadCompanies = () => {
-    if (!accessToken || companies.length > 0) return;
+    if (!accessToken || companies.length > 0) return
     getCompanies(accessToken, 0, 1000)
       .then((res) => setCompanies(res.content))
-      .catch(() => {});
-  };
-  const prevFilterRef = useRef(companyFilter);
+      .catch(() => {})
+  }
+  const prevFilterRef = useRef(companyFilter)
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken) return
 
-    const filterChanged = prevFilterRef.current !== companyFilter;
-    prevFilterRef.current = companyFilter;
+    const filterChanged = prevFilterRef.current !== companyFilter
+    prevFilterRef.current = companyFilter
 
     if (filterChanged && page !== 0) {
-      setPage(0);
-      return;
+      setPage(0)
+      return
     }
 
-    let cancelled = false;
-    setLoading(true);
-    setError("");
+    let cancelled = false
+    setLoading(true)
+    setError('')
     getBrands(accessToken, {
       companyId: companyFilter || undefined,
       page,
       size: 20,
     })
       .then((result) => {
-        if (!cancelled) setData(result);
+        if (!cancelled) setData(result)
       })
       .catch((err) => {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : "Failed to load brands");
+          setError(err instanceof Error ? err.message : 'Failed to load brands')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        if (!cancelled) setLoading(false)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, [accessToken, companyFilter, page, refreshKey]);
+      cancelled = true
+    }
+  }, [accessToken, companyFilter, page, refreshKey])
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!accessToken) return;
+    e.preventDefault()
+    if (!accessToken) return
 
-    const formData = new FormData(e.currentTarget);
-    setFormError("");
-    setFormLoading(true);
+    const formData = new FormData(e.currentTarget)
+    setFormError('')
+    setFormLoading(true)
 
     try {
-      if (modalMode === "create") {
+      if (modalMode === 'create') {
         await createBrand(accessToken, {
-          brandName: formData.get("brandName") as string,
-          companyId: Number(formData.get("companyId")),
-          industry: (formData.get("industry") as string) || undefined,
-        });
-      } else if (modalMode === "edit" && editingBrand) {
+          brandName: formData.get('brandName') as string,
+          companyId: Number(formData.get('companyId')),
+          industry: (formData.get('industry') as string) || undefined,
+        })
+      } else if (modalMode === 'edit' && editingBrand) {
         await updateBrand(accessToken, editingBrand.brandId, {
-          brandName: formData.get("brandName") as string,
-          companyId: formData.get("companyId")
-            ? Number(formData.get("companyId"))
+          brandName: formData.get('brandName') as string,
+          companyId: formData.get('companyId')
+            ? Number(formData.get('companyId'))
             : null,
-          industry: (formData.get("industry") as string) || null,
-        });
+          industry: (formData.get('industry') as string) || null,
+        })
       }
-      setModalMode(null);
-      setEditingBrand(null);
-      setRefreshKey((k) => k + 1);
+      setModalMode(null)
+      setEditingBrand(null)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Operation failed");
+      setFormError(err instanceof Error ? err.message : 'Operation failed')
     } finally {
-      setFormLoading(false);
+      setFormLoading(false)
     }
-  };
+  }
 
   const handleDelete = async () => {
-    if (!accessToken || !deletingBrand) return;
-    setDeleteLoading(true);
+    if (!accessToken || !deletingBrand) return
+    setDeleteLoading(true)
     try {
-      await deleteBrand(accessToken, deletingBrand.brandId);
-      setDeletingBrand(null);
-      setRefreshKey((k) => k + 1);
+      await deleteBrand(accessToken, deletingBrand.brandId)
+      setDeletingBrand(null)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete brand");
-      setDeletingBrand(null);
+      setError(err instanceof Error ? err.message : 'Failed to delete brand')
+      setDeletingBrand(null)
     } finally {
-      setDeleteLoading(false);
+      setDeleteLoading(false)
     }
-  };
+  }
 
   const columns: Column<BrandResponse>[] = [
-    { key: "brandName", header: "Brand" },
     {
-      key: "company",
-      header: "Company",
-      render: (row) => row.company.companyName,
+      key: 'brandName',
+      header: 'Brand',
+      render: (row) => <span className="font-medium text-foreground">{row.brandName}</span>,
     },
     {
-      key: "industry",
-      header: "Industry",
-      render: (row) =>
-        row.industry ? (
-          <Badge variant="info">{row.industry}</Badge>
-        ) : (
-          "—"
-        ),
+      key: 'company',
+      header: 'Company',
+      render: (row) => <span className="text-muted-foreground">{row.company.companyName}</span>,
     },
     {
-      key: "statusIndicator",
-      header: "Status",
-      render: (row) =>
-        row.statusIndicator != null ? row.statusIndicator.toFixed(1) : "—",
+      key: 'industry',
+      header: 'Industry',
+      render: (row) => (row.industry ? <Badge variant="info">{row.industry}</Badge> : '—'),
     },
     {
-      key: "keywordsCount",
-      header: "Keywords",
+      key: 'statusIndicator',
+      header: 'Status',
       render: (row) => (
-        <Badge variant="default">{row.keywordsCount}</Badge>
+        <span className="font-mono tabular-nums text-foreground">
+          {row.statusIndicator != null ? row.statusIndicator.toFixed(1) : '—'}
+        </span>
       ),
     },
     {
-      key: "createdAt",
-      header: "Created",
-      render: (row) => formatDate(row.createdAt),
+      key: 'keywordsCount',
+      header: 'Keywords',
+      render: (row) => <Badge variant="default">{row.keywordsCount}</Badge>,
     },
     {
-      key: "actions",
-      header: "",
+      key: 'createdAt',
+      header: 'Created',
       render: (row) => (
-        <div className="brands-actions">
-          <button
-            className="brands-action-btn"
+        <span className="text-muted-foreground">{formatDate(row.createdAt)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={() => setKeywordsBrand(row)}
             aria-label="Manage keywords"
           >
-            <Tags size={16} />
-          </button>
-          <button
-            className="brands-action-btn"
+            <Tags className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={() => {
-              loadCompanies();
-              setEditingBrand(row);
-              setModalMode("edit");
-              setFormError("");
+              loadCompanies()
+              setEditingBrand(row)
+              setModalMode('edit')
+              setFormError('')
             }}
             aria-label="Edit brand"
           >
-            <Pencil size={16} />
-          </button>
-          <button
-            className="brands-action-btn brands-action-btn--danger"
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-neg hover:bg-neg-bg"
             onClick={() => setDeletingBrand(row)}
             aria-label="Delete brand"
           >
-            <Trash2 size={16} />
-          </button>
+            <Trash2 className="size-3.5" />
+          </Button>
         </div>
       ),
     },
-  ];
+  ]
 
   return (
-    <div className="brands-page">
-      <div className="brands-header">
-        <h1 className="brands-title">Brands</h1>
-        <button
-          className="brands-create-btn"
+    <div className="space-y-6">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <span className="eyebrow">Admin · Brands</span>
+          <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.025em] text-foreground">
+            Brands
+          </h1>
+        </div>
+        <Button
           onClick={() => {
-            loadCompanies();
-            setEditingBrand(null);
-            setModalMode("create");
-            setFormError("");
+            loadCompanies()
+            setEditingBrand(null)
+            setModalMode('create')
+            setFormError('')
           }}
         >
-          <Plus size={18} />
+          <Plus />
           Create Brand
-        </button>
+        </Button>
       </div>
 
       {error && <ErrorBanner message={error} onRetry={() => setRefreshKey((k) => k + 1)} />}
 
-      <div className="brands-filters">
+      <div className="flex flex-wrap items-center gap-3">
         <select
-          className="brands-company-filter"
+          className={`${selectClass} sm:w-64`}
           value={companyFilter}
           onFocus={loadCompanies}
-          onChange={(e) =>
-            setCompanyFilter(e.target.value ? Number(e.target.value) : "")
-          }
+          onChange={(e) => setCompanyFilter(e.target.value ? Number(e.target.value) : '')}
         >
           <option value="">All Companies</option>
           {companies.map((c) => (
@@ -264,76 +274,79 @@ const BrandManagement = (): React.JSX.Element => {
       <Modal
         open={modalMode !== null}
         onClose={() => {
-          setModalMode(null);
-          setEditingBrand(null);
+          setModalMode(null)
+          setEditingBrand(null)
         }}
-        title={modalMode === "create" ? "Create Brand" : "Edit Brand"}
+        title={modalMode === 'create' ? 'Create Brand' : 'Edit Brand'}
       >
-        <form className="brands-form" onSubmit={handleFormSubmit}>
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           {formError && (
-            <div className="brands-form-error">{formError}</div>
+            <div
+              role="alert"
+              className="rounded-md border border-neg/30 bg-neg-bg px-3 py-2 text-[12px] text-neg-text"
+            >
+              {formError}
+            </div>
           )}
-          <label className="brands-form-field">
-            <span className="brands-form-label">Brand Name</span>
-            <input
+          <div className="space-y-1.5">
+            <Label htmlFor="brandName">Brand name</Label>
+            <Input
+              id="brandName"
               name="brandName"
               type="text"
-              className="brands-form-input"
-              defaultValue={editingBrand?.brandName ?? ""}
+              defaultValue={editingBrand?.brandName ?? ''}
               required
             />
-          </label>
-          <div className="brands-form-row">
-            <label className="brands-form-field">
-              <span className="brands-form-label">Company</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="companyId">Company</Label>
               <select
+                id="companyId"
                 name="companyId"
-                className="brands-form-input"
-                defaultValue={editingBrand?.company.companyId ?? ""}
-                required={modalMode === "create"}
+                className={selectClass}
+                defaultValue={editingBrand?.company.companyId ?? ''}
+                required={modalMode === 'create'}
               >
-                {modalMode === "edit" && <option value="">Keep current</option>}
+                {modalMode === 'edit' && <option value="">Keep current</option>}
                 {companies.map((c) => (
                   <option key={c.companyId} value={c.companyId}>
                     {c.companyName}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="brands-form-field">
-              <span className="brands-form-label">Industry</span>
-              <input
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
                 name="industry"
                 type="text"
-                className="brands-form-input"
-                defaultValue={editingBrand?.industry ?? ""}
+                defaultValue={editingBrand?.industry ?? ''}
                 placeholder="Optional"
               />
-            </label>
+            </div>
           </div>
-          <div className="brands-form-actions">
-            <button
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
               type="button"
-              className="brands-form-cancel"
+              variant="secondary"
               onClick={() => {
-                setModalMode(null);
-                setEditingBrand(null);
+                setModalMode(null)
+                setEditingBrand(null)
               }}
               disabled={formLoading}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="brands-form-submit"
-              disabled={formLoading}
-            >
+            </Button>
+            <Button type="submit" disabled={formLoading}>
+              {formLoading && <Loader2 className="size-4 animate-spin" />}
               {formLoading
-                ? "..."
-                : modalMode === "create"
-                  ? "Create"
-                  : "Save Changes"}
-            </button>
+                ? 'Working…'
+                : modalMode === 'create'
+                  ? 'Create'
+                  : 'Save changes'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -352,21 +365,18 @@ const BrandManagement = (): React.JSX.Element => {
       <Modal
         open={keywordsBrand !== null}
         onClose={() => {
-          setKeywordsBrand(null);
-          setRefreshKey((k) => k + 1);
+          setKeywordsBrand(null)
+          setRefreshKey((k) => k + 1)
         }}
         title={`Keywords — ${keywordsBrand?.brandName}`}
         width="lg"
       >
         {keywordsBrand && accessToken && (
-          <KeywordPanel
-            brandId={keywordsBrand.brandId}
-            accessToken={accessToken}
-          />
+          <KeywordPanel brandId={keywordsBrand.brandId} accessToken={accessToken} />
         )}
       </Modal>
     </div>
-  );
-};
+  )
+}
 
-export default BrandManagement;
+export default BrandManagement
