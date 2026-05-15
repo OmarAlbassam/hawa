@@ -22,13 +22,37 @@ If the post IS relevant, set is_relevant=true and produce:
 - emotion: the single dominant emotion expressed in the post. One of JOY, ANGER, SADNESS, FEAR, SURPRISE, DISGUST, or NEUTRAL when no emotion is clearly expressed.
 - aspect: which business aspect the post relates to. Choose exactly one of: PRODUCT, SERVICE, DELIVERY, PRICING, BRAND, or OTHER. Use OTHER only if the post is relevant but doesn't fit any of the named aspects.
 
-Examples (format: post -> decision):
-1. "Nike's new Air Max feels amazing, best cushioning I've owned" -> RELEVANT, score=4.5, emotion=JOY, aspect=PRODUCT
-2. "grabbed a coffee at Starbucks before work, service was a bit slow today" -> RELEVANT (passing mention WITH sentiment — this IS the signal), score=2.0, emotion=SADNESS, aspect=SERVICE
-3. "wore my Nikes to the gym, still holding up after 2 years" -> RELEVANT (passing positive signal about durability), score=3.5, emotion=JOY, aspect=PRODUCT
-4. "apple pie recipe for Thanksgiving" when monitoring Apple Inc. -> IRRELEVANT, reason=HOMONYM
-5. "BUY NIKE SHOES NOW! link in bio" -> IRRELEVANT, reason=SPAM
-6. "lol" -> IRRELEVANT, reason=EMPTY
+Labeled examples:
+
+Post: "another greedy megacorp pretending they care about anything but the stock price"
+  -> score=0.5, emotion=ANGER, aspect=BRAND
+
+Post: "the speaker downgrade is an absolute no for me, can't believe they shipped this"
+  -> score=0.5, emotion=DISGUST, aspect=PRODUCT
+
+Post: "10 year loyal customer and support couldn't have cared less today, just sad honestly"
+  -> score=1.0, emotion=SADNESS, aspect=SERVICE
+
+Post: "kinda nervous to upgrade with tariffs incoming, prices are gonna spike"
+  -> score=2.0, emotion=FEAR, aspect=PRICING
+
+Post: "package showed up 2 weeks late with zero tracking updates, didn't expect that from them"
+  -> score=2.0, emotion=SURPRISE, aspect=DELIVERY
+
+Post: "is $850 a fair price for this in 2026?"
+  -> score=2.5, emotion=NEUTRAL, aspect=PRICING
+
+Post: "honestly two years in and it still feels brand new"
+  -> score=4.5, emotion=JOY, aspect=PRODUCT
+
+Post: "apple pie recipe for Thanksgiving"  (when monitoring Apple Inc.)
+  -> IRRELEVANT, reason=HOMONYM
+
+Post: "BUY NIKE SHOES NOW! 🔥 link in bio"
+  -> IRRELEVANT, reason=SPAM
+
+Post: "lol"
+  -> IRRELEVANT, reason=EMPTY
 
 Respond with a single JSON object — no prose, no code fences. Schema:
 {
