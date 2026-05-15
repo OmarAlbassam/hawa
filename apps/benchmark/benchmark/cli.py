@@ -16,7 +16,7 @@ from rich.table import Table
 
 from benchmark.dataset import assign_folds, dataset_hash, load_dataset
 from benchmark.import_csv import ColumnMap, import_csv_to_jsonl
-from benchmark.report import plot_all_confusions, summarize
+from benchmark.report import plot_all_confusions, summarize, sync_gt
 from benchmark.retrieval.embedder import (
     FIREWORKS_DEFAULT_MODEL,
     SBERT_DEFAULT_MODEL,
@@ -152,6 +152,28 @@ def run(
     console.print(table)
 
 
+@app.command("sync-gt")
+def sync_gt_cmd(
+    results: Path = typer.Option(Path("results"), help="Results directory"),
+    data: Path = typer.Option(Path("data/control.jsonl"), help="Source dataset"),
+) -> None:
+    """Refresh GT columns on every parquet in `results/` from `data`.
+
+    Use this after relabeling the dataset (relevance flags or score
+    corrections) when you don't want to re-run the experiments. The
+    sqlite cache already holds the model predictions; this command just
+    re-attaches the current ground truth so `benchmark report` grades
+    against fresh labels.
+    """
+    _setup_logging()
+    updates = sync_gt(results, data)
+    table = Table(title="parquets synced")
+    table.add_column("experiment_id"); table.add_column("gt cells updated")
+    for eid, n in updates.items():
+        table.add_row(eid, str(n))
+    console.print(table)
+
+
 @app.command()
 def report(
     results: Path = typer.Option(Path("results"), help="Results directory"),
@@ -165,10 +187,10 @@ def report(
 
     table = Table(title="summary")
     for col in [
-        "experiment_id", "n", "n_predicted",
-        "score_mae", "score_rmse",
-        "emotion_accuracy", "emotion_macro_f1",
-        "aspect_accuracy", "aspect_macro_f1",
+        "experiment_id", "n", "n_predicted", "coverage",
+        "score_mae", "score_mae_intersection",
+        "emotion_macro_f1", "aspect_macro_f1",
+        "rel_acc", "rel_recall_irr",
         "latency_ms_p50",
     ]:
         table.add_column(col)
@@ -177,12 +199,13 @@ def report(
             str(row["experiment_id"]),
             str(row["n"]),
             str(row["n_predicted"]),
+            _fmt(row.get("coverage", float("nan"))),
             _fmt(row["score_mae"]),
-            _fmt(row["score_rmse"]),
-            _fmt(row["emotion_accuracy"]),
+            _fmt(row.get("score_mae_intersection", float("nan"))),
             _fmt(row["emotion_macro_f1"]),
-            _fmt(row["aspect_accuracy"]),
             _fmt(row["aspect_macro_f1"]),
+            _fmt(row.get("relevance_accuracy", float("nan"))),
+            _fmt(row.get("relevance_recall_irrelevant", float("nan"))),
             _fmt(row["latency_ms_p50"], digits=0),
         )
     console.print(table)

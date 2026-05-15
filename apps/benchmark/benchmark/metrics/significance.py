@@ -120,3 +120,42 @@ def accuracy_metric(values: np.ndarray) -> float:
 
 def mae_metric(values: np.ndarray) -> float:
     return float(np.mean(np.abs(values)))
+
+
+@dataclass
+class CIResult:
+    point: float
+    ci_low: float
+    ci_high: float
+
+
+def bootstrap_ci(
+    values: Sequence[float],
+    metric: Callable[[np.ndarray], float],
+    *,
+    n_resamples: int = 1000,
+    confidence: float = 0.95,
+    rng_seed: int = 0,
+) -> CIResult:
+    """Single-sample bootstrap confidence interval for a scalar metric.
+
+    Resamples `values` with replacement `n_resamples` times, applies
+    `metric` to each resample, and returns the percentile CI. Cheap
+    enough to call once per experiment when building the headline table.
+
+    Returns `(point=metric(values), ci_low, ci_high)`.
+    """
+    n = len(values)
+    if n == 0:
+        raise ValueError("cannot bootstrap empty input")
+    arr = np.asarray(values, dtype=np.float64)
+    point = float(metric(arr))
+    rng = np.random.default_rng(rng_seed)
+    stats = np.empty(n_resamples, dtype=np.float64)
+    for i in range(n_resamples):
+        idx = rng.integers(0, n, size=n)
+        stats[i] = metric(arr[idx])
+    alpha = 1 - confidence
+    low = float(np.quantile(stats, alpha / 2))
+    high = float(np.quantile(stats, 1 - alpha / 2))
+    return CIResult(point=point, ci_low=low, ci_high=high)

@@ -23,6 +23,8 @@ target/
 *.suo
 *.ntvs*
 *.njsproj
+*.docx
+!apps/benchmark/docs/*.docx
 *.sln
 *.sw?
 *.code-workspace

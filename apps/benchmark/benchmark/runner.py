@@ -104,6 +104,7 @@ class PerPostResult:
     gt_score: float
     gt_emotion: str
     gt_aspect: str
+    gt_is_relevant: bool
     pred_relevant: bool | None
     pred_score: float | None
     pred_emotion: str | None
@@ -506,6 +507,7 @@ def _make_irrelevant_result(
         gt_score=sample.gt.score,
         gt_emotion=sample.gt.emotion,
         gt_aspect=sample.gt.aspect,
+        gt_is_relevant=sample.gt.is_relevant,
         pred_relevant=False,
         pred_score=None,
         pred_emotion=None,
@@ -527,6 +529,7 @@ def _make_error_result(
         gt_score=sample.gt.score,
         gt_emotion=sample.gt.emotion,
         gt_aspect=sample.gt.aspect,
+        gt_is_relevant=sample.gt.is_relevant,
         pred_relevant=None,
         pred_score=None,
         pred_emotion=None,
@@ -558,6 +561,7 @@ def _from_response(
             gt_score=sample.gt.score,
             gt_emotion=sample.gt.emotion,
             gt_aspect=sample.gt.aspect,
+            gt_is_relevant=sample.gt.is_relevant,
             pred_relevant=False,
             pred_score=None,
             pred_emotion=None,
@@ -578,6 +582,7 @@ def _from_response(
         gt_score=sample.gt.score,
         gt_emotion=sample.gt.emotion,
         gt_aspect=sample.gt.aspect,
+        gt_is_relevant=sample.gt.is_relevant,
         pred_relevant=True,
         pred_score=response.score,
         pred_emotion=response.emotion.value,
@@ -608,6 +613,7 @@ def _from_cached(
         gt_score=sample.gt.score,
         gt_emotion=sample.gt.emotion,
         gt_aspect=sample.gt.aspect,
+        gt_is_relevant=sample.gt.is_relevant,
         pred_relevant=cached.is_relevant,
         pred_score=cached.pred_score,
         pred_emotion=cached.pred_emotion,
@@ -871,6 +877,7 @@ def _row(p: PerPostResult, ds_hash: str) -> dict[str, Any]:
         "gt_score": p.gt_score,
         "gt_emotion": p.gt_emotion,
         "gt_aspect": p.gt_aspect,
+        "gt_is_relevant": p.gt_is_relevant,
         "pred_relevant": p.pred_relevant,
         "pred_score": p.pred_score,
         "pred_emotion": p.pred_emotion,

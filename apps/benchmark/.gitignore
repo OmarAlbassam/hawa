@@ -9,17 +9,9 @@ venv/
 *.ipynb_meta
 
 # Cached LLM responses (sqlite) and embedding artifacts
-cache.db
 cache_tests.db
 cache.db-*
 cache.db.bak
-*.npz
-
-# Result artifacts (parquet, plots)
-results/*.parquet
-results/*.png
-results/*.csv
-!results/.gitkeep
 
 # Streamlit
 .streamlit/
@@ -27,3 +19,7 @@ results/*.csv
 # Local model downloads (sentence-transformers caches in ~/.cache, but keep
 # this just in case anyone configures HF_HOME inside the app dir)
 hf_models/
+
+# macOS / Office turds
+.DS_Store
+~$*
