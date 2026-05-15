@@ -68,6 +68,8 @@ public class AnalysisService {
                 .dateFrom(request.dateFrom())
                 .dateTo(request.dateTo())
                 .selectedKeywords(selectedKeywords)
+                .includeComments(Boolean.TRUE.equals(request.includeComments()))
+                .maxPosts(request.maxPosts())
                 .build();
 
         report = reportRepository.save(report);
