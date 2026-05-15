@@ -5,6 +5,8 @@ export interface StartAnalysisRequest {
   dateFrom?: string;
   dateTo?: string;
   selectedKeywordIds: number[];
+  includeComments?: boolean;
+  maxPosts: number;
 }
 
 export interface ReportResponse {

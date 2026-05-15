@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 
 class RedditPostCleanerTest {
 
-    private final RedditPostCleaner cleaner = new RedditPostCleaner();
+    private final RedditPostCleaner cleaner = new RedditPostCleaner(testProperties(10_000));
+
+    private static RedditProperties testProperties(int maxPostChars) {
+        return new RedditProperties(null, null, null, null, null, 0, maxPostChars, 0, 0, 0);
+    }
 
     @Test
     void shouldReturnNull_whenSelftextIsDeleted() {
@@ -48,10 +52,25 @@ class RedditPostCleanerTest {
     }
 
     @Test
-    void shouldTruncate_whenExceedsMaxLength() {
+    void shouldDrop_whenExceedsMaxLength() {
         String longBody = "a".repeat(15_000);
-        String result = cleaner.clean("Title long enough", longBody);
-        assertThat(result).hasSize(10_000);
+        assertThat(cleaner.clean("Title long enough", longBody)).isNull();
+    }
+
+    @Test
+    void shouldDrop_whenExceedsInjectedMaxPostChars() {
+        RedditPostCleaner tightCleaner = new RedditPostCleaner(testProperties(200));
+        String longBody = "a".repeat(5_000);
+        assertThat(tightCleaner.clean("Title long enough", longBody)).isNull();
+    }
+
+    @Test
+    void shouldKeep_whenWithinInjectedMaxPostChars() {
+        RedditPostCleaner tightCleaner = new RedditPostCleaner(testProperties(200));
+        String body = "b".repeat(150);
+        String result = tightCleaner.clean("Title here", body);
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isLessThanOrEqualTo(200);
     }
 
     @Test

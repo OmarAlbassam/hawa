@@ -33,8 +33,13 @@ import { useBrandSelection } from '../../context/useBrandSelection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+
+const MAX_POSTS_MIN = 1
+const MAX_POSTS_MAX = 500
+const clampMaxPosts = (n: number) => Math.min(MAX_POSTS_MAX, Math.max(MAX_POSTS_MIN, n))
 
 interface LocationState {
   preselectedBrandId?: number
@@ -148,6 +153,8 @@ const StartAnalysis = (): React.JSX.Element => {
     preselectedBrandId ?? navbarBrandId ?? '',
   )
   const [dataSource, setDataSource] = useState<DataSource>('REDDIT')
+  const [includeComments, setIncludeComments] = useState(false)
+  const [maxPosts, setMaxPosts] = useState(50)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -299,6 +306,8 @@ const StartAnalysis = (): React.JSX.Element => {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       selectedKeywordIds: Array.from(selectedKeywordIds),
+      includeComments: dataSource === 'REDDIT' ? includeComments : undefined,
+      maxPosts,
     })
 
   const validateBeforeSubmit = (): boolean => {
@@ -533,6 +542,81 @@ const StartAnalysis = (): React.JSX.Element => {
                 </label>
               )
             })}
+
+            {dataSource === 'REDDIT' && (
+              <div className="mt-1 space-y-3 border-l-2 border-border pl-4">
+                <div className="space-y-2">
+                  <div className="flex items-end justify-between gap-3">
+                    <Label htmlFor="maxPosts">Posts to collect</Label>
+                    <Input
+                      id="maxPosts"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      aria-label="Posts to collect"
+                      value={maxPosts}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '')
+                        if (digits === '') {
+                          setMaxPosts(MAX_POSTS_MIN)
+                          return
+                        }
+                        setMaxPosts(clampMaxPosts(parseInt(digits, 10)))
+                      }}
+                      className="w-20 text-right"
+                    />
+                  </div>
+                  <Slider
+                    min={MAX_POSTS_MIN}
+                    max={MAX_POSTS_MAX}
+                    step={1}
+                    value={[maxPosts]}
+                    onValueChange={(v) => setMaxPosts(clampMaxPosts(v[0] ?? MAX_POSTS_MIN))}
+                    aria-label="Posts to collect slider"
+                  />
+                </div>
+                <span className="eyebrow">Content to collect</span>
+                {(
+                  [
+                    {
+                      value: false,
+                      title: 'Submissions only',
+                      desc: 'Reddit posts (titles + bodies) that mention your keywords.',
+                    },
+                    {
+                      value: true,
+                      title: 'Submissions + Comments',
+                      desc: 'Also pull top comments from each submission, counted against the same total.',
+                    },
+                  ] as const
+                ).map((opt) => {
+                  const active = includeComments === opt.value
+                  return (
+                    <label
+                      key={String(opt.value)}
+                      className={cn(
+                        'flex cursor-pointer gap-3 rounded-md border bg-card p-3 transition-colors',
+                        active
+                          ? 'border-primary ring-1 ring-primary/15'
+                          : 'border-border hover:border-border-strong',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="redditContent"
+                        checked={active}
+                        onChange={() => setIncludeComments(opt.value)}
+                        className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[13px] font-medium text-foreground">{opt.title}</span>
+                        <span className="text-[12px] text-muted-foreground">{opt.desc}</span>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
 
             {dataSource === 'CSV_UPLOAD' && (
               <div className="space-y-4">
@@ -797,6 +881,8 @@ const StartAnalysis = (): React.JSX.Element => {
                 !validDateRange ||
                 !selectedBrandId ||
                 !hasSelection ||
+                (dataSource === 'REDDIT' &&
+                  (!Number.isInteger(maxPosts) || maxPosts < 1 || maxPosts > 500)) ||
                 (dataSource === 'CSV_UPLOAD' && datasetTab === 'upload' && !file) ||
                 (dataSource === 'CSV_UPLOAD' &&
                   datasetTab === 'paste' &&

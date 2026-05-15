@@ -10,8 +10,10 @@ public record RedditProperties(
         String baseUrl,
         String tokenUrl,
         int timeoutMs,
-        int maxPostsPerReport,
-        int pageSize
+        int maxPostChars,
+        int pageSize,
+        int commentsPerSubmission,
+        int maxSearchScan
 ) {
     public RedditProperties {
         if (userAgent == null || userAgent.isBlank()) {
@@ -26,11 +28,17 @@ public record RedditProperties(
         if (timeoutMs <= 0) {
             timeoutMs = 15_000;
         }
-        if (maxPostsPerReport <= 0) {
-            maxPostsPerReport = 200;
+        if (maxPostChars <= 0) {
+            maxPostChars = 10_000;
         }
         if (pageSize <= 0 || pageSize > 100) {
             pageSize = 100;
+        }
+        if (commentsPerSubmission < 0) {
+            commentsPerSubmission = 10;
+        }
+        if (maxSearchScan <= 0) {
+            maxSearchScan = 1_000;
         }
     }
 }
