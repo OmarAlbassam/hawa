@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditCommentDto;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditCommentListingResponse;
 import com.hawa.hawa_backend.postprovider.reddit.dto.RedditListingResponse;
 import com.hawa.hawa_backend.postprovider.reddit.dto.RedditPostDto;
 
@@ -48,16 +51,24 @@ public class RedditClient {
                 .build();
     }
 
-    public List<RedditPostDto> searchPosts(String query, Instant dateFrom, Instant dateTo, int maxResults) {
+    /**
+     * Paginate Reddit search and hand each post to {@code consumer}. The consumer returns
+     * {@code true} to keep streaming or {@code false} to stop. Pagination also stops when
+     * Reddit runs out of results, the date window is exited, or {@code maxScan} raw posts
+     * have been examined (safety cap to bound API calls when the consumer is very selective).
+     */
+    public void streamPosts(String query, Instant dateFrom, Instant dateTo, int maxScan,
+            Predicate<RedditPostDto> consumer) {
         String trimmedQuery = trimQuery(query);
-        List<RedditPostDto> collected = new ArrayList<>();
         Set<String> seenIds = new HashSet<>();
         int duplicates = 0;
+        int delivered = 0;
+        int scanned = 0;
         String cursor = null;
         int pageSize = properties.pageSize();
         boolean stop = false;
 
-        while (!stop && collected.size() < maxResults) {
+        while (!stop) {
             URI uri = buildSearchUri(trimmedQuery, pageSize, cursor);
             RedditListingResponse response = doSearchWithRetry(uri);
 
@@ -87,8 +98,13 @@ public class RedditClient {
                     duplicates++;
                     continue;
                 }
-                collected.add(post);
-                if (collected.size() >= maxResults) {
+                scanned++;
+                delivered++;
+                if (!consumer.test(post)) {
+                    stop = true;
+                    break;
+                }
+                if (maxScan > 0 && scanned >= maxScan) {
                     stop = true;
                     break;
                 }
@@ -100,9 +116,37 @@ public class RedditClient {
             }
         }
 
-        log.info("Reddit search collected {} post(s) for query=\"{}\" (duplicates={})",
-                collected.size(), trimmedQuery, duplicates);
-        return collected;
+        log.info("Reddit search streamed {} post(s) for query=\"{}\" (duplicates={}, scanned={})",
+                delivered, trimmedQuery, duplicates, scanned);
+    }
+
+    public List<RedditCommentDto> fetchComments(String submissionId, int limit) {
+        if (submissionId == null || submissionId.isBlank() || limit <= 0) {
+            return List.of();
+        }
+        URI uri = buildCommentsUri(submissionId, limit);
+        RedditCommentListingResponse[] response = doCommentsWithRetry(uri);
+        if (response == null || response.length < 2 || response[1] == null
+                || response[1].data() == null || response[1].data().children() == null) {
+            return List.of();
+        }
+
+        List<RedditCommentDto> comments = new ArrayList<>();
+        for (RedditCommentListingResponse.Child child : response[1].data().children()) {
+            if (child == null || !"t1".equals(child.kind()) || child.data() == null) {
+                continue;
+            }
+            RedditCommentDto comment = child.data();
+            if (comment.body() == null || comment.body().isBlank()) {
+                continue;
+            }
+            comments.add(comment);
+            if (comments.size() >= limit) {
+                break;
+            }
+        }
+        log.debug("Reddit fetched {} comment(s) for submission {}", comments.size(), submissionId);
+        return comments;
     }
 
     private URI buildSearchUri(String query, int pageSize, String cursor) {
@@ -118,6 +162,71 @@ public class RedditClient {
             builder.queryParam("after", cursor);
         }
         return builder.build().encode().toUri();
+    }
+
+    private URI buildCommentsUri(String submissionId, int limit) {
+        return UriComponentsBuilder.fromUriString("/comments/" + submissionId)
+                .queryParam("limit", limit)
+                .queryParam("depth", 1)
+                .queryParam("sort", "top")
+                .queryParam("raw_json", 1)
+                .build()
+                .encode()
+                .toUri();
+    }
+
+    private RedditCommentListingResponse[] doCommentsWithRetry(URI uri) {
+        try {
+            return executeComments(uri, tokenProvider.getToken());
+        } catch (HttpClientErrorException.Unauthorized ex) {
+            log.warn("Reddit returned 401 on /comments, refreshing token and retrying once");
+            String refreshed = tokenProvider.forceRefresh();
+            try {
+                return executeComments(uri, refreshed);
+            } catch (RestClientException retryEx) {
+                throw new RedditServiceException("Reddit /comments failed after token refresh: "
+                        + retryEx.getMessage(), retryEx);
+            }
+        } catch (HttpClientErrorException.TooManyRequests ex) {
+            long resetSeconds = parseResetSeconds(ex.getResponseHeaders());
+            if (resetSeconds > 0 && resetSeconds <= RATE_LIMIT_MAX_SLEEP_SECONDS) {
+                log.warn("Reddit /comments rate-limited; sleeping {}s before retry", resetSeconds);
+                try {
+                    Thread.sleep(Duration.ofSeconds(resetSeconds).toMillis());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RedditServiceException("Interrupted while waiting for Reddit rate-limit reset", ie);
+                }
+                try {
+                    return executeComments(uri, tokenProvider.getToken());
+                } catch (RestClientException retryEx) {
+                    throw new RedditServiceException("Reddit /comments failed after rate-limit retry: "
+                            + retryEx.getMessage(), retryEx);
+                }
+            }
+            throw new RedditServiceException("Reddit rate limit exceeded on /comments (reset in "
+                    + resetSeconds + "s)", ex);
+        } catch (HttpClientErrorException ex) {
+            throw new RedditServiceException("Reddit /comments client error "
+                    + ex.getStatusCode() + ": " + ex.getMessage(), ex);
+        } catch (HttpServerErrorException ex) {
+            throw new RedditServiceException("Reddit /comments server error "
+                    + ex.getStatusCode() + ": " + ex.getMessage(), ex);
+        } catch (RestClientException ex) {
+            throw new RedditServiceException("Reddit /comments call failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    private RedditCommentListingResponse[] executeComments(URI uri, String bearerToken) {
+        return apiClient.get()
+                .uri(uri)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
+                .retrieve()
+                .onStatus(status -> status == HttpStatus.UNAUTHORIZED, (req, res) -> {
+                    throw HttpClientErrorException.create(HttpStatus.UNAUTHORIZED,
+                            "Unauthorized", res.getHeaders(), new byte[0], null);
+                })
+                .body(RedditCommentListingResponse[].class);
     }
 
     private RedditListingResponse doSearchWithRetry(URI uri) {

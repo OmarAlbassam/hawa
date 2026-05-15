@@ -4,10 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +29,8 @@ class RedditPostProviderTest {
     private RedditClient redditClient;
 
     @Spy
-    private RedditPostCleaner cleaner = new RedditPostCleaner();
+    private RedditPostCleaner cleaner = new RedditPostCleaner(
+            new RedditProperties(null, null, null, null, null, 0, 10_000, 0, 0, 0));
 
     @Mock
     private RedditProperties properties;
@@ -37,9 +39,14 @@ class RedditPostProviderTest {
     private RedditPostProvider provider;
 
     private Report reportWithKeyword(String keyword) {
+        return reportWithKeyword(keyword, 100);
+    }
+
+    private Report reportWithKeyword(String keyword, int maxPosts) {
         Report report = new Report();
         report.setReportId(1L);
         report.setSelectedKeywords(List.of(keyword));
+        report.setMaxPosts(maxPosts);
         return report;
     }
 
@@ -50,10 +57,23 @@ class RedditPostProviderTest {
                 "test", "alice", false, null);
     }
 
+    /** Replay the given posts through the consumer the provider passes to streamPosts. */
+    private void stubStreamPosts(List<RedditPostDto> posts) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Predicate<RedditPostDto> consumer = invocation.getArgument(4);
+            for (RedditPostDto dto : posts) {
+                if (!consumer.test(dto)) {
+                    break;
+                }
+            }
+            return null;
+        }).when(redditClient).streamPosts(anyString(), any(), any(), anyInt(), any());
+    }
+
     @Test
     void shouldKeepPost_whenKeywordAppearsAsWholeWordInBody() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("Tried the new place", "Honestly the coffee here is excellent")));
 
         List<Post> posts = provider.collect(reportWithKeyword("coffee"),
@@ -65,9 +85,7 @@ class RedditPostProviderTest {
 
     @Test
     void shouldDropPost_whenKeywordOnlyAppearedInUrlStrippedByCleaner() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        // Cleaner strips bare URLs entirely; the keyword "coffee" only lives in the URL host.
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("Random thoughts today", "Check this site https://coffee.example.com for details now")));
 
         List<Post> posts = provider.collect(reportWithKeyword("coffee"),
@@ -78,8 +96,7 @@ class RedditPostProviderTest {
 
     @Test
     void shouldDropPost_whenKeywordIsOnlySubstringOfLongerWord() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("Morning routine", "I went running this morning around the park area")));
 
         List<Post> posts = provider.collect(reportWithKeyword("run"),
@@ -90,8 +107,7 @@ class RedditPostProviderTest {
 
     @Test
     void shouldMatchKeyword_whenCaseIsDifferent() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("NIKE drop coming", "Saw the new shoes today, looked great")));
 
         List<Post> posts = provider.collect(reportWithKeyword("nike"),
@@ -102,8 +118,7 @@ class RedditPostProviderTest {
 
     @Test
     void shouldDropPost_whenSelftextIsRemovedAndTitleHasNoKeyword() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("Some unrelated title here", "[removed]")));
 
         List<Post> posts = provider.collect(reportWithKeyword("coffee"),
@@ -114,8 +129,6 @@ class RedditPostProviderTest {
 
     @Test
     void shouldDropDuplicatePosts_whenSameCleanedTextAppearsMultipleTimes() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        // Three crossposts: distinct ids and permalinks but identical title + selftext.
         RedditPostDto a = new RedditPostDto("id-a", "Same headline shared widely",
                 "Same body content here that is long enough to pass the cleaner",
                 "https://example.com/a", "/r/sub1/comments/a/x/",
@@ -128,7 +141,7 @@ class RedditPostProviderTest {
                 "Same body content here that is long enough to pass the cleaner",
                 "https://example.com/c", "/r/sub3/comments/c/x/",
                 System.currentTimeMillis() / 1000.0, "sub3", "carol", false, null);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(a, b, c));
+        stubStreamPosts(List.of(a, b, c));
 
         List<Post> posts = provider.collect(reportWithKeyword("headline"),
                 new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
@@ -138,8 +151,7 @@ class RedditPostProviderTest {
 
     @Test
     void shouldMatchMultiWordKeyword_whenPhraseIsAdjacent() {
-        when(properties.maxPostsPerReport()).thenReturn(100);
-        when(redditClient.searchPosts(anyString(), any(), any(), anyInt())).thenReturn(List.of(
+        stubStreamPosts(List.of(
                 post("Cafe review summary", "Ordered an iced latte and it was excellent today"),
                 post("Other cafe notes here", "Iced tea and a regular latte separately ordered")));
 
@@ -148,5 +160,30 @@ class RedditPostProviderTest {
 
         assertThat(posts).hasSize(1);
         assertThat(posts.get(0).getPostText()).contains("iced latte");
+    }
+
+    @Test
+    void shouldKeepPullingUntilCapReached_whenManyPostsAreOversize() {
+        // Tight char cap (200) so anything longer than that gets dropped;
+        // we need to keep pulling more raw posts until exactly report.maxPosts are accepted.
+        cleaner = new RedditPostCleaner(
+                new RedditProperties(null, null, null, null, null, 0, 200, 0, 0, 0));
+        provider = new RedditPostProvider(redditClient, cleaner, properties);
+
+        String shortBody = "the coffee here is genuinely excellent today";
+        String oversize = "the coffee " + "x".repeat(500);
+        stubStreamPosts(List.of(
+                post("oversize one", oversize),
+                post("oversize two", oversize),
+                post("short keeper one", shortBody),
+                post("oversize three", oversize),
+                post("short keeper two", shortBody + " also great")));
+
+        List<Post> posts = provider.collect(reportWithKeyword("coffee", 2),
+                new Brand(), LocalDate.now().minusDays(1), LocalDate.now());
+
+        assertThat(posts).hasSize(2);
+        assertThat(posts).allSatisfy(p ->
+                assertThat(p.getPostText().length()).isLessThanOrEqualTo(200));
     }
 }

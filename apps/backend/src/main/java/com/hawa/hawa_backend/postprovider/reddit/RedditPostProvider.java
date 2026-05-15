@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import com.hawa.hawa_backend.enums.DataSourceEnum;
 import com.hawa.hawa_backend.enums.LanguageEnum;
 import com.hawa.hawa_backend.post.Post;
 import com.hawa.hawa_backend.postprovider.PostProvider;
+import com.hawa.hawa_backend.postprovider.reddit.dto.RedditCommentDto;
 import com.hawa.hawa_backend.postprovider.reddit.dto.RedditPostDto;
 import com.hawa.hawa_backend.report.Report;
 
@@ -48,41 +50,87 @@ public class RedditPostProvider extends PostProvider {
         Instant toInstant = (to != null ? to : LocalDate.now())
                 .plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        List<RedditPostDto> rawPosts = redditClient.searchPosts(
-                query, fromInstant, toInstant, properties.maxPostsPerReport());
+        int maxResults = report.getMaxPosts();
+        boolean includeComments = report.isIncludeComments();
+        int commentsPerSubmission = properties.commentsPerSubmission();
 
-        List<Post> posts = new ArrayList<>(rawPosts.size());
+        List<Post> posts = new ArrayList<>(maxResults);
         Set<String> seenTexts = new HashSet<>();
-        int droppedByCleaner = 0;
-        int droppedByKeywordFilter = 0;
-        int droppedAsDuplicate = 0;
-        for (RedditPostDto dto : rawPosts) {
-            String cleaned = cleaner.clean(dto.title(), dto.selftext());
-            if (cleaned == null) {
-                droppedByCleaner++;
-                continue;
-            }
-            if (!containsAnyKeyword(cleaned, keywordPatterns)) {
-                droppedByKeywordFilter++;
-                continue;
-            }
-            if (!seenTexts.add(cleaned)) {
-                droppedAsDuplicate++;
-                continue;
-            }
-            posts.add(Post.builder()
-                    .report(report)
-                    .postText(cleaned)
-                    .postUrl(buildPermalink(dto))
-                    .language(detectLanguage(cleaned))
-                    .build());
-        }
+        AtomicInteger droppedByCleaner = new AtomicInteger();
+        AtomicInteger droppedByKeywordFilter = new AtomicInteger();
+        AtomicInteger droppedAsDuplicate = new AtomicInteger();
+        AtomicInteger submissionsKept = new AtomicInteger();
+        AtomicInteger commentsKept = new AtomicInteger();
 
-        log.info("Reddit collection: reportId={}, query=\"{}\", fetched={}, kept={}, "
+        redditClient.streamPosts(query, fromInstant, toInstant, properties.maxSearchScan(), dto -> {
+            String cleanedSubmission = cleaner.clean(dto.title(), dto.selftext());
+            AcceptResult submissionResult = tryAccept(
+                    cleanedSubmission, buildPermalink(dto), report, posts, seenTexts, keywordPatterns);
+            switch (submissionResult) {
+                case CLEANER_DROPPED -> droppedByCleaner.incrementAndGet();
+                case KEYWORD_DROPPED -> droppedByKeywordFilter.incrementAndGet();
+                case DUPLICATE -> droppedAsDuplicate.incrementAndGet();
+                case ACCEPTED -> submissionsKept.incrementAndGet();
+            }
+            if (posts.size() >= maxResults) {
+                return false;
+            }
+
+            if (includeComments && commentsPerSubmission > 0) {
+                List<RedditCommentDto> comments;
+                try {
+                    comments = redditClient.fetchComments(dto.id(), commentsPerSubmission);
+                } catch (RedditServiceException ex) {
+                    log.warn("Skipping comments for submission {}: {}", dto.id(), ex.getMessage());
+                    return true;
+                }
+                for (RedditCommentDto comment : comments) {
+                    String cleanedComment = cleaner.clean("", comment.body());
+                    AcceptResult commentResult = tryAccept(
+                            cleanedComment, buildCommentPermalink(comment), report, posts, seenTexts, keywordPatterns);
+                    switch (commentResult) {
+                        case CLEANER_DROPPED -> droppedByCleaner.incrementAndGet();
+                        case KEYWORD_DROPPED -> droppedByKeywordFilter.incrementAndGet();
+                        case DUPLICATE -> droppedAsDuplicate.incrementAndGet();
+                        case ACCEPTED -> commentsKept.incrementAndGet();
+                    }
+                    if (posts.size() >= maxResults) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+
+        log.info("Reddit collection: reportId={}, query=\"{}\", kept={} "
+                        + "(submissions={}, comments={}), includeComments={}, "
                         + "droppedByCleaner={}, droppedByKeywordFilter={}, droppedAsDuplicate={}",
-                report.getReportId(), query, rawPosts.size(), posts.size(),
-                droppedByCleaner, droppedByKeywordFilter, droppedAsDuplicate);
+                report.getReportId(), query, posts.size(),
+                submissionsKept.get(), commentsKept.get(), includeComments,
+                droppedByCleaner.get(), droppedByKeywordFilter.get(), droppedAsDuplicate.get());
         return posts;
+    }
+
+    private enum AcceptResult { ACCEPTED, CLEANER_DROPPED, KEYWORD_DROPPED, DUPLICATE }
+
+    private AcceptResult tryAccept(String cleaned, String sourceUrl, Report report,
+            List<Post> posts, Set<String> seenTexts, List<Pattern> keywordPatterns) {
+        if (cleaned == null) {
+            return AcceptResult.CLEANER_DROPPED;
+        }
+        if (!containsAnyKeyword(cleaned, keywordPatterns)) {
+            return AcceptResult.KEYWORD_DROPPED;
+        }
+        if (!seenTexts.add(cleaned)) {
+            return AcceptResult.DUPLICATE;
+        }
+        posts.add(Post.builder()
+                .report(report)
+                .postText(cleaned)
+                .postUrl(sourceUrl)
+                .language(detectLanguage(cleaned))
+                .build());
+        return AcceptResult.ACCEPTED;
     }
 
     private List<Pattern> compileKeywordPatterns(List<String> keywords) {
@@ -112,6 +160,13 @@ public class RedditPostProvider extends PostProvider {
             return "https://reddit.com" + dto.permalink();
         }
         return dto.url();
+    }
+
+    private String buildCommentPermalink(RedditCommentDto comment) {
+        if (comment.permalink() != null && !comment.permalink().isBlank()) {
+            return "https://reddit.com" + comment.permalink();
+        }
+        return null;
     }
 
     private LanguageEnum detectLanguage(String text) {

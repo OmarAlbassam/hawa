@@ -4,11 +4,13 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class RedditPostCleaner {
 
     private static final int MIN_LENGTH = 10;
-    private static final int MAX_LENGTH = 10_000;
 
     private static final Pattern MARKDOWN_LINK = Pattern.compile("\\[([^\\]]+)\\]\\([^\\)]+\\)");
     private static final Pattern BARE_URL = Pattern.compile("https?://\\S+");
@@ -17,6 +19,8 @@ public class RedditPostCleaner {
     private static final Pattern HEADING = Pattern.compile("(?m)^#+\\s*");
     private static final Pattern EMPHASIS = Pattern.compile("[*_]{1,3}(\\S[^*_]*\\S|\\S)[*_]{1,3}");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+
+    private final RedditProperties properties;
 
     public String clean(String title, String selftext) {
         String safeTitle = title == null ? "" : title;
@@ -42,8 +46,8 @@ public class RedditPostCleaner {
         if (cleaned.length() < MIN_LENGTH) {
             return null;
         }
-        if (cleaned.length() > MAX_LENGTH) {
-            cleaned = cleaned.substring(0, MAX_LENGTH);
+        if (cleaned.length() > properties.maxPostChars()) {
+            return null;
         }
         return cleaned;
     }
