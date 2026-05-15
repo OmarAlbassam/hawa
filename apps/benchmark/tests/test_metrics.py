@@ -8,6 +8,7 @@ from benchmark.metrics.classification import classification_report
 from benchmark.metrics.regression import regression_report
 from benchmark.metrics.significance import (
     accuracy_metric,
+    bootstrap_ci,
     mae_metric,
     mcnemar_test,
     paired_bootstrap_diff,
@@ -95,3 +96,18 @@ def test_paired_bootstrap_detects_consistent_advantage():
     assert r.mean_diff == pytest.approx(-0.4)
     assert r.ci_high < 0
     assert r.p_two_sided < 0.05
+
+
+def test_bootstrap_ci_constant_input_returns_tight_interval():
+    # All errors equal 0.25 → MAE = 0.25, CI = [0.25, 0.25].
+    r = bootstrap_ci(np.full(50, 0.25), mae_metric, n_resamples=200)
+    assert r.point == pytest.approx(0.25)
+    assert r.ci_low == pytest.approx(0.25)
+    assert r.ci_high == pytest.approx(0.25)
+
+
+def test_bootstrap_ci_brackets_the_point_estimate():
+    rng = np.random.default_rng(7)
+    errs = rng.normal(0.4, 0.2, size=200)
+    r = bootstrap_ci(errs, mae_metric, n_resamples=500)
+    assert r.ci_low <= r.point <= r.ci_high
