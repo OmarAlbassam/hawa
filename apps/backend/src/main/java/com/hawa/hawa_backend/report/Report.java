@@ -92,4 +92,12 @@ public class Report {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "selected_keywords", nullable = false, columnDefinition = "jsonb")
     private List<String> selectedKeywords = new ArrayList<>();
+
+    @Builder.Default
+    @Column(name = "include_comments", nullable = false)
+    private boolean includeComments = false;
+
+    @Builder.Default
+    @Column(name = "max_posts", nullable = false)
+    private int maxPosts = 50;
 }
