@@ -1,0 +1,130 @@
+%% Hawa Backend — Domain Class Diagram
+%% Scope: JPA domain entities + the PostProvider strategy hierarchy.
+%% Goal is to show how the backend domain is structured, not to capture
+%% every controller/service/repository/DTO class.
+
+classDiagram
+    direction LR
+
+    class Company {
+        -Long companyId
+        -String companyName
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class User {
+        -Long userId
+        -Company company
+        -String firstName
+        -String lastName
+        -UserRoleEnum role
+        -String email
+        -String password
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class RefreshToken {
+        -Long refreshTokenId
+        -User user
+        -String token
+        -LocalDateTime expiresAt
+        -LocalDateTime createdAt
+    }
+
+    class Brand {
+        -Long brandId
+        -String brandName
+        -Company company
+        -String industry
+        -BigDecimal statusIndicator
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class Keyword {
+        -Long keywordId
+        -Brand brand
+        -String keyword
+        -KeywordTypeEnum keywordType
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class Report {
+        -Long reportId
+        -User user
+        -Brand brand
+        -Integer score
+        -String summary
+        -DataSourceEnum dataSource
+        -ReportStatusEnum status
+        -LocalDate dateFrom
+        -LocalDate dateTo
+        -LocalDateTime createdAt
+        -LocalDateTime finishedAt
+        -String failureReason
+        -List~String~ selectedKeywords
+    }
+
+    class Post {
+        -Long postId
+        -Report report
+        -String postText
+        -String postUrl
+        -LanguageEnum language
+        -RelevanceStatusEnum relevanceStatus
+        -IrrelevanceReasonEnum irrelevanceReason
+        -LocalDateTime createdAt
+    }
+
+    class Review {
+        -Long reviewId
+        -Post post
+        -BigDecimal llmScore
+        -BigDecimal score
+        -EmotionEnum emotion
+        -AspectEnum aspect
+    }
+
+    class Feedback {
+        -Long feedbackId
+        -Review review
+        -User user
+        -String brief
+    }
+
+    class PostProvider {
+        <<abstract>>
+        +DataSourceEnum dataSource()
+        +List~Post~ collect(Report report, Brand brand, LocalDate from, LocalDate to)
+    }
+
+    class CsvPostProvider {
+        -PostRepository postRepository
+        +DataSourceEnum dataSource()
+        +List~Post~ collect(Report report, Brand brand, LocalDate from, LocalDate to)
+    }
+
+    class RedditPostProvider {
+        -RedditClient redditClient
+        -RedditPostCleaner cleaner
+        -RedditProperties properties
+        +DataSourceEnum dataSource()
+        +List~Post~ collect(Report report, Brand brand, LocalDate from, LocalDate to)
+    }
+
+    Company "1" --> "*" User
+    Company "1" --> "*" Brand
+    User "1" --> "*" RefreshToken
+    User "1" --> "*" Report
+    User "1" --> "*" Feedback
+    Brand "1" --> "*" Keyword
+    Brand "1" --> "*" Report
+    Report "1" --> "*" Post
+    Post "1" --> "1" Review
+    Review "1" --> "*" Feedback
+    PostProvider <|-- CsvPostProvider
+    PostProvider <|-- RedditPostProvider
+    PostProvider ..> Post
