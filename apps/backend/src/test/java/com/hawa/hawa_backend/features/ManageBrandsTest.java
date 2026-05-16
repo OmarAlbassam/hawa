@@ -1,4 +1,4 @@
-package com.hawa.hawa_backend.brand;
+package com.hawa.hawa_backend.features;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,27 +9,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.hawa.hawa_backend.TestcontainersConfiguration;
 import com.hawa.hawa_backend.auth.JwtService;
+import com.hawa.hawa_backend.brand.Brand;
+import com.hawa.hawa_backend.brand.BrandRepository;
 import com.hawa.hawa_backend.company.Company;
 import com.hawa.hawa_backend.company.CompanyRepository;
-import com.hawa.hawa_backend.enums.AspectEnum;
-import com.hawa.hawa_backend.enums.DataSourceEnum;
-import com.hawa.hawa_backend.enums.EmotionEnum;
 import com.hawa.hawa_backend.enums.KeywordTypeEnum;
-import com.hawa.hawa_backend.enums.LanguageEnum;
-import com.hawa.hawa_backend.enums.ReportStatusEnum;
 import com.hawa.hawa_backend.enums.UserRoleEnum;
 import com.hawa.hawa_backend.keyword.Keyword;
 import com.hawa.hawa_backend.keyword.KeywordRepository;
-import com.hawa.hawa_backend.post.Post;
-import com.hawa.hawa_backend.post.PostRepository;
-import com.hawa.hawa_backend.report.Report;
-import com.hawa.hawa_backend.report.ReportRepository;
-import com.hawa.hawa_backend.review.Review;
-import com.hawa.hawa_backend.review.ReviewRepository;
 import com.hawa.hawa_backend.user.User;
 import com.hawa.hawa_backend.user.UserRepository;
-
-import java.math.BigDecimal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -48,23 +37,23 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
-class BrandControllerTest {
+class ManageBrandsTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private BrandRepository brandRepository;
     @Autowired private KeywordRepository keywordRepository;
-    @Autowired private ReportRepository reportRepository;
-    @Autowired private PostRepository postRepository;
-    @Autowired private ReviewRepository reviewRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     private Company company;
     private User marketingUser;
+    private User adminUser;
     private String userToken;
+    private String adminToken;
+    private Long companyId;
 
     @BeforeEach
     void setUp() {
@@ -81,16 +70,20 @@ class BrandControllerTest {
         company = new Company();
         company.setCompanyName("Test Corp");
         company = companyRepository.save(company);
+        companyId = company.getCompanyId();
 
         marketingUser = createUser("marketing@example.com", UserRoleEnum.MARKETING_USER, company);
         userToken = jwtService.generateAccessToken(marketingUser);
+
+        adminUser = createUser("admin@example.com", UserRoleEnum.ADMIN, null);
+        adminToken = jwtService.generateAccessToken(adminUser);
     }
 
     @Nested
-    class ListBrands {
+    class WhenListingBrandsAsMarketingUser {
 
         @Test
-        void shouldReturnPaginatedBrands_forUserCompany() throws Exception {
+        void shouldReturnPaginatedBrands_whenScopedToUserCompany() throws Exception {
             Brand brand = createBrand("Nike", company);
             createKeyword(brand, "nike", KeywordTypeEnum.BRAND_NAME);
             createKeyword(brand, "nikee", KeywordTypeEnum.MISSPELLING);
@@ -107,7 +100,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldNotShowOtherCompanyBrands() throws Exception {
+        void shouldNotShowOtherCompanyBrands_whenScopedToUserCompany() throws Exception {
             Company otherCompany = new Company();
             otherCompany.setCompanyName("Other Corp");
             otherCompany = companyRepository.save(otherCompany);
@@ -121,7 +114,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldReturnEmptyPage_whenNoBrands() throws Exception {
+        void shouldReturnEmptyPage_whenCompanyHasNoBrands() throws Exception {
             mockMvc.perform(get("/api/brands")
                             .header("Authorization", "Bearer " + userToken))
                     .andExpect(status().isOk())
@@ -131,10 +124,10 @@ class BrandControllerTest {
     }
 
     @Nested
-    class GetBrandDetail {
+    class WhenGettingBrandDetail {
 
         @Test
-        void shouldReturnBrandWithKeywords() throws Exception {
+        void shouldReturnBrandWithKeywords_whenBrandExists() throws Exception {
             Brand brand = createBrand("Nike", company);
             createKeyword(brand, "nike", KeywordTypeEnum.BRAND_NAME);
             createKeyword(brand, "air max", KeywordTypeEnum.PRODUCT);
@@ -152,7 +145,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldReturnBrand_withEmptyKeywords() throws Exception {
+        void shouldReturnBrand_whenBrandHasNoKeywords() throws Exception {
             Brand brand = createBrand("Nike", company);
 
             mockMvc.perform(get("/api/brands/" + brand.getBrandId())
@@ -183,142 +176,8 @@ class BrandControllerTest {
         }
     }
 
-    // ==================== Brand Status Indicator ====================
-
     @Nested
-    class GetStatusIndicator {
-
-        @Test
-        void shouldAggregateAcrossAllCompletedReportsForBrand() throws Exception {
-            Brand brand = createBrand("Nike", company);
-
-            // First completed report: 2 reviews
-            Report r1 = createReport(brand, ReportStatusEnum.COMPLETED);
-            createReview(r1, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createReview(r1, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-
-            // Second completed report: 3 reviews
-            Report r2 = createReport(brand, ReportStatusEnum.COMPLETED);
-            createReview(r2, new BigDecimal("5.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-            createReview(r2, new BigDecimal("3.0"), EmotionEnum.NEUTRAL, AspectEnum.PRODUCT);
-            createReview(r2, new BigDecimal("2.5"), EmotionEnum.NEUTRAL, AspectEnum.DELIVERY);
-
-            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.brandId").value(brand.getBrandId()))
-                    .andExpect(jsonPath("$.brandName").value("Nike"))
-                    .andExpect(jsonPath("$.completedReportCount").value(2))
-                    .andExpect(jsonPath("$.analyzedPostCount").value(5))
-                    .andExpect(jsonPath("$.averageSentiment").value(3.1))
-                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(1))
-                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(2))
-                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(2))
-                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"))
-                    .andExpect(jsonPath("$.topEmotions[0].emotion").value("JOY"))
-                    .andExpect(jsonPath("$.topEmotions[0].count").value(2))
-                    .andExpect(jsonPath("$.topEmotions[1].emotion").value("NEUTRAL"))
-                    .andExpect(jsonPath("$.topEmotions[1].count").value(2))
-                    .andExpect(jsonPath("$.topEmotions[2].emotion").value("ANGER"))
-                    .andExpect(jsonPath("$.topAspects[0].aspect").value("PRODUCT"))
-                    .andExpect(jsonPath("$.topAspects[0].count").value(3))
-                    .andExpect(jsonPath("$.topAspects[1].aspect").value("SERVICE"))
-                    .andExpect(jsonPath("$.topAspects[2].aspect").value("DELIVERY"));
-        }
-
-        @Test
-        void shouldExcludeNonCompletedReports() throws Exception {
-            Brand brand = createBrand("Nike", company);
-            Report completed = createReport(brand, ReportStatusEnum.COMPLETED);
-            createReview(completed, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-
-            // These should not contribute to aggregation
-            Report processing = createReport(brand, ReportStatusEnum.PROCESSING);
-            createReview(processing, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-            Report failed = createReport(brand, ReportStatusEnum.FAILED);
-            createReview(failed, new BigDecimal("1.5"), EmotionEnum.SADNESS, AspectEnum.DELIVERY);
-
-            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.completedReportCount").value(1))
-                    .andExpect(jsonPath("$.analyzedPostCount").value(1))
-                    .andExpect(jsonPath("$.averageSentiment").value(4.0))
-                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"));
-        }
-
-        @Test
-        void shouldNotMixDataAcrossBrandsInSameCompany() throws Exception {
-            Brand nike = createBrand("Nike", company);
-            Brand adidas = createBrand("Adidas", company);
-
-            Report nikeReport = createReport(nike, ReportStatusEnum.COMPLETED);
-            createReview(nikeReport, new BigDecimal("4.0"), EmotionEnum.JOY, AspectEnum.PRODUCT);
-
-            Report adidasReport = createReport(adidas, ReportStatusEnum.COMPLETED);
-            createReview(adidasReport, new BigDecimal("1.0"), EmotionEnum.ANGER, AspectEnum.SERVICE);
-            createReview(adidasReport, new BigDecimal("2.0"), EmotionEnum.SADNESS, AspectEnum.SERVICE);
-
-            mockMvc.perform(get("/api/brands/" + nike.getBrandId() + "/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.analyzedPostCount").value(1))
-                    .andExpect(jsonPath("$.averageSentiment").value(4.0))
-                    .andExpect(jsonPath("$.dominantEmotion").value("JOY"));
-        }
-
-        @Test
-        void shouldReturnZerosAndNulls_whenBrandHasNoCompletedReports() throws Exception {
-            Brand brand = createBrand("Nike", company);
-
-            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.brandId").value(brand.getBrandId()))
-                    .andExpect(jsonPath("$.brandName").value("Nike"))
-                    .andExpect(jsonPath("$.completedReportCount").value(0))
-                    .andExpect(jsonPath("$.analyzedPostCount").value(0))
-                    .andExpect(jsonPath("$.averageSentiment").doesNotExist())
-                    .andExpect(jsonPath("$.sentimentBreakdown.negative.count").value(0))
-                    .andExpect(jsonPath("$.sentimentBreakdown.neutral.count").value(0))
-                    .andExpect(jsonPath("$.sentimentBreakdown.positive.count").value(0))
-                    .andExpect(jsonPath("$.dominantEmotion").doesNotExist())
-                    .andExpect(jsonPath("$.topEmotions.length()").value(0))
-                    .andExpect(jsonPath("$.topAspects.length()").value(0));
-        }
-
-        @Test
-        void shouldReturn404_whenBrandDoesNotExist() throws Exception {
-            mockMvc.perform(get("/api/brands/99999/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        void shouldReturn404_whenBrandBelongsToDifferentCompany() throws Exception {
-            Company otherCompany = new Company();
-            otherCompany.setCompanyName("Other Corp");
-            otherCompany = companyRepository.save(otherCompany);
-            Brand otherBrand = createBrand("Adidas", otherCompany);
-
-            mockMvc.perform(get("/api/brands/" + otherBrand.getBrandId() + "/status-indicator")
-                            .header("Authorization", "Bearer " + userToken))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        void shouldReturn401_whenUnauthenticated() throws Exception {
-            Brand brand = createBrand("Nike", company);
-
-            mockMvc.perform(get("/api/brands/" + brand.getBrandId() + "/status-indicator"))
-                    .andExpect(status().isUnauthorized());
-        }
-    }
-
-    // ==================== Keyword Management ====================
-
-    @Nested
-    class KeywordManagement {
+    class WhenManagingKeywords {
 
         private Brand brand;
 
@@ -328,7 +187,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldCreateKeyword() throws Exception {
+        void shouldCreateKeyword_whenRequestIsValid() throws Exception {
             mockMvc.perform(post("/api/brands/" + brand.getBrandId() + "/keywords")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -354,7 +213,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldListKeywords() throws Exception {
+        void shouldListKeywords_whenBrandHasKeywords() throws Exception {
             createKeyword(brand, "nike", KeywordTypeEnum.BRAND_NAME);
             createKeyword(brand, "nikee", KeywordTypeEnum.MISSPELLING);
 
@@ -366,7 +225,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldUpdateKeyword() throws Exception {
+        void shouldUpdateKeyword_whenKeywordExists() throws Exception {
             Keyword kw = createKeyword(brand, "old-name", KeywordTypeEnum.BRAND_NAME);
 
             mockMvc.perform(put("/api/brands/" + brand.getBrandId() + "/keywords/" + kw.getKeywordId())
@@ -381,7 +240,7 @@ class BrandControllerTest {
         }
 
         @Test
-        void shouldDeleteKeyword() throws Exception {
+        void shouldDeleteKeyword_whenKeywordExists() throws Exception {
             Keyword kw = createKeyword(brand, "delete-me", KeywordTypeEnum.BRAND_NAME);
 
             mockMvc.perform(delete("/api/brands/" + brand.getBrandId() + "/keywords/" + kw.getKeywordId())
@@ -418,7 +277,87 @@ class BrandControllerTest {
         }
     }
 
-    // ==================== Helpers ====================
+    @Nested
+    class WhenAdminManagesBrands {
+
+        @Test
+        void shouldCreateBrand_whenAdmin() throws Exception {
+            mockMvc.perform(post("/api/admin/brands")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brandName": "Acme", "companyId": %d, "industry": "Tech"}
+                                    """.formatted(companyId)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.brandId").isNumber())
+                    .andExpect(jsonPath("$.brandName").value("Acme"))
+                    .andExpect(jsonPath("$.company.companyId").value(companyId))
+                    .andExpect(jsonPath("$.industry").value("Tech"));
+        }
+
+        @Test
+        void shouldReject404_whenCreatingBrandWithInvalidCompany() throws Exception {
+            mockMvc.perform(post("/api/admin/brands")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brandName": "Acme", "companyId": 99999}
+                                    """))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldListBrands_whenAdmin() throws Exception {
+            createBrand("Test Brand", company);
+
+            mockMvc.perform(get("/api/admin/brands")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].brandName").value("Test Brand"));
+        }
+
+        @Test
+        void shouldFilterBrandsByCompany_whenCompanyIdProvided() throws Exception {
+            createBrand("Filtered Brand", company);
+
+            Company other = new Company();
+            other.setCompanyName("Other");
+            other = companyRepository.save(other);
+
+            createBrand("Other Brand", other);
+
+            mockMvc.perform(get("/api/admin/brands")
+                            .param("companyId", companyId.toString())
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].brandName").value("Filtered Brand"));
+        }
+
+        @Test
+        void shouldUpdateBrand_whenAdmin() throws Exception {
+            Brand brand = createBrand("Old Name", company);
+
+            mockMvc.perform(put("/api/admin/brands/" + brand.getBrandId())
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"brandName": "New Name"}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.brandName").value("New Name"));
+        }
+
+        @Test
+        void shouldDeleteBrand_whenAdmin() throws Exception {
+            Brand brand = createBrand("Delete Me", company);
+
+            mockMvc.perform(delete("/api/admin/brands/" + brand.getBrandId())
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isNoContent());
+        }
+    }
 
     private User createUser(String email, UserRoleEnum role, Company targetCompany) {
         User user = User.builder()
@@ -447,33 +386,5 @@ class BrandControllerTest {
                 .keywordType(type)
                 .build();
         return keywordRepository.save(kw);
-    }
-
-    private Report createReport(Brand brand, ReportStatusEnum status) {
-        Report report = Report.builder()
-                .brand(brand)
-                .user(marketingUser)
-                .dataSource(DataSourceEnum.REDDIT)
-                .status(status)
-                .build();
-        return reportRepository.save(report);
-    }
-
-    private Review createReview(Report report, BigDecimal score,
-                                EmotionEnum emotion, AspectEnum aspect) {
-        Post post = Post.builder()
-                .report(report)
-                .postText("sample text")
-                .language(LanguageEnum.EN)
-                .build();
-        post = postRepository.save(post);
-
-        Review review = Review.builder()
-                .post(post)
-                .score(score)
-                .emotion(emotion)
-                .aspect(aspect)
-                .build();
-        return reviewRepository.save(review);
     }
 }
