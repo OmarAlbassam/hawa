@@ -20,11 +20,11 @@ import KeywordPanel from './KeywordPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { selectClass as baseSelectClass } from '@/lib/select-styles'
 
 type ModalMode = 'create' | 'edit' | null
 
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
+const selectClass = `${baseSelectClass} w-full`
 
 const BrandManagement = (): React.JSX.Element => {
   const { accessToken } = useAuth()
@@ -154,14 +154,14 @@ const BrandManagement = (): React.JSX.Element => {
     {
       key: 'industry',
       header: 'Industry',
-      render: (row) => (row.industry ? <Badge variant="info">{row.industry}</Badge> : '—'),
+      render: (row) => (row.industry ? <Badge variant="info">{row.industry}</Badge> : '-'),
     },
     {
       key: 'statusIndicator',
       header: 'Status',
       render: (row) => (
         <span className="font-mono tabular-nums text-foreground">
-          {row.statusIndicator != null ? row.statusIndicator.toFixed(1) : '—'}
+          {row.statusIndicator != null ? row.statusIndicator.toFixed(1) : '-'}
         </span>
       ),
     },
@@ -368,7 +368,7 @@ const BrandManagement = (): React.JSX.Element => {
           setKeywordsBrand(null)
           setRefreshKey((k) => k + 1)
         }}
-        title={`Keywords — ${keywordsBrand?.brandName}`}
+        title={`Keywords - ${keywordsBrand?.brandName}`}
         width="lg"
       >
         {keywordsBrand && accessToken && (

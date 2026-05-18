@@ -36,6 +36,7 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { selectClass as baseSelectClass } from '@/lib/select-styles'
 
 const MAX_POSTS_MIN = 1
 const MAX_POSTS_MAX = 500
@@ -50,8 +51,7 @@ const TEXT_CANDIDATES = ['text', 'post', 'post_text', 'content', 'body', 'messag
 const URL_CANDIDATES = ['url', 'link', 'href', 'source']
 const LANG_CANDIDATES = ['language', 'lang']
 
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
+const selectClass = `${baseSelectClass} w-full`
 
 function detectDelimiter(text: string): '\t' | ',' {
   const firstLine = text.split('\n')[0] ?? ''
@@ -424,7 +424,7 @@ const StartAnalysis = (): React.JSX.Element => {
                 {brands.map((b) => (
                   <option key={b.brandId} value={b.brandId}>
                     {b.brandName}
-                    {b.industry ? ` — ${b.industry}` : ''}
+                    {b.industry ? ` - ${b.industry}` : ''}
                   </option>
                 ))}
               </select>
@@ -759,7 +759,7 @@ const StartAnalysis = (): React.JSX.Element => {
                                   )
                                 }}
                               >
-                                <option value="">— ignored —</option>
+                                <option value="">- ignored -</option>
                                 {pastePreview.headers.map((h) => (
                                   <option key={h} value={h}>
                                     {h}

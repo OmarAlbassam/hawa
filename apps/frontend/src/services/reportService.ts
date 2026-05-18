@@ -152,7 +152,7 @@ export async function exportReportCsv(
       const error = await response.json();
       if (error?.message) message = error.message;
     } catch {
-      // body wasn't JSON — keep default message
+      // body wasn't JSON - keep default message
     }
     throw new Error(message);
   }
