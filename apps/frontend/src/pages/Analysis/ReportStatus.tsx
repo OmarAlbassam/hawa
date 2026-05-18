@@ -57,7 +57,7 @@ const ASPECT_COLORS: Record<AspectEnum, string> = {
 const toTitle = (key: string): string => key.charAt(0) + key.slice(1).toLowerCase()
 
 const fmtScore = (value: number | null | undefined): string =>
-  value == null ? '—' : Number(value).toFixed(1)
+  value == null ? '-' : Number(value).toFixed(1)
 
 interface DistributionProps<K extends string> {
   entries: Array<[K, number]>
@@ -317,7 +317,7 @@ const ReportStatus = (): React.JSX.Element => {
                 : 'Analyzing posts…'}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              This page refreshes automatically. You can leave and come back later — the run
+              This page refreshes automatically. You can leave and come back later - the run
               continues in the background.
             </p>
           </div>

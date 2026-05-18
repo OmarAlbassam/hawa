@@ -14,7 +14,7 @@ function truncate(text: string, max: number): string {
 }
 
 const fmtScore = (value: number | null | undefined): string =>
-  value == null ? '—' : Number(value).toFixed(1)
+  value == null ? '-' : Number(value).toFixed(1)
 
 const toTitle = (key: string): string => key.charAt(0) + key.slice(1).toLowerCase()
 
@@ -89,7 +89,7 @@ const ReportedReviews = (): React.JSX.Element => {
         row.review.emotion ? (
           <Badge variant="info">{toTitle(row.review.emotion)}</Badge>
         ) : (
-          '—'
+          '-'
         ),
     },
     {
@@ -144,11 +144,11 @@ const ReportedReviews = (): React.JSX.Element => {
               <MetaRow k="LLM Score" v={`${fmtScore(selected.review.llmScore)} / 5`} />
               <MetaRow
                 k="Emotion"
-                v={selected.review.emotion ? toTitle(selected.review.emotion) : '—'}
+                v={selected.review.emotion ? toTitle(selected.review.emotion) : '-'}
               />
               <MetaRow
                 k="Aspect"
-                v={selected.review.aspect ? toTitle(selected.review.aspect) : '—'}
+                v={selected.review.aspect ? toTitle(selected.review.aspect) : '-'}
               />
               <MetaRow k="Language" v={selected.post.language} />
               <MetaRow k="Collected" v={formatDate(selected.post.createdAt)} />

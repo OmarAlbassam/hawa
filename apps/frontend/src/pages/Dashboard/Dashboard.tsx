@@ -77,7 +77,7 @@ const Dashboard = (): React.JSX.Element => {
       {selectedBrand && (
         <StatusIndicator
           source={{ kind: 'brand', brandId: selectedBrand.brandId }}
-          title={`${selectedBrand.brandName} — Brand health`}
+          title={`${selectedBrand.brandName} - Brand health`}
         />
       )}
 
@@ -176,7 +176,7 @@ const Dashboard = (): React.JSX.Element => {
                       <Badge variant={statusBadgeVariant[report.status]}>{report.status}</Badge>
                     </TableCell>
                     <TableCell className="font-mono tabular-nums text-foreground">
-                      {report.score != null ? report.score.toFixed(1) : '—'}
+                      {report.score != null ? report.score.toFixed(1) : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDate(report.createdAt)}

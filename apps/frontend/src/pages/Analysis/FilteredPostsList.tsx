@@ -110,7 +110,7 @@ const FilteredPostsList = ({ reportId }: Props): React.JSX.Element => {
                 </TableCell>
                 <TableCell>
                   <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-3">
-                    {post.irrelevanceReason ? REASON_LABEL[post.irrelevanceReason] : '—'}
+                    {post.irrelevanceReason ? REASON_LABEL[post.irrelevanceReason] : '-'}
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{post.language}</TableCell>
@@ -125,7 +125,7 @@ const FilteredPostsList = ({ reportId }: Props): React.JSX.Element => {
                       View
                     </a>
                   ) : (
-                    '—'
+                    '-'
                   )}
                 </TableCell>
               </TableRow>
@@ -181,7 +181,7 @@ const FilteredPostsList = ({ reportId }: Props): React.JSX.Element => {
                   Reason
                 </dt>
                 <dd className="text-[13px] text-foreground">
-                  {selected.irrelevanceReason ? REASON_LABEL[selected.irrelevanceReason] : '—'}
+                  {selected.irrelevanceReason ? REASON_LABEL[selected.irrelevanceReason] : '-'}
                 </dd>
               </div>
               <div className="grid grid-cols-[100px_1fr] gap-3 py-1.5">
