@@ -46,7 +46,7 @@ const BrandSelector = (): React.JSX.Element | null => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" className="gap-2">
+        <Button variant="secondary" className="gap-2 pr-5">
           <Tag className="size-3.5 text-text-3" />
           <span>{selectedBrand?.brandName ?? 'Select a brand'}</span>
           <ChevronDown className="size-3.5 text-text-3" />
