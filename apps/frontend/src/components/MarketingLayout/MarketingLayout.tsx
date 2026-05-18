@@ -31,50 +31,29 @@ const MarketingLayout = (): React.JSX.Element => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="flex h-full items-center gap-3 px-4 lg:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            aria-expanded={sidebarOpen}
-          >
-            {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-          </Button>
-
-          <div className="flex items-center gap-3">
-            <HawaLogo />
-            <span className="h-4 w-px bg-border-strong" />
-            <span className="eyebrow">Marketing</span>
+    <div className="flex min-h-screen bg-background text-foreground">
+      <aside
+        className={cn(
+          'sticky top-0 h-screen shrink-0 overflow-hidden border-r border-border bg-background',
+          'transition-[width] duration-300 ease-out motion-reduce:transition-none',
+          sidebarOpen ? 'w-[220px]' : 'w-14',
+        )}
+        aria-label="Primary navigation"
+      >
+        <div className="flex h-full w-[220px] flex-col">
+          <div className="flex h-14 shrink-0 items-center border-b border-border px-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              aria-expanded={sidebarOpen}
+            >
+              {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+            </Button>
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            <BrandSelector />
-            <div className="hidden text-right sm:block">
-              <div className="text-[13px] font-medium text-foreground">
-                {user?.firstName} {user?.lastName}
-              </div>
-              <div className="text-[11px] font-mono uppercase tracking-[0.1em] text-text-3">
-                Marketing
-              </div>
-            </div>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
-
-      <div className="flex">
-        <aside
-          className={cn(
-            'sticky top-14 h-[calc(100vh-3.5rem)] shrink-0 overflow-hidden border-r border-border bg-background',
-            'transition-[width] duration-300 ease-out motion-reduce:transition-none',
-            sidebarOpen ? 'w-[220px]' : 'w-14',
-          )}
-          aria-label="Primary navigation"
-        >
-          <div className="flex h-full w-[220px] flex-col p-2">
+          <div className="flex min-h-0 flex-1 flex-col p-2">
             <div
               className={cn(
                 'px-2 pb-3 pt-1 transition-opacity duration-200',
@@ -133,7 +112,32 @@ const MarketingLayout = (): React.JSX.Element => {
               </button>
             </div>
           </div>
-        </aside>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="flex h-full items-center gap-3 px-4 lg:px-6">
+            <div className="flex items-center gap-3">
+              <HawaLogo />
+              <span className="h-4 w-px bg-border-strong" />
+              <span className="eyebrow">Marketing</span>
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
+              <BrandSelector />
+              <div className="hidden text-right sm:block">
+                <div className="text-[13px] font-medium text-foreground">
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div className="text-[11px] font-mono uppercase tracking-[0.1em] text-text-3">
+                  Marketing
+                </div>
+              </div>
+              <ThemeToggle />
+            </div>
+          </div>
+        </header>
 
         <main className="min-w-0 flex-1">
           <div className="px-4 py-6 lg:px-8 lg:py-8">
