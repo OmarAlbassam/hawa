@@ -89,6 +89,7 @@ const Login = (): React.JSX.Element => {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 value={form.email}
                 onChange={(e) => handleChange('email', e.target.value)}
@@ -109,6 +110,7 @@ const Login = (): React.JSX.Element => {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 value={form.password}
                 onChange={(e) => handleChange('password', e.target.value)}
