@@ -79,7 +79,7 @@ const AdminLayout = (): React.JSX.Element => {
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed inset-y-14 left-0 z-20 w-[220px] shrink-0 border-r border-border bg-muted/60 transition-transform',
+            'fixed bottom-0 left-0 top-14 z-20 w-[220px] shrink-0 border-r border-border bg-muted/60 transition-transform',
             'lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:translate-x-0',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           )}
