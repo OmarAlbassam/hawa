@@ -7,8 +7,8 @@ import {
   Building2,
   Tag,
   LogOut,
-  Menu,
-  X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
 import { logout } from '../../services/authService'
@@ -42,17 +42,16 @@ const AdminLayout = (): React.JSX.Element => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Topbar */}
       <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex h-full items-center gap-3 px-4 lg:px-6">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
             onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Toggle sidebar"
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={sidebarOpen}
           >
-            {sidebarOpen ? <X /> : <Menu />}
+            {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
           </Button>
 
           <div className="flex items-center gap-3">
@@ -76,16 +75,22 @@ const AdminLayout = (): React.JSX.Element => {
       </header>
 
       <div className="flex">
-        {/* Sidebar */}
         <aside
           className={cn(
-            'fixed bottom-0 left-0 top-14 z-20 w-[220px] shrink-0 border-r border-border bg-muted/60 transition-transform',
-            'lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:translate-x-0',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+            'sticky top-14 h-[calc(100vh-3.5rem)] shrink-0 overflow-hidden border-r border-border bg-background',
+            'transition-[width] duration-300 ease-out motion-reduce:transition-none',
+            sidebarOpen ? 'w-[220px]' : 'w-14',
           )}
+          aria-label="Primary navigation"
         >
-          <div className="flex h-full flex-col p-4">
-            <div className="px-2 pb-3 pt-1">
+          <div className="flex h-full w-[220px] flex-col p-2">
+            <div
+              className={cn(
+                'px-2 pb-3 pt-1 transition-opacity duration-200',
+                sidebarOpen ? 'opacity-100' : 'opacity-0',
+              )}
+              aria-hidden={!sidebarOpen}
+            >
               <span className="eyebrow">Workspace</span>
             </div>
 
@@ -94,18 +99,25 @@ const AdminLayout = (): React.JSX.Element => {
                 <NavLink
                   key={to}
                   to={to}
-                  onClick={() => setSidebarOpen(false)}
+                  title={sidebarOpen ? undefined : label}
                   className={({ isActive }) =>
                     cn(
-                      'flex h-8 items-center gap-2.5 rounded-sm px-2 text-[13px] transition-colors',
+                      'flex h-9 items-center gap-2.5 rounded-sm px-2.5 text-[13px] transition-colors',
                       isActive
                         ? 'border border-border bg-card font-medium text-foreground [&_svg]:text-primary'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:text-text-3',
                     )
                   }
                 >
-                  <Icon className="size-3.5" />
-                  <span>{label}</span>
+                  <Icon className="size-4 shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-opacity duration-200',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0',
+                    )}
+                  >
+                    {label}
+                  </span>
                 </NavLink>
               ))}
             </nav>
@@ -114,26 +126,24 @@ const AdminLayout = (): React.JSX.Element => {
               <Separator className="my-3" />
               <button
                 onClick={handleLogout}
-                className="flex h-8 w-full items-center gap-2.5 rounded-sm px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title={sidebarOpen ? undefined : 'Logout'}
+                aria-label="Logout"
+                className="flex h-9 w-full items-center gap-2.5 rounded-sm px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                <LogOut className="size-3.5 text-text-3" />
-                <span>Logout</span>
+                <LogOut className="size-4 shrink-0 text-text-3" />
+                <span
+                  className={cn(
+                    'transition-opacity duration-200',
+                    sidebarOpen ? 'opacity-100' : 'opacity-0',
+                  )}
+                >
+                  Logout
+                </span>
               </button>
             </div>
           </div>
         </aside>
 
-        {/* Backdrop (mobile) */}
-        {sidebarOpen && (
-          <button
-            type="button"
-            aria-label="Close sidebar"
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 top-14 z-10 bg-black/30 backdrop-blur-sm lg:hidden"
-          />
-        )}
-
-        {/* Main */}
         <main className="min-w-0 flex-1">
           <div className="px-4 py-6 lg:px-8 lg:py-8">
             <Outlet />
