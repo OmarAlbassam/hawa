@@ -20,9 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-const selectClass =
-  'flex h-9 rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
+import { selectClass } from '@/lib/select-styles'
 
 const ReportList = (): React.JSX.Element => {
   const { selectedBrand, selectedBrandId } = useBrandSelection()
@@ -70,7 +68,7 @@ const ReportList = (): React.JSX.Element => {
       <div>
         <span className="eyebrow">Marketing · Reports</span>
         <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.025em] text-foreground">
-          Reports{selectedBrand ? ` — ${selectedBrand.brandName}` : ''}
+          Reports{selectedBrand ? ` - ${selectedBrand.brandName}` : ''}
         </h1>
       </div>
 
@@ -130,18 +128,18 @@ const ReportList = (): React.JSX.Element => {
                       <Badge variant={statusBadgeVariant[report.status]}>{report.status}</Badge>
                     </TableCell>
                     <TableCell className="font-mono tabular-nums text-foreground">
-                      {report.score != null ? report.score.toFixed(1) : '—'}
+                      {report.score != null ? report.score.toFixed(1) : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {report.dateFrom && report.dateTo
                         ? `${formatDate(report.dateFrom)} – ${formatDate(report.dateTo)}`
-                        : '—'}
+                        : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDate(report.createdAt)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {report.finishedAt ? formatDate(report.finishedAt) : '—'}
+                      {report.finishedAt ? formatDate(report.finishedAt) : '-'}
                     </TableCell>
                   </TableRow>
                 ))}
