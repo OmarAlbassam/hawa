@@ -207,6 +207,10 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 @layer utilities {
