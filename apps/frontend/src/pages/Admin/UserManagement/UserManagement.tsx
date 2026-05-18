@@ -26,11 +26,11 @@ import ErrorBanner from '../../../components/ErrorBanner/ErrorBanner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { selectClass as baseSelectClass } from '@/lib/select-styles'
 
 type ModalMode = 'create' | 'edit' | null
 
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
+const selectClass = `${baseSelectClass} w-full`
 
 const UserManagement = (): React.JSX.Element => {
   const { accessToken, user: currentUser } = useAuth()
@@ -213,7 +213,7 @@ const UserManagement = (): React.JSX.Element => {
             Platform
           </span>
         ) : (
-          '—'
+          '-'
         )),
     },
     {
@@ -378,7 +378,7 @@ const UserManagement = (): React.JSX.Element => {
               <div className="space-y-1.5">
                 <Label>Company</Label>
                 <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">
-                  Platform admin — no company
+                  Platform admin - no company
                 </div>
               </div>
             ) : (

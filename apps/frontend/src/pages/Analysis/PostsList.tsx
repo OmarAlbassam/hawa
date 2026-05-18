@@ -28,6 +28,7 @@ import { formatDate } from '../../utils/formatDate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { selectClass as baseSelectClass } from '@/lib/select-styles'
 import {
   Table,
   TableBody,
@@ -87,12 +88,11 @@ const EMOTION_BADGE_VARIANT: Record<
   NEUTRAL: 'default',
 }
 
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
+const selectClass = `${baseSelectClass} w-full`
 
 const toTitle = (key: string): string => key.charAt(0) + key.slice(1).toLowerCase()
 const fmtScore = (value: number | null | undefined): string =>
-  value == null ? '—' : Number(value).toFixed(1)
+  value == null ? '-' : Number(value).toFixed(1)
 
 interface Filters {
   relevance: RelevanceStatus
@@ -520,7 +520,7 @@ const PostsList = (): React.JSX.Element => {
                         <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-3">
                           {post.irrelevanceReason
                             ? REASON_LABEL[post.irrelevanceReason]
-                            : '—'}
+                            : '-'}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -537,7 +537,7 @@ const PostsList = (): React.JSX.Element => {
                             View
                           </a>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -555,14 +555,14 @@ const PostsList = (): React.JSX.Element => {
                             {toTitle(post.emotion)}
                           </Badge>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </TableCell>
                       <TableCell>
                         {post.aspect ? (
                           <Badge variant="default">{toTitle(post.aspect)}</Badge>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -627,11 +627,11 @@ const PostsList = (): React.JSX.Element => {
                   <MetaRow k="Sentiment" v={`${fmtScore(selected.score)} / 5`} />
                   <MetaRow
                     k="Emotion"
-                    v={selected.emotion ? toTitle(selected.emotion) : '—'}
+                    v={selected.emotion ? toTitle(selected.emotion) : '-'}
                   />
                   <MetaRow
                     k="Aspect"
-                    v={selected.aspect ? toTitle(selected.aspect) : '—'}
+                    v={selected.aspect ? toTitle(selected.aspect) : '-'}
                   />
                 </>
               ) : (
@@ -640,7 +640,7 @@ const PostsList = (): React.JSX.Element => {
                   v={
                     selected.irrelevanceReason
                       ? REASON_LABEL[selected.irrelevanceReason]
-                      : '—'
+                      : '-'
                   }
                 />
               )}

@@ -17,6 +17,7 @@ import Badge from '../../components/Badge/Badge'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { selectClass } from '@/lib/select-styles'
 import {
   Table,
   TableBody,
@@ -32,9 +33,6 @@ const TYPE_BADGE_VARIANT: Record<KeywordType, 'primary' | 'info' | 'warning' | '
   MISSPELLING: 'warning',
   OTHER: 'default',
 }
-
-const selectClass =
-  'flex h-9 rounded-md border border-input bg-card px-3 text-[13px] text-foreground transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50'
 
 interface KeywordPanelProps {
   brandId: number
